@@ -11,12 +11,19 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, completeLogin } = useLmsSession();
   const categoriesQuery = trpc.catalog.categories.useQuery();
+  const settingsQuery = trpc.catalog.uiSettings.useQuery();
   const coursesQuery = trpc.catalog.courses.useQuery();
   const learningQuery = trpc.student.learning.useQuery(undefined, { enabled: Boolean(user), retry: false });
   const liveQuery = trpc.student.liveClasses.useQuery(undefined, { enabled: Boolean(user), retry: false });
   const previewAdminMutation = trpc.auth.previewAdmin.useMutation();
   const activeLearning = learningQuery.data?.[0];
   const upcomingClass = liveQuery.data?.[0];
+  const publicSettings = settingsQuery.data ?? {};
+  const appName = typeof publicSettings["brand.app_name"] === "string" ? publicSettings["brand.app_name"] : "Amin Ka Master";
+  const heroTitle = typeof publicSettings["homepage.hero_title"] === "string" ? publicSettings["homepage.hero_title"] : "Build field confidence, one lesson at a time.";
+  const heroSubtitle = typeof publicSettings["homepage.hero_subtitle"] === "string" ? publicSettings["homepage.hero_subtitle"] : "Practical surveying and Amin exam preparation, organised around your next step.";
+  const heroCta = typeof publicSettings["homepage.hero_cta"] === "string" ? publicSettings["homepage.hero_cta"] : user ? "Explore courses" : "Start learning";
+  const showLive = typeof publicSettings["homepage.show_live"] === "boolean" ? publicSettings["homepage.show_live"] : true;
   const openAdminPreview = async () => {
     try {
       const payload = await previewAdminMutation.mutateAsync();
@@ -33,7 +40,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>{user ? "YOUR LEARNING SPACE" : "LEARN. MEASURE. MASTER."}</Text>
-            <Text style={styles.greeting}>{user?.fullName ? `Hello, ${user.fullName.split(" ")[0]}` : "Amin Ka Master"}</Text>
+            <Text style={styles.greeting}>{user?.fullName ? `Hello, ${user.fullName.split(" ")[0]}` : appName}</Text>
           </View>
           <Pressable accessibilityLabel="Notifications" onPress={() => user ? router.push("/notifications") : router.push("/auth")} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}>
             <MaterialIcons name="notifications-none" size={24} color={COLORS.indigo} />
@@ -50,13 +57,13 @@ export default function HomeScreen() {
           </Card>
         ) : (
           <View style={styles.hero}>
-            <View style={styles.heroCopy}><Text style={styles.heroTitle}>Build field confidence, one lesson at a time.</Text><Text style={styles.heroBody}>Practical surveying and Amin exam preparation, organised around your next step.</Text></View>
+            <View style={styles.heroCopy}><Text style={styles.heroTitle}>{heroTitle}</Text><Text style={styles.heroBody}>{heroSubtitle}</Text></View>
             <IconCircle icon="terrain" size={64} color={COLORS.saffron} background="rgba(255,255,255,0.12)" />
-            <PrimaryButton label={user ? "Explore courses" : "Start learning"} icon="arrow-forward" onPress={() => user ? router.push("/explore") : router.push("/auth")} subtle />
+            <PrimaryButton label={heroCta} icon="arrow-forward" onPress={() => user ? router.push("/explore") : router.push("/auth")} subtle />
           </View>
         )}
 
-        {upcomingClass ? (
+        {showLive && upcomingClass ? (
           <Pressable onPress={() => router.push("/live")} style={({ pressed }) => [styles.liveStrip, pressed && styles.pressed]}>
             <IconCircle icon="videocam" size={38} color={COLORS.green} background={COLORS.greenSoft} />
             <View style={styles.liveCopy}><Text style={styles.liveLabel}>UPCOMING LIVE CLASS</Text><Text numberOfLines={1} style={styles.liveTitle}>{upcomingClass.liveClass.title}</Text><Text style={styles.liveMeta}>{new Date(upcomingClass.liveClass.startsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</Text></View>

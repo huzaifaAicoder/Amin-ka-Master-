@@ -111,6 +111,7 @@ export const appRouter = router({
   }),
   catalog: router({
     categories: publicProcedure.query(() => db.listPublicCategories()),
+    uiSettings: publicProcedure.query(() => db.getManagedSettings()),
     courses: publicProcedure.input(z.object({ search: z.string().max(100).optional(), categorySlug: z.string().max(140).optional() }).optional()).query(({ input }) => db.listPublishedCourses(input?.search, input?.categorySlug)),
     course: publicProcedure.input(z.object({ slug: z.string().min(1).max(240) })).query(async ({ input }) => {
       const result = await db.getPublishedCourseBySlug(input.slug);
@@ -208,6 +209,19 @@ export const appRouter = router({
         await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title } });
         return { success: true } as const;
       }),
+    courseStructure: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ courseId: z.number().int().positive() })).query(({ input }) => db.getManagedCourseStructure(input.courseId)),
+    saveModule: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ moduleId: z.number().int().positive().optional(), courseId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), displayOrder: z.number().int().min(0).max(10000), isPublished: z.boolean() })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "courses.manage");
+      const moduleId = await db.saveManagedModule(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.moduleId ? "module.updated" : "module.created", entityType: "module", entityId: moduleId, metadata: { courseId: input.courseId, title: input.title } });
+      return { moduleId };
+    }),
+    saveLesson: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ lessonId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), contentType: z.enum(["video", "text", "image", "pdf", "mixed"]), contentUrl: z.string().trim().url().max(2048).optional().or(z.literal("")), provider: z.string().trim().max(64).optional(), durationSeconds: z.number().int().min(0).max(24 * 60 * 60), thumbnailUrl: z.string().trim().url().max(1024).optional().or(z.literal("")), isPreview: z.boolean(), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000) })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "courses.manage");
+      const lessonId = await db.saveManagedLesson({ ...input, contentUrl: input.contentUrl || undefined, thumbnailUrl: input.thumbnailUrl || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.lessonId ? "lesson.updated" : "lesson.created", entityType: "lesson", entityId: lessonId, metadata: { moduleId: input.moduleId, title: input.title, contentType: input.contentType } });
+      return { lessonId };
+    }),
     tests: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsTests()),
     test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ input }) => {
       const result = await db.getOperationsTest(input.testId);
@@ -267,6 +281,44 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.status_changed", entityType: "live_class", entityId: input.liveClassId, metadata: { status: input.status } });
       return { success: true } as const;
     }),
+    masterSettings: requireRoles(["super_admin"]).query(() => db.getManagedSettings()),
+    saveMasterSettings: requireRoles(["super_admin"]).input(z.object({
+      appName: z.string().trim().min(2).max(80).optional(), tagline: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(320).optional(), contactPhone: z.string().trim().max(40).optional(), whatsapp: z.string().trim().max(40).optional(), heroTitle: z.string().trim().max(220).optional(), heroSubtitle: z.string().trim().max(500).optional(), heroCta: z.string().trim().max(80).optional(), showLive: z.boolean().optional(), registrationEnabled: z.boolean().optional(), maintenanceEnabled: z.boolean().optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const values = {
+        ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}), ...(input.tagline !== undefined ? { "brand.tagline": input.tagline } : {}), ...(input.contactEmail !== undefined ? { "brand.contact_email": input.contactEmail } : {}), ...(input.contactPhone !== undefined ? { "brand.contact_phone": input.contactPhone } : {}), ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}), ...(input.heroTitle !== undefined ? { "homepage.hero_title": input.heroTitle } : {}), ...(input.heroSubtitle !== undefined ? { "homepage.hero_subtitle": input.heroSubtitle } : {}), ...(input.heroCta !== undefined ? { "homepage.hero_cta": input.heroCta } : {}), ...(input.showLive !== undefined ? { "homepage.show_live": input.showLive } : {}), ...(input.registrationEnabled !== undefined ? { "platform.registration_enabled": input.registrationEnabled } : {}), ...(input.maintenanceEnabled !== undefined ? { "platform.maintenance_enabled": input.maintenanceEnabled } : {}),
+      };
+      await db.saveManagedSettings(ctx.user.id, values);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });
+      return { success: true } as const;
+    }),
+    people: requireRoles(["admin", "super_admin"]).input(z.object({ search: z.string().trim().max(160).optional() }).optional()).query(({ input }) => db.listManagedUsers(input?.search)),
+    updatePerson: requireRoles(["super_admin"]).input(z.object({ userId: z.number().int().positive(), role: z.enum(["student", "teacher", "admin"]).optional(), status: z.enum(["active", "suspended"]).optional() }).refine((value) => value.role !== undefined || value.status !== undefined, "Choose a role or status update")).mutation(async ({ ctx, input }) => {
+      await db.updateManagedUser(input.userId, { role: input.role, status: input.status });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "person.updated", entityType: "user", entityId: input.userId, metadata: { role: input.role, status: input.status } });
+      return { success: true } as const;
+    }),
+    enrollments: requireRoles(["admin", "super_admin"]).query(() => db.listManagedEnrollments()),
+    setEnrollmentStatus: requireRoles(["super_admin"]).input(z.object({ enrollmentId: z.number().int().positive(), status: z.enum(["active", "expired", "revoked"]) })).mutation(async ({ ctx, input }) => {
+      await db.setManagedEnrollmentStatus(input.enrollmentId, input.status);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "enrollment.status_changed", entityType: "enrollment", entityId: input.enrollmentId, metadata: { status: input.status } });
+      return { success: true } as const;
+    }),
+    orders: requireRoles(["admin", "super_admin"]).query(() => db.listManagedOrders()),
+    reviews: requireRoles(["admin", "super_admin"]).query(() => db.listManagedReviews()),
+    setReviewStatus: requireRoles(["super_admin"]).input(z.object({ reviewId: z.number().int().positive(), status: z.enum(["pending", "approved", "hidden"]) })).mutation(async ({ ctx, input }) => {
+      await db.setManagedReviewStatus(input.reviewId, input.status);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "review.status_changed", entityType: "review", entityId: input.reviewId, metadata: { status: input.status } });
+      return { success: true } as const;
+    }),
+    announcements: requireRoles(["admin", "super_admin"]).query(() => db.listManagedAnnouncements()),
+    createAnnouncement: requireRoles(["admin", "super_admin"]).input(z.object({ title: z.string().trim().min(3).max(220), body: z.string().trim().min(3).max(10000), targetType: z.enum(["all_students", "course", "group", "student"]), targetId: z.number().int().positive().nullable().optional(), isPublished: z.boolean() })).mutation(async ({ ctx, input }) => {
+      if (input.targetType !== "all_students" && !input.targetId) throw new Error("Choose a target for this announcement");
+      const announcementId = await db.createManagedAnnouncement({ ...input, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "announcement.created", entityType: "announcement", entityId: announcementId, metadata: { targetType: input.targetType, isPublished: input.isPublished } });
+      return { announcementId };
+    }),
+    auditLogs: requireRoles(["super_admin"]).query(() => db.listManagedAuditLogs()),
     createCategory: requireRoles(["admin", "super_admin"]).input(z.object({ name: z.string().trim().min(3).max(120), slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(140), description: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
       const categoryId = await db.createCategory(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "category.created", entityType: "category", entityId: categoryId, metadata: { name: input.name } });

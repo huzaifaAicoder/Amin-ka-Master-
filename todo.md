@@ -25,3 +25,11 @@
 - [x] Add admin live-class scheduling for creating, editing, status control, secure meeting links, and recordings.
 - [x] Ensure the mobile preview exposes the admin workspace even from a persisted learner session and visibly reflects new updates after reload.
 - [x] Make logout visibly clear the current profile and learning state before returning to public preview mode.
+- [ ] Build the Super Admin control center with database-driven branding, homepage, CMS, operational settings, and audit visibility.
+- [ ] Add Super Admin workflows for students, teachers, admins, permissions, enrollments, reviews, notifications, and operational reporting.
+- [ ] Expand course administration to modules, lessons, resources, ordering, visibility, pricing, and safe archive workflows.
+- [ ] Document provider-dependent boundaries for uploads, protected video, payments, email, push, certificates, and live delivery without exposing secrets.
+- [x] Implement the Super Admin Control Center foundation for safe settings, homepage content, people/status controls, enrollments, read-only order review, review moderation, announcements, and audit activity.
+- [x] Make safe brand and homepage settings database-driven and reflect them in the learner home experience.
+- [x] Add persisted course-structure management for modules and lessons with order, publication, preview, provider, and content URL controls.
+- [x] Prove through automated tests that ordinary Admin accounts cannot access Super Admin settings or audit controls.

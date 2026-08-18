@@ -13,12 +13,14 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 import {
+  appSettings,
   announcements,
   auditLogs,
   authSessions,
   bookmarks,
   categories,
   courseModules,
+  courseReviews,
   courses,
   enrollments,
   lessonProgress,
@@ -26,6 +28,7 @@ import {
   lessons,
   liveClasses,
   notifications,
+  orders,
   personalNotes,
   questions,
   testAnswers,
@@ -709,8 +712,127 @@ export async function updateCourseStatus(courseId: number, status: "draft" | "pu
   await database.update(courses).set({ status }).where(eq(courses.id, courseId));
 }
 
+export async function getManagedCourseStructure(courseId: number) {
+  const database = await getDb();
+  if (!database) return { modules: [], lessons: [] };
+  const modules = await database.select().from(courseModules).where(eq(courseModules.courseId, courseId)).orderBy(asc(courseModules.displayOrder));
+  const moduleIds = modules.map((module) => module.id);
+  const lessonsForModules = moduleIds.length ? await database.select().from(lessons).where(inArray(lessons.moduleId, moduleIds)).orderBy(asc(lessons.displayOrder)) : [];
+  return { modules, lessons: lessonsForModules };
+}
+
+export async function saveManagedModule(input: { moduleId?: number; courseId: number; title: string; description?: string; displayOrder: number; isPublished: boolean }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (input.moduleId) {
+    await database.update(courseModules).set({ title: input.title, description: input.description, displayOrder: input.displayOrder, isPublished: input.isPublished }).where(and(eq(courseModules.id, input.moduleId), eq(courseModules.courseId, input.courseId)));
+    return input.moduleId;
+  }
+  const result = await database.insert(courseModules).values({ courseId: input.courseId, title: input.title, description: input.description, displayOrder: input.displayOrder, isPublished: input.isPublished });
+  return Number(result[0].insertId);
+}
+
+export async function saveManagedLesson(input: { lessonId?: number; moduleId: number; title: string; description?: string; contentType: "video" | "text" | "image" | "pdf" | "mixed"; contentUrl?: string; provider?: string; durationSeconds: number; thumbnailUrl?: string; isPreview: boolean; isPublished: boolean; displayOrder: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const values = { moduleId: input.moduleId, title: input.title, description: input.description, contentType: input.contentType, contentUrl: input.contentUrl, provider: input.provider, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, isPreview: input.isPreview, isPublished: input.isPublished, displayOrder: input.displayOrder };
+  if (input.lessonId) {
+    await database.update(lessons).set(values).where(and(eq(lessons.id, input.lessonId), eq(lessons.moduleId, input.moduleId)));
+    return input.lessonId;
+  }
+  const result = await database.insert(lessons).values(values);
+  return Number(result[0].insertId);
+}
+
 export async function listPublishedAnnouncements() {
   const database = await getDb();
   if (!database) return [];
   return database.select().from(announcements).where(eq(announcements.isPublished, true)).orderBy(desc(announcements.publishedAt));
+}
+
+const MANAGED_SETTINGS = [
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp",
+  "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
+  "platform.registration_enabled", "platform.maintenance_enabled",
+] as const;
+
+export type ManagedSettingKey = typeof MANAGED_SETTINGS[number];
+
+export async function getManagedSettings() {
+  const database = await getDb();
+  if (!database) return {} as Record<ManagedSettingKey, unknown>;
+  const rows = await database.select().from(appSettings).where(inArray(appSettings.settingKey, [...MANAGED_SETTINGS]));
+  return Object.fromEntries(rows.map((row) => [row.settingKey, row.settingValue])) as Partial<Record<ManagedSettingKey, unknown>>;
+}
+
+export async function saveManagedSettings(actorUserId: number, values: Partial<Record<ManagedSettingKey, unknown>>) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  for (const [settingKey, settingValue] of Object.entries(values)) {
+    if (!MANAGED_SETTINGS.includes(settingKey as ManagedSettingKey)) continue;
+    await database.insert(appSettings).values({ settingKey, settingValue, updatedByUserId: actorUserId }).onDuplicateKeyUpdate({ set: { settingValue, updatedByUserId: actorUserId } });
+  }
+}
+
+export async function listManagedUsers(search?: string) {
+  const database = await getDb();
+  if (!database) return [];
+  const needle = search?.trim();
+  const condition = needle ? or(like(users.fullName, `%${needle}%`), like(users.email, `%${needle}%`), like(users.mobile, `%${needle}%`)) : undefined;
+  return database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
+}
+
+export async function updateManagedUser(userId: number, input: { role?: "student" | "teacher" | "admin"; status?: "active" | "suspended" }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(users).set(input).where(eq(users.id, userId));
+}
+
+export async function listManagedEnrollments() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ enrollment: enrollments, studentName: users.fullName, studentEmail: users.email, courseTitle: courses.title }).from(enrollments).innerJoin(users, eq(enrollments.userId, users.id)).innerJoin(courses, eq(enrollments.courseId, courses.id)).orderBy(desc(enrollments.updatedAt)).limit(300);
+}
+
+export async function setManagedEnrollmentStatus(enrollmentId: number, status: "active" | "expired" | "revoked") {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(enrollments).set({ status }).where(eq(enrollments.id, enrollmentId));
+}
+
+export async function listManagedOrders() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ order: orders, studentName: users.fullName, studentEmail: users.email, courseTitle: courses.title }).from(orders).innerJoin(users, eq(orders.userId, users.id)).innerJoin(courses, eq(orders.courseId, courses.id)).orderBy(desc(orders.createdAt)).limit(300);
+}
+
+export async function listManagedReviews() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ review: courseReviews, studentName: users.fullName, courseTitle: courses.title }).from(courseReviews).innerJoin(users, eq(courseReviews.userId, users.id)).innerJoin(courses, eq(courseReviews.courseId, courses.id)).orderBy(desc(courseReviews.createdAt)).limit(300);
+}
+
+export async function setManagedReviewStatus(reviewId: number, status: "pending" | "approved" | "hidden") {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(courseReviews).set({ status }).where(eq(courseReviews.id, reviewId));
+}
+
+export async function listManagedAnnouncements() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select().from(announcements).orderBy(desc(announcements.createdAt)).limit(200);
+}
+
+export async function createManagedAnnouncement(input: { title: string; body: string; targetType: "all_students" | "course" | "group" | "student"; targetId?: number | null; isPublished: boolean; createdByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(announcements).values({ ...input, publishedAt: input.isPublished ? new Date() : null });
+  return Number(result[0].insertId);
+}
+
+export async function listManagedAuditLogs() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ audit: auditLogs, actorName: users.fullName, actorEmail: users.email }).from(auditLogs).leftJoin(users, eq(auditLogs.actorUserId, users.id)).orderBy(desc(auditLogs.createdAt)).limit(300);
 }

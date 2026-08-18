@@ -29,6 +29,8 @@ const student = {
   lastSignedIn: new Date(),
 };
 
+const admin = { ...student, id: 902, openId: "security-test-admin", email: "admin-security@example.com", role: "admin" as const };
+
 describe("LMS security boundaries", () => {
   it("stores a password as a salted one-way hash and validates only the correct value", () => {
     const hash = hashPassword("AminMaster!2026");
@@ -52,5 +54,11 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.liveClasses()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("reserves owner controls for Super Admin and rejects an ordinary Admin", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.operations.masterSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.auditLogs()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
