@@ -57,3 +57,6 @@
 - [x] Repair Operations back navigation so Super Admin can reliably return to the authenticated app.
 - [x] Run release-readiness checks for the Student flow and Super Admin/Staff controls, then save a backup checkpoint without publishing.
 - [x] Add reciprocal First Owner Setup and Staff/Admin Login navigation while keeping ordinary staff-account creation Super Admin-only.
+- [x] Add Staff/Admin Sign In and Create Account toggles with mandatory server-validated Staff Passkeys for both actions.
+- [x] Add Owner Sign In and Create Account toggles with mandatory Private Owner Setup Code verification for both actions.
+- [x] Reconcile and test the new passkey-gated self-registration flows without weakening role isolation, password security, or inline error handling.

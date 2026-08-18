@@ -39,6 +39,14 @@ const ownerSetupSchema = z.object({
   if (!value.email && !value.mobile) ctx.addIssue({ code: "custom", message: "Provide an email address or mobile number", path: ["email"] });
   if (value.staffPasskey !== value.staffPasskeyConfirmation) ctx.addIssue({ code: "custom", message: "The Staff Passkey confirmation does not match", path: ["staffPasskeyConfirmation"] });
 });
+const staffRegistrationSchema = credentialSchema.safeExtend({
+  staffPasskey: z.string().min(1, "A Staff Passkey is required").max(256),
+});
+const ownerLoginSchema = z.object({
+  email: z.string().trim().email("Enter the owner email address").max(320),
+  password: z.string().min(1, "Enter your password").max(128),
+  ownerSetupCode: z.string().min(1, "The Private Owner Passkey/Code is required").max(256),
+});
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
 const testDetailsSchema = z.object({
@@ -102,6 +110,33 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: result.user.id, action: "owner_setup.claimed", entityType: "user", entityId: result.user.id, metadata: { role: "super_admin" } });
       const session = await db.createSession(result.user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(result.user), session };
+    }),
+    registerStaff: publicProcedure.input(staffRegistrationSchema).mutation(async ({ input, ctx }) => {
+      if (!(await db.verifyActiveStaffPasskey(input.staffPasskey))) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "The Staff Passkey is incorrect or has been rotated." });
+      }
+      const user = await db.createStaffCredentialUser({
+        fullName: input.fullName,
+        email: input.email || undefined,
+        mobile: input.mobile || undefined,
+        password: input.password,
+        role: "teacher",
+      });
+      if (!user) throw new Error("Could not create your staff account");
+      await db.writeAudit({ actorUserId: user.id, action: "staff.self_registered", entityType: "user", entityId: user.id, metadata: { role: "teacher", verifiedBy: "staff_passkey" } });
+      const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(user), session };
+    }),
+    ownerLogin: publicProcedure.input(ownerLoginSchema).mutation(async ({ input, ctx }) => {
+      if (!verifyOwnerSetupCode(input.ownerSetupCode)) {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "The Private Owner Passkey/Code is incorrect." });
+      }
+      const user = await db.authenticateCredentialUser(input.email, input.password);
+      if (!user || user.role !== "super_admin") {
+        throw new TRPCError({ code: "UNAUTHORIZED", message: "The owner email or password is incorrect." });
+      }
+      const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(user), session };
     }),
     register: publicProcedure.input(credentialSchema).mutation(async ({ input, ctx }) => {
       const user = await db.registerCredentialUser({

@@ -72,6 +72,16 @@ describe("LMS security boundaries", () => {
     await expect(caller.auth.claimInitialOwner({ fullName: "Unapproved Owner", email: "owner-claim-test@example.com", mobile: "", password: "AminOwner!2026", staffPasskey: "AminStaffPasskey!2026", staffPasskeyConfirmation: "AminStaffPasskey!2026", ownerSetupCode: "incorrect-owner-code" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("rejects Staff/Admin account creation without the current Staff Passkey", async () => {
+    const caller = appRouter.createCaller(createContext(null));
+    await expect(caller.auth.registerStaff({ fullName: "Unapproved Staff", email: "staff-passkey-test@example.com", mobile: "", password: "AminStaff!2026", staffPasskey: "incorrect-staff-passkey" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("rejects owner sign-in without the Private Owner Setup Code", async () => {
+    const caller = appRouter.createCaller(createContext(null));
+    await expect(caller.auth.ownerLogin({ email: "owner-login-test@example.com", password: "AminOwner!2026", ownerSetupCode: "incorrect-owner-code" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("rejects a student attempting to enter the operations dashboard", async () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });
