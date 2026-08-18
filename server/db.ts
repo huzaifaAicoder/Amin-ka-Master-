@@ -34,6 +34,8 @@ import {
   orders,
   personalNotes,
   educationalShorts,
+  shortLikes,
+  shortSaves,
   freePlaylistItems,
   freePlaylists,
   questions,
@@ -1135,10 +1137,65 @@ export async function saveEducationalShort(input: { shortId?: number; title: str
   return Number(result[0].insertId);
 }
 
-export async function listPublishedShorts() {
+export async function listPublishedShorts(userId: number) {
   const database = await getDb();
   if (!database) return [];
-  return database.select().from(educationalShorts).where(eq(educationalShorts.status, "published")).orderBy(asc(educationalShorts.displayOrder), desc(educationalShorts.createdAt));
+  const shorts = await database.select().from(educationalShorts).where(eq(educationalShorts.status, "published")).orderBy(asc(educationalShorts.displayOrder), desc(educationalShorts.createdAt));
+  if (!shorts.length) return [];
+
+  const shortIds = shorts.map((short) => short.id);
+  const [likeRows, studentLikeRows, studentSaveRows] = await Promise.all([
+    database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(inArray(shortLikes.shortId, shortIds)),
+    database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(and(eq(shortLikes.userId, userId), inArray(shortLikes.shortId, shortIds))),
+    database.select({ shortId: shortSaves.shortId }).from(shortSaves).where(and(eq(shortSaves.userId, userId), inArray(shortSaves.shortId, shortIds))),
+  ]);
+  const likeCounts = new Map<number, number>();
+  for (const row of likeRows) likeCounts.set(row.shortId, (likeCounts.get(row.shortId) ?? 0) + 1);
+  const likedShortIds = new Set(studentLikeRows.map((row) => row.shortId));
+  const savedShortIds = new Set(studentSaveRows.map((row) => row.shortId));
+
+  return shorts.map((short) => ({
+    ...short,
+    likeCount: likeCounts.get(short.id) ?? 0,
+    isLiked: likedShortIds.has(short.id),
+    isSaved: savedShortIds.has(short.id),
+  }));
+}
+
+async function isPublishedShort(shortId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [short] = await database.select({ id: educationalShorts.id }).from(educationalShorts).where(and(eq(educationalShorts.id, shortId), eq(educationalShorts.status, "published"))).limit(1);
+  return Boolean(short);
+}
+
+export async function toggleShortLike(userId: number, shortId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (!(await isPublishedShort(shortId))) return null;
+  const [existing] = await database.select({ id: shortLikes.id }).from(shortLikes).where(and(eq(shortLikes.userId, userId), eq(shortLikes.shortId, shortId))).limit(1);
+  const liked = !existing;
+  if (existing) {
+    await database.delete(shortLikes).where(eq(shortLikes.id, existing.id));
+  } else {
+    await database.insert(shortLikes).values({ userId, shortId });
+  }
+  const [count] = await database.select({ count: sql<number>`count(*)` }).from(shortLikes).where(eq(shortLikes.shortId, shortId));
+  return { liked, likeCount: Number(count?.count ?? 0) };
+}
+
+export async function toggleShortSave(userId: number, shortId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (!(await isPublishedShort(shortId))) return null;
+  const [existing] = await database.select({ id: shortSaves.id }).from(shortSaves).where(and(eq(shortSaves.userId, userId), eq(shortSaves.shortId, shortId))).limit(1);
+  const saved = !existing;
+  if (existing) {
+    await database.delete(shortSaves).where(eq(shortSaves.id, existing.id));
+  } else {
+    await database.insert(shortSaves).values({ userId, shortId });
+  }
+  return { saved };
 }
 
 export async function saveManagedModule(input: { moduleId?: number; courseId: number; title: string; description?: string; displayOrder: number; isPublished: boolean }) {

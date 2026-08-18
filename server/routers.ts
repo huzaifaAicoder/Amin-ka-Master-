@@ -298,7 +298,17 @@ export const appRouter = router({
     }),
     liveClasses: protectedProcedure.query(({ ctx }) => db.listMyLiveClasses(ctx.user.id)),
     freePlaylists: protectedProcedure.query(() => db.listPublishedFreePlaylists()),
-    shorts: protectedProcedure.query(() => db.listPublishedShorts()),
+    shorts: protectedProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
+    toggleShortLike: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const result = await db.toggleShortLike(ctx.user.id, input.shortId);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
+      return result;
+    }),
+    toggleShortSave: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const result = await db.toggleShortSave(ctx.user.id, input.shortId);
+      if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
+      return result;
+    }),
   }),
   operations: router({
     summary: requireRoles(["teacher", "admin", "super_admin"]).query(({ ctx }) => {

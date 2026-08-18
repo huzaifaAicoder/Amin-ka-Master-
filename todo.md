@@ -68,3 +68,4 @@
 - [x] Add Owner/Staff short-form educational video management and a student-facing vertical Shorts feed with bottom navigation access.
 - [x] Improve legacy Android 10-plus rendering, low-data media handling, and responsive desktop web layouts for course and admin experiences.
 - [x] Add Course Manager and Test Manager skeleton states and retry controls for failed dashboard requests.
+- [x] Add persistent Like and Save state plus Share controls to the student Shorts feed with protected student APIs.

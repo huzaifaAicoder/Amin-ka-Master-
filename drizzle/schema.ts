@@ -283,6 +283,34 @@ export const educationalShorts = mysqlTable(
   (table) => [index("educational_shorts_status_order_idx").on(table.status, table.displayOrder)],
 );
 
+export const shortLikes = mysqlTable(
+  "short_likes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    shortId: int("shortId").notNull(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("short_like_user_short_uq").on(table.userId, table.shortId),
+    index("short_likes_short_idx").on(table.shortId),
+  ],
+);
+
+export const shortSaves = mysqlTable(
+  "short_saves",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    shortId: int("shortId").notNull(),
+    userId: int("userId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("short_save_user_short_uq").on(table.userId, table.shortId),
+    index("short_saves_user_idx").on(table.userId),
+  ],
+);
+
 export const enrollments = mysqlTable(
   "enrollments",
   {
