@@ -33,3 +33,6 @@
 - [x] Make safe brand and homepage settings database-driven and reflect them in the learner home experience.
 - [x] Add persisted course-structure management for modules and lessons with order, publication, preview, provider, and content URL controls.
 - [x] Prove through automated tests that ordinary Admin accounts cannot access Super Admin settings or audit controls.
+- [x] Diagnose and repair the broken shared mobile preview session reported by the user.
+- [x] Restore the live Metro/mobile bundle so phone previews receive the latest Super Admin implementation rather than a stale revision.
+- [x] Require login or sign-up before entering any learner, catalog, account, or administrative application screen.
