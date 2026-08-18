@@ -52,3 +52,4 @@
 - [x] Repair the Account-screen Sign out control so its confirmation and redirect work consistently on physical mobile devices.
 - [x] Add a Super Admin-only workflow to create Teacher and Admin accounts with secure initial credentials and audit logging.
 - [x] Add protected staff onboarding controls to the Super Admin people-management interface without changing student-only public registration.
+- [x] Add a secure and discoverable first Super Admin provisioning path so staff accounts can be created before ordinary Staff/Admin login is attempted.

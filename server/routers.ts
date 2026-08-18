@@ -5,6 +5,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
+import { isOwnerSetupConfigured, verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
 import { protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
 import * as db from "./db";
@@ -25,6 +26,18 @@ const verifyOtpSchema = passwordResetIdentitySchema.extend({ code: z.string().tr
 const resetPasswordSchema = z.object({
   resetToken: z.string().min(32).max(256),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
+});
+const ownerSetupSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter your full name").max(160),
+  email: z.string().trim().email().max(320).optional().or(z.literal("")),
+  mobile: mobileSchema.optional().or(z.literal("")),
+  password: z.string().min(12, "Use a password of at least 12 characters").max(128),
+  staffPasskey: z.string().min(12, "Use a Staff Passkey of at least 12 characters").max(256),
+  staffPasskeyConfirmation: z.string().min(12).max(256),
+  ownerSetupCode: z.string().min(1).max(256),
+}).superRefine((value, ctx) => {
+  if (!value.email && !value.mobile) ctx.addIssue({ code: "custom", message: "Provide an email address or mobile number", path: ["email"] });
+  if (value.staffPasskey !== value.staffPasskeyConfirmation) ctx.addIssue({ code: "custom", message: "The Staff Passkey confirmation does not match", path: ["staffPasskeyConfirmation"] });
 });
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
@@ -80,6 +93,16 @@ async function requireDelegatedPermission(
 export const appRouter = router({
   system: systemRouter,
   auth: router({
+    ownerSetupStatus: publicProcedure.query(async () => ({ available: isOwnerSetupConfigured() && await db.isInitialOwnerSetupAvailable() })),
+    claimInitialOwner: publicProcedure.input(ownerSetupSchema).mutation(async ({ input, ctx }) => {
+      if (!verifyOwnerSetupCode(input.ownerSetupCode)) throw new TRPCError({ code: "FORBIDDEN", message: "Initial owner setup is unavailable or the setup code is incorrect." });
+      const result = await db.claimInitialOwnerAccount({ fullName: input.fullName, email: input.email || undefined, mobile: input.mobile || undefined, password: input.password, staffPasskey: input.staffPasskey });
+      if (result.status === "identity_exists") throw new TRPCError({ code: "CONFLICT", message: "An account already exists for that email or mobile number." });
+      if (result.status !== "claimed" || !result.user) throw new TRPCError({ code: "FORBIDDEN", message: "Initial owner setup is unavailable or has already been completed." });
+      await db.writeAudit({ actorUserId: result.user.id, action: "owner_setup.claimed", entityType: "user", entityId: result.user.id, metadata: { role: "super_admin" } });
+      const session = await db.createSession(result.user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(result.user), session };
+    }),
     register: publicProcedure.input(credentialSchema).mutation(async ({ input, ctx }) => {
       const user = await db.registerCredentialUser({
         fullName: input.fullName,

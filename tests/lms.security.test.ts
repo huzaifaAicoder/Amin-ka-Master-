@@ -67,6 +67,11 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.learning()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
+  it("rejects initial Super Admin setup without the private owner code", async () => {
+    const caller = appRouter.createCaller(createContext(null));
+    await expect(caller.auth.claimInitialOwner({ fullName: "Unapproved Owner", email: "owner-claim-test@example.com", mobile: "", password: "AminOwner!2026", staffPasskey: "AminStaffPasskey!2026", staffPasskeyConfirmation: "AminStaffPasskey!2026", ownerSetupCode: "incorrect-owner-code" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("rejects a student attempting to enter the operations dashboard", async () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });

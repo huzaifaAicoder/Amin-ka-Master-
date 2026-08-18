@@ -47,6 +47,7 @@ An account with the **Teacher**, **Admin**, or **Super Admin** role is now sent 
 | Staff Passkey | Teacher, Admin and Super Admin login requires a second, server-validated Staff Passkey after credential authentication. The active key is persisted only as a salted `scrypt` hash; it is never returned by an API or rendered in student-facing views. |
 | Staff Passkey rotation | Only Super Admin can rotate the key. Rotation verifies the current key server-side, revokes the prior hashed key, creates a new hash, writes an audit event without secret values, and invalidates every active staff session. |
 | Staff account onboarding | Super Admin can create Teacher or Admin accounts from **Control Center → People** with an official email or Indian mobile number and a strong initial password. The action is audited; public registration cannot create staff accounts. |
+| First owner setup | Before the first usable Super Admin is available, the sign-in landing screen presents **First owner setup**. It is a one-time server-guarded flow that verifies `OWNER_SETUP_CODE`, creates the Super Admin credentials, and establishes the first hashed Staff Passkey together. It is not a public staff-registration route. |
 | Logout resilience | Account sign-out always clears native secure storage, cached user state and authenticated query state, even if an intermittent network failure prevents server revocation from completing. Server-side revocation remains the normal path. |
 
 ## Provider boundaries and required configuration
@@ -72,6 +73,7 @@ The project deliberately does not include hard-coded payment, email, streaming o
 5. Configure, test and monitor the account-recovery delivery provider before opening registration to the public. Do not enable the development delivery mode in production.
 6. Store a strong `STAFF_PASSKEY_BOOTSTRAP` only in secret settings, complete the first Super Admin bootstrap, then rotate and distribute the database-managed Staff Passkey through an approved confidential process.
 7. Create Teacher and Admin accounts only through **Control Center → People**. Send each new staff member their initial password and the current Staff Passkey through separate approved confidential channels, then ask them to change/reset their password after their first login.
+8. On a fresh deployment, use **First owner setup** with the private `OWNER_SETUP_CODE` to create the first Super Admin account and Staff Passkey. The option disappears after a successful claim. Do not share the Owner Setup Code with staff or students.
 6. Carry out penetration testing, abuse/rate-limit testing, device/session review, database backups and disaster-recovery rehearsals.
 7. Add internal dashboards for payment reconciliation, failed notification delivery, moderation queue and audit-log review.
 

@@ -228,6 +228,52 @@ export async function createStaffCredentialUser(input: {
   return created[0];
 }
 
+const OWNER_SETUP_CLAIM_KEY = "security.owner_setup_claimed";
+
+export async function isInitialOwnerSetupAvailable() {
+  const database = await getDb();
+  if (!database) return false;
+  const existingClaim = await database.select({ id: appSettings.id }).from(appSettings).where(eq(appSettings.settingKey, OWNER_SETUP_CLAIM_KEY)).limit(1);
+  return !existingClaim[0];
+}
+
+export async function claimInitialOwnerAccount(input: {
+  fullName: string;
+  email?: string;
+  mobile?: string;
+  password: string;
+  staffPasskey: string;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const email = input.email ? normalizeIdentity(input.email) : null;
+  const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
+  return database.transaction(async (tx) => {
+    const existingClaim = await tx.select({ id: appSettings.id }).from(appSettings).where(eq(appSettings.settingKey, OWNER_SETUP_CLAIM_KEY)).limit(1);
+    if (existingClaim[0]) return { status: "already_claimed" as const };
+    const activeStaffPasskey = await tx.select({ id: staffPasskeys.id }).from(staffPasskeys).where(sql`${staffPasskeys.revokedAt} IS NULL`).limit(1);
+    if (activeStaffPasskey[0]) return { status: "staff_passkey_already_configured" as const };
+    const identityMatch = await tx.select({ id: users.id }).from(users).where(or(email ? eq(users.email, email) : sql`false`, mobile ? eq(users.mobile, mobile) : sql`false`)).limit(1);
+    if (identityMatch[0]) return { status: "identity_exists" as const };
+    const result = await tx.insert(users).values({
+      openId: `local_${randomUUID()}`,
+      fullName: input.fullName.trim(),
+      email,
+      mobile,
+      passwordHash: hashPassword(input.password),
+      loginMethod: "password",
+      role: "super_admin",
+      status: "active",
+      lastSignedIn: new Date(),
+    });
+    const userId = Number(result[0].insertId);
+    await tx.insert(staffPasskeys).values({ passkeyHash: hashPassword(input.staffPasskey), createdByUserId: userId });
+    await tx.insert(appSettings).values({ settingKey: OWNER_SETUP_CLAIM_KEY, settingValue: { claimedAt: new Date().toISOString() }, updatedByUserId: userId });
+    const created = await tx.select().from(users).where(eq(users.id, userId)).limit(1);
+    return { status: "claimed" as const, user: created[0] };
+  });
+}
+
 export async function authenticateCredentialUser(identity: string, password: string) {
   const user = await getUserByIdentity(identity);
   if (!user || user.status !== "active" || !user.passwordHash) return undefined;
