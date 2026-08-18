@@ -23,3 +23,5 @@
 - [x] Fix logout so it revokes the local session and returns reliably to the unauthenticated experience.
 - [x] Add admin test management for creating, editing, publishing, and scheduling timed MCQ assessments with questions.
 - [x] Add admin live-class scheduling for creating, editing, status control, secure meeting links, and recordings.
+- [x] Ensure the mobile preview exposes the admin workspace even from a persisted learner session and visibly reflects new updates after reload.
+- [x] Make logout visibly clear the current profile and learning state before returning to public preview mode.

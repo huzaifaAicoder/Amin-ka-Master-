@@ -5,6 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
+import { trpc } from "@/lib/trpc";
 
 type AccountRowProps = { icon: React.ComponentProps<typeof MaterialIcons>["name"]; label: string; detail?: string; onPress: () => void; tone?: "default" | "danger" };
 function AccountRow({ icon, label, detail, onPress, tone = "default" }: AccountRowProps) {
@@ -13,14 +14,24 @@ function AccountRow({ icon, label, detail, onPress, tone = "default" }: AccountR
 
 export default function AccountScreen() {
   const router = useRouter();
-  const { user, logout } = useLmsSession();
+  const { user, logout, completeLogin } = useLmsSession();
   const staff = user && user.role !== "student";
+  const previewAdminMutation = trpc.auth.previewAdmin.useMutation();
 
   if (!user) {
     return <ScreenContainer className="px-5" edges={["top", "left", "right"]}><View style={styles.anonHeader}><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Keep your study history secure and accessible.</Text></View><View style={styles.signInCard}><IconCircle icon="account-circle" size={64} /><Text style={styles.signInTitle}>A learning profile that travels with you</Text><Text style={styles.signInBody}>Sign in with email or mobile to enroll, save notes, track progress and take tests.</Text><Pressable onPress={() => router.push("/auth")} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}><Text style={styles.primaryText}>Sign in or create account</Text></Pressable></View></ScreenContainer>;
   }
 
-  const confirmLogout = () => Alert.alert("Sign out", "Your session will be revoked on this device.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/"); } }]);
+  const openAdminPreview = async () => {
+    try {
+      const payload = await previewAdminMutation.mutateAsync();
+      await completeLogin(payload);
+      router.replace("/operations");
+    } catch (cause) {
+      Alert.alert("Admin preview unavailable", cause instanceof Error ? cause.message : "Please reload the preview and try again.");
+    }
+  };
+  const confirmLogout = () => Alert.alert("Sign out", "Your session will be revoked on this device and the app will return to the sign-in screen.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/auth"); } }]);
   return (
     <ScreenContainer className="px-5" edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -28,7 +39,8 @@ export default function AccountScreen() {
         <View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{(user.fullName ?? "A").slice(0, 1).toUpperCase()}</Text></View><View style={styles.profileText}><Text style={styles.name}>{user.fullName ?? "Learner"}</Text><Text style={styles.identity}>{user.email ?? user.mobile ?? "Amin Ka Master learner"}</Text><Tag label={user.role.replace("_", " ").toUpperCase()} tone={staff ? "saffron" : "indigo"} /></View></View>
         <Text style={styles.sectionTitle}>Learning</Text>
         <View style={styles.group}><AccountRow icon="assignment" label="Practice tests" detail="Attempts and results" onPress={() => router.push("/tests")} /><AccountRow icon="videocam" label="Live classes" detail="Upcoming and completed sessions" onPress={() => router.push("/live")} /><AccountRow icon="notifications-none" label="Notifications" detail="Course updates and announcements" onPress={() => router.push("/notifications")} /></View>
-        {staff ? <><View style={styles.adminCallout}><View style={styles.adminCalloutTop}><IconCircle icon="admin-panel-settings" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.12)" /><View style={styles.adminCalloutCopy}><Text style={styles.adminCalloutTitle}>Admin tools</Text><Text style={styles.adminCalloutBody}>Add, edit and publish courses from your management workspace.</Text></View></View><PrimaryButton label="Manage courses" icon="edit" onPress={() => router.push("/operations/courses" as never)} subtle /></View><Text style={styles.sectionTitle}>Operations</Text><View style={styles.group}><AccountRow icon="admin-panel-settings" label="Operations dashboard" detail="Courses, students and content" onPress={() => router.push("/operations")} /><AccountRow icon="menu-book" label="Course manager" detail="Add, edit and publish courses" onPress={() => router.push("/operations/courses" as never)} /></View></> : null}
+        {!staff ? <><Text style={styles.sectionTitle}>Preview tools</Text><View style={styles.previewCallout}><IconCircle icon="admin-panel-settings" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.12)" /><View style={styles.previewCopy}><Text style={styles.previewTitle}>Open admin workspace</Text><Text style={styles.previewBody}>Switch this preview to Super Admin to review courses, tests and live classes. This request is blocked by the server in a production release.</Text></View><PrimaryButton label={previewAdminMutation.isPending ? "Opening…" : "Open admin"} icon="arrow-forward" onPress={() => void openAdminPreview()} disabled={previewAdminMutation.isPending} subtle /></View></> : null}
+        {staff ? <><View style={styles.adminCallout}><View style={styles.adminCalloutTop}><IconCircle icon="admin-panel-settings" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.12)" /><View style={styles.adminCalloutCopy}><Text style={styles.adminCalloutTitle}>Admin tools</Text><Text style={styles.adminCalloutBody}>Manage courses, timed tests and live-class schedules from one protected workspace.</Text></View></View><PrimaryButton label="Open operations" icon="admin-panel-settings" onPress={() => router.push("/operations")} subtle /></View><Text style={styles.sectionTitle}>Operations</Text><View style={styles.group}><AccountRow icon="admin-panel-settings" label="Operations dashboard" detail="Courses, students and content" onPress={() => router.push("/operations")} /><AccountRow icon="menu-book" label="Course manager" detail="Add, edit and publish courses" onPress={() => router.push("/operations/courses" as never)} /><AccountRow icon="assignment" label="Test manager" detail="Build and publish MCQ assessments" onPress={() => router.push("/operations/tests" as never)} /><AccountRow icon="videocam" label="Live class scheduler" detail="Create and reschedule sessions" onPress={() => router.push("/operations/live" as never)} /></View></> : null}
         <Text style={styles.sectionTitle}>Security</Text>
         <View style={styles.group}><AccountRow icon="devices" label="Active sessions" detail="Review or invalidate sessions" onPress={() => router.push("/sessions")} /><AccountRow icon="logout" label="Sign out" onPress={confirmLogout} tone="danger" /></View>
       </ScrollView>
@@ -55,6 +67,10 @@ const styles = StyleSheet.create({
   adminCalloutCopy: { flex: 1, gap: 3 },
   adminCalloutTitle: { color: COLORS.white, fontWeight: "900", fontSize: 17 },
   adminCalloutBody: { color: "#D6DFF2", fontSize: 12, lineHeight: 17 },
+  previewCallout: { marginTop: 1, padding: 16, borderRadius: 21, backgroundColor: COLORS.indigo, gap: 12 },
+  previewCopy: { gap: 3 },
+  previewTitle: { color: COLORS.white, fontWeight: "900", fontSize: 17 },
+  previewBody: { color: "#D6DFF2", fontSize: 12, lineHeight: 17 },
   name: { color: COLORS.white, fontSize: 18, fontWeight: "800" },
   identity: { color: "#D6DFF2", fontSize: 12 },
   sectionTitle: { marginTop: 25, marginBottom: 9, color: COLORS.muted, fontSize: 11, fontWeight: "900", letterSpacing: 1.1 },
