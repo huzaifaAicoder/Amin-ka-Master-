@@ -36,3 +36,4 @@
 - [x] Diagnose and repair the broken shared mobile preview session reported by the user.
 - [x] Restore the live Metro/mobile bundle so phone previews receive the latest Super Admin implementation rather than a stale revision.
 - [x] Require login or sign-up before entering any learner, catalog, account, or administrative application screen.
+- [x] Add clear incorrect-credential feedback and an accessible loading animation to the sign-in flow.
