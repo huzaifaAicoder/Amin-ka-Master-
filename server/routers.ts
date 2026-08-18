@@ -158,6 +158,27 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "course.status_changed", entityType: "course", entityId: input.courseId, metadata: { status: input.status } });
       return { success: true } as const;
     }),
+    updateCourse: requireRoles(["teacher", "admin", "super_admin"])
+      .input(z.object({
+        courseId: z.number().int().positive(),
+        categoryId: z.number().int().positive(),
+        title: z.string().trim().min(3).max(220),
+        slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(240),
+        shortDescription: z.string().trim().min(10).max(500),
+        fullDescription: z.string().trim().max(20000).optional(),
+        mrp: z.string().regex(/^\d+(\.\d{1,2})?$/),
+        sellingPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+        accessType: z.enum(["free", "lifetime", "time_limited"]),
+        accessDurationDays: z.number().int().positive().max(3650).nullable().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await requireDelegatedPermission(ctx.user, "courses.manage");
+        if (Number(input.sellingPrice) > Number(input.mrp)) throw new Error("Selling price cannot exceed MRP");
+        if (input.accessType === "time_limited" && !input.accessDurationDays) throw new Error("Time-limited courses need an access duration");
+        await db.updateCourse(input);
+        await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title } });
+        return { success: true } as const;
+      }),
     createCategory: requireRoles(["admin", "super_admin"]).input(z.object({ name: z.string().trim().min(3).max(120), slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(140), description: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
       const categoryId = await db.createCategory(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "category.created", entityType: "category", entityId: categoryId, metadata: { name: input.name } });

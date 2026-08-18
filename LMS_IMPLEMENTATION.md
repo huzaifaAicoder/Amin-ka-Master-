@@ -12,7 +12,7 @@ The project is an Expo mobile LMS with a server-backed MySQL/Drizzle data model.
 | Learning | Server-validated enrollment, protected lesson access, watched/completion progress, private notes, and bookmarks. |
 | Assessments | Server-issued questions, persisted attempts/answers, server-derived scores, duplicate-submission protection, and server-enforced attempt expiry. |
 | Live and communications | Entitlement-filtered live-class schedule and a per-user in-app notification inbox. |
-| Operations | Role-gated metrics, course publication visibility, teacher permission checks, create-category API, and audit records for course/category actions. |
+| Operations | Role-gated metrics, a direct course manager for adding/editing courses, publishing controls, teacher permission checks, create-category API, and audit records for managed actions. |
 | Mobile experience | Home, Explore, My Learning, Account, course, lesson, tests, test attempt, live-class, notifications, active-session, and operations screens. |
 
 ## Demonstration accounts
@@ -24,6 +24,10 @@ These are **non-production seed accounts** included solely to make feature revie
 | Student | `student@aminkamaster.demo` | `AminMaster!2026` | Free enrollment, lesson progress, test attempt, notifications and sessions. |
 | Teacher | `teacher@aminkamaster.demo` | `AminMaster!2026` | Operations dashboard and delegated course-management permissions. |
 | Super Admin | `admin@aminkamaster.demo` | `AminMaster!2026` | Full operations view and protected administrative APIs. |
+
+## Admin entry path
+
+An account with the **Teacher**, **Admin**, or **Super Admin** role is now sent directly to **Operations** after sign-in. From there, select **Manage courses** to create a draft course, edit the title, summary, category, access type and pricing for any existing course, and cycle its publication state between draft, published and archived. The same **Manage courses** shortcut is also shown prominently at the top of the Account tab for every staff role.
 
 ## Security controls
 

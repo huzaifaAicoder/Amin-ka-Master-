@@ -23,16 +23,18 @@ export default function AuthScreen() {
   const submit = async () => {
     setError(null);
     try {
+      let signedInRole: "student" | "teacher" | "admin" | "super_admin" = "student";
       if (mode === "login") {
         const payload = await loginMutation.mutateAsync({ identity, password });
         await completeLogin(payload);
+        signedInRole = payload.user.role;
       } else {
         const cleanIdentity = identity.trim();
         const isEmail = cleanIdentity.includes("@");
         const payload = await registerMutation.mutateAsync({ fullName, email: isEmail ? cleanIdentity : "", mobile: isEmail ? "" : cleanIdentity, password });
         await completeLogin(payload);
       }
-      router.replace("/");
+      router.replace(signedInRole === "student" ? "/" : "/operations");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We could not complete that request. Please try again.");
     }

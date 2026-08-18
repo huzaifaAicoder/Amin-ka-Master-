@@ -566,6 +566,36 @@ export async function createCourse(input: {
   return Number(result[0].insertId);
 }
 
+export async function updateCourse(input: {
+  courseId: number;
+  categoryId: number;
+  title: string;
+  slug: string;
+  shortDescription: string;
+  fullDescription?: string;
+  mrp: string;
+  sellingPrice: string;
+  accessType: "free" | "lifetime" | "time_limited";
+  accessDurationDays?: number | null;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database
+    .update(courses)
+    .set({
+      categoryId: input.categoryId,
+      title: input.title,
+      slug: input.slug,
+      shortDescription: input.shortDescription,
+      fullDescription: input.fullDescription,
+      mrp: input.mrp,
+      sellingPrice: input.sellingPrice,
+      accessType: input.accessType,
+      accessDurationDays: input.accessDurationDays,
+    })
+    .where(eq(courses.id, input.courseId));
+}
+
 export async function createCategory(input: { name: string; slug: string; description?: string }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");

@@ -14,3 +14,5 @@
 - [x] Create README, environment documentation, security checklist, known limitations, and test report.
 - [x] Run type checks and automated tests, including adversarial authorization and validation cases.
 - [ ] Show post-attempt answer explanations and add full operational CRUD screens for tests, live classes, announcements, and CMS settings.
+- [x] Surface the admin dashboard immediately after an admin sign-in and add direct course-management shortcuts to the primary navigation.
+- [x] Verify that the admin role receives the correct management controls and document the exact admin entry path.
