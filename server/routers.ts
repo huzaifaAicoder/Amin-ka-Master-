@@ -83,16 +83,15 @@ export const appRouter = router({
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),
-    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128) })).mutation(async ({ input, ctx }) => {
+    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128), portal: z.enum(["student", "staff"]) })).mutation(async ({ input, ctx }) => {
       const user = await db.authenticateCredentialUser(input.identity, input.password);
       if (!user) throw new Error("Incorrect credentials or inactive account");
-      const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
-      return { user: safeUser(user), session };
-    }),
-    previewAdmin: publicProcedure.mutation(async ({ ctx }) => {
-      if (process.env.NODE_ENV === "production") throw new TRPCError({ code: "FORBIDDEN", message: "Preview access is disabled in production" });
-      const user = await db.getUserByOpenId("local_demo_super_admin");
-      if (!user || user.status !== "active") throw new Error("The local admin preview account is unavailable");
+      if (input.portal === "student" && user.role !== "student") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This account belongs to the Staff / Admin portal. Please use Staff / Admin Login." });
+      }
+      if (input.portal === "staff" && user.role === "student") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "This account is not authorized for the Staff / Admin portal." });
+      }
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),

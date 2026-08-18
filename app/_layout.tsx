@@ -30,14 +30,18 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const rootSegment = segments[0];
   const isPublicRoute = rootSegment === "auth" || rootSegment === "oauth";
+  const isStaffRoute = rootSegment === "operations";
+  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
 
   useEffect(() => {
     if (loading) return;
     if (!user && !isPublicRoute) router.replace("/auth");
     if (user && isPublicRoute) router.replace("/");
-  }, [isPublicRoute, loading, router, user]);
+    if (user?.role === "student" && isStaffRoute) router.replace("/");
+    if (user && user.role !== "student" && isStudentPortalRoute) router.replace("/operations");
+  }, [isPublicRoute, isStaffRoute, isStudentPortalRoute, loading, router, user]);
 
-  if (loading || (!user && !isPublicRoute) || (user && isPublicRoute)) {
+  if (loading || (!user && !isPublicRoute) || (user && isPublicRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && isStudentPortalRoute)) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
   }
   return <>{children}</>;

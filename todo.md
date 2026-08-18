@@ -37,3 +37,7 @@
 - [x] Restore the live Metro/mobile bundle so phone previews receive the latest Super Admin implementation rather than a stale revision.
 - [x] Require login or sign-up before entering any learner, catalog, account, or administrative application screen.
 - [x] Add clear incorrect-credential feedback and an accessible loading animation to the sign-in flow.
+- [x] Add a simple Student Login versus Staff/Admin Login entry screen without exposing privileged role selection.
+- [x] Enforce portal selection server-side so Student login cannot establish a staff session and Staff login cannot establish a student portal session.
+- [x] Add separate role-aware Student and Staff portal routing with direct-route protections and privilege-escalation regression tests.
+- [x] Preserve public registration as Student-only and document the optional future secure Staff Access Code boundary without exposing secrets.
