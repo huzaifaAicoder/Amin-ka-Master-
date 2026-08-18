@@ -21,6 +21,7 @@ const MAPPING = {
   "bell.fill": "notifications",
   "chevron.left": "chevron-left",
   "play.circle.fill": "play-circle-filled",
+  "bolt.circle.fill": "slow-motion-video",
   "lock.fill": "lock",
   "checkmark.circle.fill": "check-circle",
   "paperplane.fill": "send",

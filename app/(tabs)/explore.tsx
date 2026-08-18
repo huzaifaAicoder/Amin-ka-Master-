@@ -20,6 +20,7 @@ export default function ExploreScreen() {
   return (
     <ScreenContainer className="px-5" edges={["top", "left", "right"]}>
       <View style={styles.header}><Text style={styles.title}>Explore courses</Text><Text style={styles.subtitle}>Find the next concept to master.</Text></View>
+      <Pressable onPress={() => router.push("/free-playlists" as never)} style={({ pressed }) => [styles.freeCard, pressed && styles.pressed]}><View style={styles.freeIcon}><MaterialIcons name="playlist-play" size={23} color={COLORS.indigo} /></View><View style={{ flex: 1 }}><Text style={styles.freeTitle}>Free Playlists</Text><Text style={styles.freeText}>Open videos and PDF notes for every registered learner.</Text></View><MaterialIcons name="arrow-forward" size={20} color={COLORS.indigo} /></Pressable>
       <View style={styles.searchBox}><MaterialIcons name="search" size={22} color={COLORS.muted} /><TextInput value={search} onChangeText={setSearch} placeholder="Search courses" placeholderTextColor="#98A2B3" style={styles.searchInput} returnKeyType="search" accessibilityLabel="Search courses" /></View>
       <FlatList horizontal data={[{ id: 0, name: "All topics", slug: "" }, ...(categoriesQuery.data ?? [])]} keyExtractor={(item) => item.id.toString()} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} renderItem={({ item }) => { const active = (item.slug || undefined) === categorySlug; return <Pressable onPress={() => setCategorySlug(item.slug || undefined)} style={({ pressed }) => [styles.filter, active && styles.filterActive, pressed && styles.pressed]}><Text style={[styles.filterText, active && styles.filterTextActive]}>{item.name}</Text></Pressable>; }} />
       {coursesQuery.isLoading ? (
@@ -55,6 +56,10 @@ const styles = StyleSheet.create({
   title: { color: COLORS.ink, fontSize: 28, fontWeight: "800" },
   subtitle: { color: COLORS.muted, marginTop: 5, fontSize: 14 },
   searchBox: { backgroundColor: COLORS.white, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, minHeight: 52, paddingHorizontal: 14, alignItems: "center", flexDirection: "row", gap: 10 },
+  freeCard: { minHeight: 72, backgroundColor: COLORS.indigoSoft, borderRadius: 17, padding: 11, flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  freeIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.white },
+  freeTitle: { color: COLORS.indigo, fontSize: 14, fontWeight: "900" },
+  freeText: { color: COLORS.muted, fontSize: 11, marginTop: 3 },
   searchInput: { flex: 1, color: COLORS.ink, fontSize: 15, minHeight: 50 },
   filters: { gap: 8, paddingVertical: 16, paddingRight: 20 },
   filter: { borderWidth: 1, borderColor: COLORS.line, minHeight: 36, paddingHorizontal: 13, borderRadius: 999, justifyContent: "center", backgroundColor: COLORS.white },

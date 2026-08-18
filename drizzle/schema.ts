@@ -197,6 +197,92 @@ export const lessonResources = mysqlTable(
   (table) => [index("resources_lesson_order_idx").on(table.lessonId, table.displayOrder)],
 );
 
+export const moduleResources = mysqlTable(
+  "module_resources",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    moduleId: int("moduleId").notNull(),
+    title: varchar("title", { length: 220 }).notNull(),
+    description: text("description"),
+    resourceType: mysqlEnum("moduleResourceType", ["video", "pdf"]).notNull(),
+    storageKey: varchar("storageKey", { length: 1024 }),
+    contentUrl: varchar("contentUrl", { length: 2048 }),
+    provider: varchar("provider", { length: 64 }),
+    mimeType: varchar("mimeType", { length: 160 }),
+    sizeBytes: int("sizeBytes"),
+    durationSeconds: int("durationSeconds").default(0).notNull(),
+    thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
+    isPublished: boolean("isPublished").default(false).notNull(),
+    displayOrder: int("displayOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("module_resources_module_order_idx").on(table.moduleId, table.displayOrder)],
+);
+
+export const freePlaylists = mysqlTable(
+  "free_playlists",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    title: varchar("title", { length: 220 }).notNull(),
+    description: text("description"),
+    thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
+    isPublished: boolean("isPublished").default(false).notNull(),
+    displayOrder: int("displayOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("free_playlists_visibility_order_idx").on(table.isPublished, table.displayOrder)],
+);
+
+export const freePlaylistItems = mysqlTable(
+  "free_playlist_items",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    playlistId: int("playlistId").notNull(),
+    title: varchar("title", { length: 220 }).notNull(),
+    description: text("description"),
+    contentType: mysqlEnum("freePlaylistContentType", ["video", "pdf"]).notNull(),
+    storageKey: varchar("storageKey", { length: 1024 }),
+    contentUrl: varchar("contentUrl", { length: 2048 }),
+    provider: varchar("provider", { length: 64 }),
+    mimeType: varchar("mimeType", { length: 160 }),
+    sizeBytes: int("sizeBytes"),
+    durationSeconds: int("durationSeconds").default(0).notNull(),
+    thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
+    isPublished: boolean("isPublished").default(false).notNull(),
+    displayOrder: int("displayOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("free_playlist_items_playlist_order_idx").on(table.playlistId, table.displayOrder)],
+);
+
+export const educationalShorts = mysqlTable(
+  "educational_shorts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    title: varchar("title", { length: 220 }).notNull(),
+    description: varchar("description", { length: 1000 }),
+    videoUrl: varchar("videoUrl", { length: 2048 }).notNull(),
+    storageKey: varchar("storageKey", { length: 1024 }),
+    provider: varchar("provider", { length: 64 }),
+    mimeType: varchar("mimeType", { length: 160 }),
+    sizeBytes: int("sizeBytes"),
+    durationSeconds: int("durationSeconds").default(0).notNull(),
+    thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
+    status: mysqlEnum("shortStatus", ["draft", "published", "archived"]).default("draft").notNull(),
+    displayOrder: int("displayOrder").default(0).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("educational_shorts_status_order_idx").on(table.status, table.displayOrder)],
+);
+
 export const enrollments = mysqlTable(
   "enrollments",
   {

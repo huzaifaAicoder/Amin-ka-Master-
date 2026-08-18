@@ -62,3 +62,9 @@
 - [x] Reconcile and test the new passkey-gated self-registration flows without weakening role isolation, password security, or inline error handling.
 - [x] Repair Teacher Operations return navigation and optimize dashboard interactions and rendering for smoother mobile responsiveness.
 - [x] Add accessible skeleton loading placeholders to the Teacher Operations dashboard for slower networks.
+- [x] Fix persisted course price editing for Owner and Staff/Admin users in Course Manager.
+- [x] Add role-protected recorded video and PDF resources to course modules for Owner and Staff/Admin users.
+- [x] Add Free Playlists with freely accessible video and PDF resources for registered students and Owner/Staff management controls.
+- [x] Add Owner/Staff short-form educational video management and a student-facing vertical Shorts feed with bottom navigation access.
+- [x] Improve legacy Android 10-plus rendering, low-data media handling, and responsive desktop web layouts for course and admin experiences.
+- [x] Add Course Manager and Test Manager skeleton states and retry controls for failed dashboard requests.

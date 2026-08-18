@@ -49,6 +49,29 @@ const ownerLoginSchema = z.object({
 });
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
+const mediaReferenceSchema = z.object({
+  contentUrl: z.string().trim().url().max(2048).optional().or(z.literal("")),
+  storageKey: z.string().trim().max(1024).optional().or(z.literal("")),
+  provider: z.string().trim().max(64).optional().or(z.literal("")),
+  mimeType: z.string().trim().max(160).optional().or(z.literal("")),
+  sizeBytes: z.number().int().min(0).max(150 * 1024 * 1024).optional(),
+  durationSeconds: z.number().int().min(0).max(24 * 60 * 60).default(0),
+  thumbnailUrl: optionalUrl,
+}).superRefine((value, ctx) => {
+  if (!value.contentUrl && !value.storageKey) ctx.addIssue({ code: "custom", message: "Upload a file or provide a media URL", path: ["contentUrl"] });
+});
+const moduleResourceSchema = mediaReferenceSchema.safeExtend({
+  resourceId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), resourceType: z.enum(["video", "pdf"]), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+});
+const freePlaylistSchema = z.object({
+  playlistId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), thumbnailUrl: optionalUrl, isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+});
+const freePlaylistItemSchema = mediaReferenceSchema.safeExtend({
+  itemId: z.number().int().positive().optional(), playlistId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), contentType: z.enum(["video", "pdf"]), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+});
+const educationalShortSchema = mediaReferenceSchema.safeExtend({
+  shortId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional(), status: z.enum(["draft", "published", "archived"]), displayOrder: z.number().int().min(0).max(10000),
+});
 const testDetailsSchema = z.object({
   courseId: z.number().int().positive().nullable().optional(),
   title: z.string().trim().min(3).max(220),
@@ -96,6 +119,11 @@ async function requireDelegatedPermission(
   if (user.role === "teacher" && !(await db.hasPermission(user, permission))) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Your account has not been granted this teaching permission" });
   }
+}
+
+async function requireContentManagementPermission(user: NonNullable<Awaited<ReturnType<typeof db.getUserByOpenId>>>) {
+  requireStaffAccess(user.role);
+  if (user.role === "teacher") return;
 }
 
 export const appRouter = router({
@@ -269,6 +297,8 @@ export const appRouter = router({
       return { success: true } as const;
     }),
     liveClasses: protectedProcedure.query(({ ctx }) => db.listMyLiveClasses(ctx.user.id)),
+    freePlaylists: protectedProcedure.query(() => db.listPublishedFreePlaylists()),
+    shorts: protectedProcedure.query(() => db.listPublishedShorts()),
   }),
   operations: router({
     summary: requireRoles(["teacher", "admin", "super_admin"]).query(({ ctx }) => {
@@ -290,7 +320,7 @@ export const appRouter = router({
         accessDurationDays: z.number().int().positive().max(3650).nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        await requireDelegatedPermission(ctx.user, "courses.manage");
+        await requireContentManagementPermission(ctx.user);
         if (Number(input.sellingPrice) > Number(input.mrp)) throw new Error("Selling price cannot exceed MRP");
         if (input.accessType === "time_limited" && !input.accessDurationDays) throw new Error("Time-limited courses need an access duration");
         const courseId = await db.createCourse(input);
@@ -317,7 +347,7 @@ export const appRouter = router({
         accessDurationDays: z.number().int().positive().max(3650).nullable().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        await requireDelegatedPermission(ctx.user, "courses.manage");
+        await requireContentManagementPermission(ctx.user);
         if (Number(input.sellingPrice) > Number(input.mrp)) throw new Error("Selling price cannot exceed MRP");
         if (input.accessType === "time_limited" && !input.accessDurationDays) throw new Error("Time-limited courses need an access duration");
         await db.updateCourse(input);
@@ -326,16 +356,48 @@ export const appRouter = router({
       }),
     courseStructure: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ courseId: z.number().int().positive() })).query(({ input }) => db.getManagedCourseStructure(input.courseId)),
     saveModule: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ moduleId: z.number().int().positive().optional(), courseId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), displayOrder: z.number().int().min(0).max(10000), isPublished: z.boolean() })).mutation(async ({ ctx, input }) => {
-      await requireDelegatedPermission(ctx.user, "courses.manage");
+      await requireContentManagementPermission(ctx.user);
       const moduleId = await db.saveManagedModule(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.moduleId ? "module.updated" : "module.created", entityType: "module", entityId: moduleId, metadata: { courseId: input.courseId, title: input.title } });
       return { moduleId };
     }),
     saveLesson: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ lessonId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), contentType: z.enum(["video", "text", "image", "pdf", "mixed"]), contentUrl: z.string().trim().url().max(2048).optional().or(z.literal("")), provider: z.string().trim().max(64).optional(), durationSeconds: z.number().int().min(0).max(24 * 60 * 60), thumbnailUrl: z.string().trim().url().max(1024).optional().or(z.literal("")), isPreview: z.boolean(), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000) })).mutation(async ({ ctx, input }) => {
-      await requireDelegatedPermission(ctx.user, "courses.manage");
+      await requireContentManagementPermission(ctx.user);
       const lessonId = await db.saveManagedLesson({ ...input, contentUrl: input.contentUrl || undefined, thumbnailUrl: input.thumbnailUrl || undefined });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.lessonId ? "lesson.updated" : "lesson.created", entityType: "lesson", entityId: lessonId, metadata: { moduleId: input.moduleId, title: input.title, contentType: input.contentType } });
       return { lessonId };
+    }),
+    saveModuleResource: requireRoles(["teacher", "admin", "super_admin"]).input(moduleResourceSchema).mutation(async ({ ctx, input }) => {
+      await requireContentManagementPermission(ctx.user);
+      const resourceId = await db.saveModuleResource({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.resourceId ? "module_resource.updated" : "module_resource.created", entityType: "module_resource", entityId: resourceId, metadata: { moduleId: input.moduleId, resourceType: input.resourceType } });
+      return { resourceId };
+    }),
+    freePlaylists: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireContentManagementPermission(ctx.user);
+      return db.listOperationsFreePlaylists();
+    }),
+    saveFreePlaylist: requireRoles(["teacher", "admin", "super_admin"]).input(freePlaylistSchema).mutation(async ({ ctx, input }) => {
+      await requireContentManagementPermission(ctx.user);
+      const playlistId = await db.saveFreePlaylist({ ...input, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.playlistId ? "free_playlist.updated" : "free_playlist.created", entityType: "free_playlist", entityId: playlistId, metadata: { isPublished: input.isPublished } });
+      return { playlistId };
+    }),
+    saveFreePlaylistItem: requireRoles(["teacher", "admin", "super_admin"]).input(freePlaylistItemSchema).mutation(async ({ ctx, input }) => {
+      await requireContentManagementPermission(ctx.user);
+      const itemId = await db.saveFreePlaylistItem({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.itemId ? "free_playlist_item.updated" : "free_playlist_item.created", entityType: "free_playlist_item", entityId: itemId, metadata: { playlistId: input.playlistId, contentType: input.contentType } });
+      return { itemId };
+    }),
+    shorts: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireContentManagementPermission(ctx.user);
+      return db.listOperationsShorts();
+    }),
+    saveShort: requireRoles(["teacher", "admin", "super_admin"]).input(educationalShortSchema).mutation(async ({ ctx, input }) => {
+      await requireContentManagementPermission(ctx.user);
+      const shortId = await db.saveEducationalShort({ ...input, videoUrl: input.contentUrl || "", storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.shortId ? "short.updated" : "short.created", entityType: "educational_short", entityId: shortId, metadata: { status: input.status } });
+      return { shortId };
     }),
     tests: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsTests()),
     test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ input }) => {

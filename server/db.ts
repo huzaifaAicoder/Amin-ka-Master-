@@ -28,10 +28,14 @@ import {
   lessonResources,
   lessons,
   liveClasses,
+  moduleResources,
   notifications,
   otpChallenges,
   orders,
   personalNotes,
+  educationalShorts,
+  freePlaylistItems,
+  freePlaylists,
   questions,
   staffPasskeys,
   testAnswers,
@@ -672,12 +676,20 @@ export async function getCourseLearning(userId: number, courseId: number) {
         .where(and(inArray(lessons.moduleId, moduleIds), eq(lessons.isPublished, true)))
         .orderBy(asc(lessons.displayOrder))
     : [];
+  const resourceRows = moduleIds.length
+    ? await database
+        .select()
+        .from(moduleResources)
+        .where(and(inArray(moduleResources.moduleId, moduleIds), eq(moduleResources.isPublished, true)))
+        .orderBy(asc(moduleResources.displayOrder))
+    : [];
   return {
     course: course[0],
     enrolled: true as const,
     modules: modules.map((module) => ({
       ...module,
       lessons: lessonRows.filter((row) => row.lesson.moduleId === module.id),
+      resources: resourceRows.filter((resource) => resource.moduleId === module.id),
     })),
   };
 }
@@ -1015,7 +1027,118 @@ export async function getManagedCourseStructure(courseId: number) {
   const modules = await database.select().from(courseModules).where(eq(courseModules.courseId, courseId)).orderBy(asc(courseModules.displayOrder));
   const moduleIds = modules.map((module) => module.id);
   const lessonsForModules = moduleIds.length ? await database.select().from(lessons).where(inArray(lessons.moduleId, moduleIds)).orderBy(asc(lessons.displayOrder)) : [];
-  return { modules, lessons: lessonsForModules };
+  const resources = moduleIds.length ? await database.select().from(moduleResources).where(inArray(moduleResources.moduleId, moduleIds)).orderBy(asc(moduleResources.displayOrder)) : [];
+  return { modules, lessons: lessonsForModules, resources };
+}
+
+export async function saveModuleResource(input: {
+  resourceId?: number;
+  moduleId: number;
+  title: string;
+  description?: string;
+  resourceType: "video" | "pdf";
+  contentUrl?: string;
+  storageKey?: string;
+  provider?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  durationSeconds: number;
+  thumbnailUrl?: string;
+  isPublished: boolean;
+  displayOrder: number;
+  createdByUserId: number;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const values = { moduleId: input.moduleId, title: input.title, description: input.description, resourceType: input.resourceType, contentUrl: input.contentUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, isPublished: input.isPublished, displayOrder: input.displayOrder };
+  if (input.resourceId) {
+    await database.update(moduleResources).set(values).where(and(eq(moduleResources.id, input.resourceId), eq(moduleResources.moduleId, input.moduleId)));
+    return input.resourceId;
+  }
+  const result = await database.insert(moduleResources).values({ ...values, createdByUserId: input.createdByUserId });
+  return Number(result[0].insertId);
+}
+
+export async function listOperationsFreePlaylists() {
+  const database = await getDb();
+  if (!database) return { playlists: [], items: [] };
+  const playlists = await database.select().from(freePlaylists).orderBy(asc(freePlaylists.displayOrder), desc(freePlaylists.updatedAt));
+  const playlistIds = playlists.map((playlist) => playlist.id);
+  const items = playlistIds.length ? await database.select().from(freePlaylistItems).where(inArray(freePlaylistItems.playlistId, playlistIds)).orderBy(asc(freePlaylistItems.displayOrder)) : [];
+  return { playlists, items };
+}
+
+export async function saveFreePlaylist(input: { playlistId?: number; title: string; description?: string; thumbnailUrl?: string; isPublished: boolean; displayOrder: number; createdByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const values = { title: input.title, description: input.description, thumbnailUrl: input.thumbnailUrl, isPublished: input.isPublished, displayOrder: input.displayOrder };
+  if (input.playlistId) {
+    await database.update(freePlaylists).set(values).where(eq(freePlaylists.id, input.playlistId));
+    return input.playlistId;
+  }
+  const result = await database.insert(freePlaylists).values({ ...values, createdByUserId: input.createdByUserId });
+  return Number(result[0].insertId);
+}
+
+export async function saveFreePlaylistItem(input: {
+  itemId?: number;
+  playlistId: number;
+  title: string;
+  description?: string;
+  contentType: "video" | "pdf";
+  contentUrl?: string;
+  storageKey?: string;
+  provider?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  durationSeconds: number;
+  thumbnailUrl?: string;
+  isPublished: boolean;
+  displayOrder: number;
+  createdByUserId: number;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const values = { playlistId: input.playlistId, title: input.title, description: input.description, contentType: input.contentType, contentUrl: input.contentUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, isPublished: input.isPublished, displayOrder: input.displayOrder };
+  if (input.itemId) {
+    await database.update(freePlaylistItems).set(values).where(and(eq(freePlaylistItems.id, input.itemId), eq(freePlaylistItems.playlistId, input.playlistId)));
+    return input.itemId;
+  }
+  const result = await database.insert(freePlaylistItems).values({ ...values, createdByUserId: input.createdByUserId });
+  return Number(result[0].insertId);
+}
+
+export async function listPublishedFreePlaylists() {
+  const database = await getDb();
+  if (!database) return { playlists: [], items: [] };
+  const playlists = await database.select().from(freePlaylists).where(eq(freePlaylists.isPublished, true)).orderBy(asc(freePlaylists.displayOrder));
+  const playlistIds = playlists.map((playlist) => playlist.id);
+  const items = playlistIds.length ? await database.select().from(freePlaylistItems).where(and(inArray(freePlaylistItems.playlistId, playlistIds), eq(freePlaylistItems.isPublished, true))).orderBy(asc(freePlaylistItems.displayOrder)) : [];
+  return { playlists, items };
+}
+
+export async function listOperationsShorts() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select().from(educationalShorts).orderBy(desc(educationalShorts.updatedAt));
+}
+
+export async function saveEducationalShort(input: { shortId?: number; title: string; description?: string; videoUrl: string; storageKey?: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string; status: "draft" | "published" | "archived"; displayOrder: number; createdByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const values = { title: input.title, description: input.description, videoUrl: input.videoUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, status: input.status, displayOrder: input.displayOrder };
+  if (input.shortId) {
+    await database.update(educationalShorts).set(values).where(eq(educationalShorts.id, input.shortId));
+    return input.shortId;
+  }
+  const result = await database.insert(educationalShorts).values({ ...values, createdByUserId: input.createdByUserId });
+  return Number(result[0].insertId);
+}
+
+export async function listPublishedShorts() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select().from(educationalShorts).where(eq(educationalShorts.status, "published")).orderBy(asc(educationalShorts.displayOrder), desc(educationalShorts.createdAt));
 }
 
 export async function saveManagedModule(input: { moduleId?: number; courseId: number; title: string; description?: string; displayOrder: number; isPublished: boolean }) {
