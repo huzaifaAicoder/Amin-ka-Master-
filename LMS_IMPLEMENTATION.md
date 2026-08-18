@@ -6,7 +6,7 @@ The project is an Expo mobile LMS with a server-backed MySQL/Drizzle data model.
 
 | Area | Included in this delivery |
 | --- | --- |
-| Identity | Email-or-mobile/password registration and login, salted `scrypt` password hashes, revocable opaque sessions, sign-out, and sign-out-everywhere. |
+| Identity | Email-or-mobile/password registration and login, salted `scrypt` password hashes, revocable opaque sessions, OTP-based password recovery, sign-out, and sign-out-everywhere. |
 | Roles | Student, Teacher, Admin, and Super Admin role values with server-side role middleware and delegated teacher permissions. |
 | Course catalog | Managed categories, course status, pricing/access attributes, modules, lessons, and resources. Public discovery exposes published records only. |
 | Learning | Server-validated enrollment, protected lesson access, watched/completion progress, private notes, and bookmarks. |
@@ -42,6 +42,7 @@ An account with the **Teacher**, **Admin**, or **Super Admin** role is now sent 
 | Paid access | The app does not unlock paid courses from a client success event. It deliberately blocks payment capture until provider verification and signed webhook configuration are supplied. |
 | Assessments | Correct answers do not leave the assessment endpoint. Scores are calculated from database answer keys. Attempt timeout is also enforced server-side. |
 | Operations | Teacher actions require a delegated permission; administrative APIs repeat role validation and emit audit records for the implemented CMS mutations. |
+| Account recovery | Recovery requests are privacy-preserving. OTP codes are six digits, HMAC-hashed at rest, expire after 10 minutes, become unusable after verification, and allow only five verification attempts. A successful reset receives a short-lived, one-time server token and revokes all existing sessions. |
 
 ## Provider boundaries and required configuration
 
@@ -51,6 +52,7 @@ The project deliberately does not include hard-coded payment, email, streaming o
 | --- | --- | --- |
 | Razorpay payments | Client presents an explicit configuration boundary; no payment currently unlocks a paid course. | `RAZORPAY_KEY_ID`, server-only `RAZORPAY_KEY_SECRET`, signed webhook verification, reconciliation and refund policy. |
 | Transactional email | In-app inbox works without external services. | An approved email provider, sender domain, templates, opt-out policy, and server-only credentials. |
+| Password recovery OTP | The mobile flow and server-side challenge lifecycle are implemented. Delivery is intentionally disabled until a provider is configured; the app never returns an OTP to a mobile client. | Select either `OTP_DELIVERY_PROVIDER=msg91` with `MSG91_AUTH_KEY` and `MSG91_TEMPLATE_ID` for Indian SMS, or `OTP_DELIVERY_PROVIDER=resend` with `RESEND_API_KEY` and `OTP_EMAIL_FROM` for verified email delivery. A non-production `OTP_DELIVERY_PROVIDER=development` option writes codes only to protected server logs for local testing. |
 | Video streaming | Lesson metadata is protected; a video player provider is not yet configured. | A streaming/storage provider, signed playback URLs, content upload workflow, and video retention policy. |
 | Live meetings | Authorized schedule and link metadata are supported. | Approved meeting provider account, host process and, if required, recording retention rules. |
 | Push notifications | Intentionally deferred. | Expo push token lifecycle, backend send policy and user consent/notification preference flows. |
@@ -61,14 +63,14 @@ The project deliberately does not include hard-coded payment, email, streaming o
 2. Configure production environment secrets through the application secret settings—not in the source tree or mobile bundle.
 3. Select and configure payment, email, streaming and live-class providers; add signed webhook verification before exposing checkout.
 4. Apply a privacy policy, terms, refund policy, content ownership policy, instructor agreement and user support contact details via CMS settings.
-5. Add account recovery and email/mobile verification flow before opening registration to the public.
+5. Configure, test and monitor the account-recovery delivery provider before opening registration to the public. Do not enable the development delivery mode in production.
 6. Carry out penetration testing, abuse/rate-limit testing, device/session review, database backups and disaster-recovery rehearsals.
 7. Add internal dashboards for payment reconciliation, failed notification delivery, moderation queue and audit-log review.
 
 ## Test evidence
 
-The automated suite verifies password hashing behavior, rejection of unauthenticated learning access and rejection of student access to operations routes. TypeScript compilation was executed after the mobile navigation and operations screens were added.
+The automated suite verifies password hashing behavior, OTP expiry and single-use rejection, brute-force attempt blocking, invalid recovery-token rejection, rejection of unauthenticated learning access, and rejection of student access to operations routes. TypeScript compilation was executed after the recovery flow was added.
 
 ## Known scope boundaries
 
-The requested specification covers a full commercial LMS. The first delivery intentionally does not simulate a payment provider, email sender, video CDN, live-video host, authentication recovery channel, push-notification service, certificate renderer, file uploader, or a comprehensive browser-based CMS. The database and server authorization boundaries are established for these extensions, and the current UI makes their configuration requirement explicit instead of falsely displaying completed transactions or media playback.
+The requested specification covers a full commercial LMS. The first delivery intentionally does not simulate a payment provider, externally configured email/SMS sender, video CDN, live-video host, push-notification service, certificate renderer, file uploader, or a comprehensive browser-based CMS. The recovery user interface and secure server lifecycle are complete, while live OTP delivery remains a provider configuration step. The database and server authorization boundaries are established for these extensions, and the current UI makes their configuration requirement explicit instead of falsely displaying completed transactions or media playback.

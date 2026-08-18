@@ -48,6 +48,28 @@ export const authSessions = mysqlTable(
   (table) => [uniqueIndex("auth_sessions_token_hash_uq").on(table.tokenHash), index("auth_sessions_user_idx").on(table.userId)],
 );
 
+export const otpChallenges = mysqlTable(
+  "otp_challenges",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    purpose: mysqlEnum("purpose", ["password_reset", "identity_verification"]).notNull(),
+    destination: varchar("destination", { length: 320 }).notNull(),
+    codeHash: varchar("codeHash", { length: 128 }).notNull(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    consumedAt: timestamp("consumedAt"),
+    attemptCount: int("attemptCount").default(0).notNull(),
+    resetTokenHash: varchar("resetTokenHash", { length: 128 }),
+    resetTokenExpiresAt: timestamp("resetTokenExpiresAt"),
+    resetTokenUsedAt: timestamp("resetTokenUsedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("otp_challenges_user_purpose_idx").on(table.userId, table.purpose, table.createdAt),
+    index("otp_challenges_destination_idx").on(table.destination, table.createdAt),
+  ],
+);
+
 export const userPermissions = mysqlTable(
   "user_permissions",
   {

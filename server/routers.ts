@@ -4,6 +4,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
 import { protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
 import * as db from "./db";
 
@@ -17,6 +18,12 @@ const credentialSchema = z.object({
   if (!value.email && !value.mobile) {
     ctx.addIssue({ code: "custom", message: "Provide an email address or mobile number", path: ["email"] });
   }
+});
+const passwordResetIdentitySchema = z.object({ identity: z.string().trim().min(3).max(320) });
+const verifyOtpSchema = passwordResetIdentitySchema.extend({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") });
+const resetPasswordSchema = z.object({
+  resetToken: z.string().min(32).max(256),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
@@ -94,6 +101,46 @@ export const appRouter = router({
       }
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
+    }),
+    requestPasswordReset: publicProcedure.input(passwordResetIdentitySchema).mutation(async ({ input }) => {
+      if (!isOtpDeliveryConfigured()) return { accepted: true as const, delivery: "unconfigured" as const };
+      const user = await db.getUserByIdentity(input.identity);
+      const genericResponse = { accepted: true as const, delivery: "sent" as const };
+      if (!user || user.status !== "active" || !user.passwordHash) return genericResponse;
+
+      const destination = user.email ?? user.mobile;
+      if (!destination) return genericResponse;
+      const challenge = await db.createOtpChallenge({ userId: user.id, purpose: "password_reset", destination });
+      if (challenge.status === "rate_limited") return genericResponse;
+
+      const result = await deliverPasswordResetOtp({
+        destination,
+        code: challenge.code,
+        expiresInMinutes: Math.round(db.OTP_CODE_TTL_MS / 60_000),
+      });
+      if (!result.delivered) {
+        await db.consumeOtpChallenge(challenge.challengeId);
+        return genericResponse;
+      }
+      return genericResponse;
+    }),
+    verifyOtp: publicProcedure.input(verifyOtpSchema).mutation(async ({ input }) => {
+      const user = await db.getUserByIdentity(input.identity);
+      if (!user || user.status !== "active") throw new TRPCError({ code: "BAD_REQUEST", message: "The recovery code is invalid or has expired" });
+      const result = await db.verifyOtpChallenge({ userId: user.id, purpose: "password_reset", code: input.code });
+      if (result.status !== "verified") {
+        const message = result.status === "attempt_limit"
+          ? "Too many incorrect attempts. Request a new recovery code."
+          : "The recovery code is invalid or has expired";
+        throw new TRPCError({ code: "BAD_REQUEST", message });
+      }
+      const reset = await db.createPasswordResetToken(result.challengeId);
+      return { resetToken: reset.token, expiresAt: reset.expiresAt };
+    }),
+    resetPassword: publicProcedure.input(resetPasswordSchema).mutation(async ({ input }) => {
+      const result = await db.resetPasswordWithToken(input.resetToken, input.password);
+      if (result.status !== "reset") throw new TRPCError({ code: "BAD_REQUEST", message: "This recovery session has expired. Request a new code." });
+      return { success: true as const };
     }),
     me: publicProcedure.query((opts) => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
     logout: publicProcedure.mutation(async ({ ctx }) => {

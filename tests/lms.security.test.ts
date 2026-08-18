@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { appRouter } from "../server/routers";
 import type { TrpcContext } from "../server/_core/context";
-import { hashPassword, verifyPassword } from "../server/db";
+import { getOtpVerificationState, hashPassword, OTP_MAX_ATTEMPTS, resetPasswordWithToken, verifyPassword } from "../server/db";
 
 function createContext(user: TrpcContext["user"]): TrpcContext {
   return {
@@ -38,6 +38,28 @@ describe("LMS security boundaries", () => {
     expect(hash).not.toContain("AminMaster!2026");
     expect(verifyPassword("AminMaster!2026", hash)).toBe(true);
     expect(verifyPassword("incorrect-password", hash)).toBe(false);
+  });
+
+  it("rejects expired and already-consumed OTP challenges", () => {
+    const now = new Date("2026-08-19T00:00:00.000Z");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() - 1), consumedAt: null, attemptCount: 0, codeMatches: true, now })).toBe("expired_or_invalid");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() + 60_000), consumedAt: now, attemptCount: 0, codeMatches: true, now })).toBe("expired_or_invalid");
+  });
+
+  it("blocks OTP brute-force attempts at the configured limit", () => {
+    const now = new Date("2026-08-19T00:00:00.000Z");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() + 60_000), consumedAt: null, attemptCount: OTP_MAX_ATTEMPTS - 1, codeMatches: false, now })).toBe("attempt_limit");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() + 60_000), consumedAt: null, attemptCount: OTP_MAX_ATTEMPTS, codeMatches: true, now })).toBe("attempt_limit");
+  });
+
+  it("permits only an active OTP with the exact code", () => {
+    const now = new Date("2026-08-19T00:00:00.000Z");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() + 60_000), consumedAt: null, attemptCount: 0, codeMatches: false, now })).toBe("invalid");
+    expect(getOtpVerificationState({ expiresAt: new Date(now.getTime() + 60_000), consumedAt: null, attemptCount: 0, codeMatches: true, now })).toBe("verified");
+  });
+
+  it("does not reset a password without a valid one-time recovery token", async () => {
+    await expect(resetPasswordWithToken("invalid-recovery-token", "AminMaster!2026")).resolves.toEqual({ status: "invalid_or_expired" });
   });
 
   it("rejects protected learning requests without an authenticated server session", async () => {

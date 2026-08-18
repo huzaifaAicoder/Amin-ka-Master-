@@ -41,3 +41,6 @@
 - [x] Enforce portal selection server-side so Student login cannot establish a staff session and Staff login cannot establish a student portal session.
 - [x] Add separate role-aware Student and Staff portal routing with direct-route protections and privilege-escalation regression tests.
 - [x] Preserve public registration as Student-only and document the optional future secure Staff Access Code boundary without exposing secrets.
+- [x] Implement expiring, single-use, rate-limited OTP challenges for secure account recovery and verification.
+- [x] Add a password-reset flow that verifies an OTP server-side, updates the password hash, and revokes existing sessions.
+- [x] Build mobile recovery and OTP screens and document the required email/SMS provider configuration for real code delivery.

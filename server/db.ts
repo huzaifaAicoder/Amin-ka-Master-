@@ -4,13 +4,14 @@ import {
   desc,
   eq,
   gt,
+  gte,
   inArray,
   like,
   or,
   sql,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 import {
   appSettings,
@@ -28,6 +29,7 @@ import {
   lessons,
   liveClasses,
   notifications,
+  otpChallenges,
   orders,
   personalNotes,
   questions,
@@ -42,6 +44,24 @@ import {
 import { ENV } from "./_core/env";
 
 export const SESSION_DURATION_DAYS = 30;
+export const OTP_CODE_TTL_MS = 10 * 60 * 1000;
+export const OTP_RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
+export const OTP_MAX_ATTEMPTS = 5;
+export const OTP_MAX_REQUESTS_PER_HOUR = 3;
+
+export function getOtpVerificationState(input: {
+  expiresAt: Date;
+  consumedAt: Date | null;
+  attemptCount: number;
+  codeMatches: boolean;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  if (input.consumedAt || input.expiresAt <= now) return "expired_or_invalid" as const;
+  if (input.attemptCount >= OTP_MAX_ATTEMPTS) return "attempt_limit" as const;
+  if (input.codeMatches) return "verified" as const;
+  return input.attemptCount + 1 >= OTP_MAX_ATTEMPTS ? "attempt_limit" as const : "invalid" as const;
+}
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -59,6 +79,11 @@ export async function getDb() {
 
 function tokenDigest(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+function otpCodeDigest(userId: number, purpose: "password_reset" | "identity_verification", code: string) {
+  if (!ENV.cookieSecret) throw new Error("Password recovery is not securely configured");
+  return createHmac("sha256", ENV.cookieSecret).update(`${userId}:${purpose}:${code}`).digest("hex");
 }
 
 export function hashPassword(password: string) {
@@ -225,6 +250,139 @@ export async function revokeAllSessions(userId: number) {
       .set({ revokedAt: new Date() })
       .where(and(eq(authSessions.userId, userId), sql`${authSessions.revokedAt} IS NULL`));
   }
+}
+
+export async function getRecentOtpCount(destination: string, windowMinutes = 60) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000);
+  const result = await database
+    .select({ count: sql<number>`count(*)` })
+    .from(otpChallenges)
+    .where(and(eq(otpChallenges.destination, destination), gte(otpChallenges.createdAt, windowStart)));
+  return Number(result[0]?.count ?? 0);
+}
+
+export async function createOtpChallenge(input: {
+  userId: number;
+  purpose: "password_reset" | "identity_verification";
+  destination: string;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const recentCount = await getRecentOtpCount(input.destination, 60);
+  if (recentCount >= OTP_MAX_REQUESTS_PER_HOUR) return { status: "rate_limited" as const };
+
+  const now = new Date();
+  const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+  const expiresAt = new Date(now.getTime() + OTP_CODE_TTL_MS);
+  await database
+    .update(otpChallenges)
+    .set({ consumedAt: now })
+    .where(and(eq(otpChallenges.userId, input.userId), eq(otpChallenges.purpose, input.purpose), sql`${otpChallenges.consumedAt} IS NULL`));
+  const result = await database.insert(otpChallenges).values({
+    userId: input.userId,
+    purpose: input.purpose,
+    destination: input.destination,
+    codeHash: otpCodeDigest(input.userId, input.purpose, code),
+    expiresAt,
+  });
+  return { status: "created" as const, challengeId: Number(result[0].insertId), code, expiresAt };
+}
+
+export async function consumeOtpChallenge(challengeId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database
+    .update(otpChallenges)
+    .set({ consumedAt: new Date() })
+    .where(and(eq(otpChallenges.id, challengeId), sql`${otpChallenges.consumedAt} IS NULL`));
+}
+
+export async function verifyOtpChallenge(input: {
+  userId: number;
+  purpose: "password_reset" | "identity_verification";
+  code: string;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const challenge = await database
+    .select()
+    .from(otpChallenges)
+    .where(and(eq(otpChallenges.userId, input.userId), eq(otpChallenges.purpose, input.purpose), sql`${otpChallenges.consumedAt} IS NULL`))
+    .orderBy(desc(otpChallenges.createdAt))
+    .limit(1);
+  const current = challenge[0];
+  const now = new Date();
+  if (!current || getOtpVerificationState({ expiresAt: current.expiresAt, consumedAt: current.consumedAt, attemptCount: current.attemptCount, codeMatches: false, now }) === "expired_or_invalid") {
+    if (current) await database.update(otpChallenges).set({ consumedAt: now }).where(eq(otpChallenges.id, current.id));
+    return { status: "expired_or_invalid" as const };
+  }
+  if (getOtpVerificationState({ expiresAt: current.expiresAt, consumedAt: current.consumedAt, attemptCount: current.attemptCount, codeMatches: false, now }) === "attempt_limit") {
+    await database.update(otpChallenges).set({ consumedAt: now }).where(eq(otpChallenges.id, current.id));
+    return { status: "attempt_limit" as const };
+  }
+
+  const expected = Buffer.from(current.codeHash, "hex");
+  const actual = Buffer.from(otpCodeDigest(input.userId, input.purpose, input.code), "hex");
+  const codeMatches = expected.length === actual.length && timingSafeEqual(expected, actual);
+  const state = getOtpVerificationState({ expiresAt: current.expiresAt, consumedAt: current.consumedAt, attemptCount: current.attemptCount, codeMatches, now });
+  if (state !== "verified") {
+    const nextAttemptCount = current.attemptCount + 1;
+    await database
+      .update(otpChallenges)
+      .set({ attemptCount: nextAttemptCount, ...(nextAttemptCount >= OTP_MAX_ATTEMPTS ? { consumedAt: now } : {}) })
+      .where(eq(otpChallenges.id, current.id));
+    return { status: state };
+  }
+
+  await database.update(otpChallenges).set({ consumedAt: now }).where(eq(otpChallenges.id, current.id));
+  return { status: "verified" as const, challengeId: current.id };
+}
+
+export async function createPasswordResetToken(challengeId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const token = randomBytes(48).toString("base64url");
+  const expiresAt = new Date(Date.now() + OTP_RESET_TOKEN_TTL_MS);
+  await database
+    .update(otpChallenges)
+    .set({ resetTokenHash: tokenDigest(token), resetTokenExpiresAt: expiresAt, resetTokenUsedAt: null })
+    .where(and(eq(otpChallenges.id, challengeId), sql`${otpChallenges.consumedAt} IS NOT NULL`));
+  return { token, expiresAt };
+}
+
+export async function resetPasswordWithToken(resetToken: string, newPassword: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const now = new Date();
+  const challenges = await database
+    .select()
+    .from(otpChallenges)
+    .where(
+      and(
+        eq(otpChallenges.resetTokenHash, tokenDigest(resetToken)),
+        sql`${otpChallenges.resetTokenUsedAt} IS NULL`,
+        gt(otpChallenges.resetTokenExpiresAt, now),
+      ),
+    )
+    .limit(1);
+  const challenge = challenges[0];
+  if (!challenge) return { status: "invalid_or_expired" as const };
+
+  await database.transaction(async (tx) => {
+    const markedUsed = await tx
+      .update(otpChallenges)
+      .set({ resetTokenUsedAt: now })
+      .where(and(eq(otpChallenges.id, challenge.id), sql`${otpChallenges.resetTokenUsedAt} IS NULL`));
+    if (markedUsed[0].affectedRows !== 1) throw new Error("Recovery token has already been used");
+    await tx.update(users).set({ passwordHash: hashPassword(newPassword) }).where(eq(users.id, challenge.userId));
+    await tx
+      .update(authSessions)
+      .set({ revokedAt: now })
+      .where(and(eq(authSessions.userId, challenge.userId), sql`${authSessions.revokedAt} IS NULL`));
+  });
+  return { status: "reset" as const, userId: challenge.userId };
 }
 
 export async function listActiveSessions(userId: number) {
