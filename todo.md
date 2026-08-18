@@ -55,3 +55,4 @@
 - [x] Add a secure and discoverable first Super Admin provisioning path so staff accounts can be created before ordinary Staff/Admin login is attempted.
 - [x] Repair Super Admin Operations layout so management controls are visible and usable on mobile screens.
 - [x] Repair Operations back navigation so Super Admin can reliably return to the authenticated app.
+- [x] Run release-readiness checks for the Student flow and Super Admin/Staff controls, then save a backup checkpoint without publishing.
