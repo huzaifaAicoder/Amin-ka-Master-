@@ -1,0 +1,48 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+
+import { ScreenContainer } from "@/components/screen-container";
+import { COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
+import { useLmsSession } from "@/lib/lms-session";
+import { trpc } from "@/lib/trpc";
+
+const metrics = [
+  { key: "students", label: "Students", icon: "groups" as const, color: COLORS.indigo, background: COLORS.indigoSoft },
+  { key: "courses", label: "Courses", icon: "menu-book" as const, color: COLORS.earth, background: "#FFF0DE" },
+  { key: "enrollments", label: "Enrollments", icon: "school" as const, color: COLORS.green, background: COLORS.greenSoft },
+  { key: "upcomingLiveClasses", label: "Upcoming live", icon: "videocam" as const, color: COLORS.red, background: "#FDECEA" },
+] as const;
+
+export default function OperationsScreen() {
+  const router = useRouter();
+  const { user } = useLmsSession();
+  const summaryQuery = trpc.operations.summary.useQuery(undefined, { enabled: Boolean(user && user.role !== "student"), retry: false });
+  const coursesQuery = trpc.operations.courses.useQuery(undefined, { enabled: Boolean(user && user.role !== "student"), retry: false });
+  if (!user || user.role === "student") return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="admin-panel-settings" title="Operations access required" body="This area is visible only to authorized teacher, admin and super-admin accounts, with all permission checks repeated on the server." /></View></ScreenContainer>;
+  if (summaryQuery.isLoading || coursesQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
+  const summary = summaryQuery.data;
+  return <ScreenContainer className="px-5" edges={["top", "left", "right"]}><View style={styles.header}><Pressable onPress={() => router.back()} hitSlop={10}><MaterialIcons name="arrow-back" size={23} color={COLORS.indigo} /></Pressable><Text style={styles.title}>Operations</Text><Tag label={user.role.replace("_", " ").toUpperCase()} tone="saffron" /></View><Text style={styles.subtitle}>A secure operational view. Content changes use server-side role and delegated-permission checks.</Text><View style={styles.metricGrid}>{metrics.map((metric) => <View key={metric.key} style={styles.metric}><IconCircle icon={metric.icon} color={metric.color} background={metric.background} size={38} /><Text style={styles.metricValue}>{summary?.[metric.key] ?? 0}</Text><Text style={styles.metricLabel}>{metric.label}</Text></View>)}</View><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Course management</Text><Text style={styles.sectionDetail}>Publishing status</Text></View>{coursesQuery.data?.length ? <FlatList data={coursesQuery.data} keyExtractor={(item) => item.course.id.toString()} contentContainerStyle={styles.courseList} renderItem={({ item }) => <View style={styles.courseRow}><View style={styles.courseIcon}><MaterialIcons name="menu-book" size={21} color={COLORS.indigo} /></View><View style={styles.courseCopy}><Text numberOfLines={1} style={styles.courseTitle}>{item.course.title}</Text><Text style={styles.courseMeta}>{item.categoryName} · {item.instructorName ?? "Unassigned"}</Text></View><Tag label={item.course.status.toUpperCase()} tone={item.course.status === "published" ? "green" : item.course.status === "draft" ? "saffron" : "neutral"} /></View>} /> : <View style={styles.center}><EmptyState icon="menu-book" title="No courses to manage" body="Create a category and course from an administrative CMS workflow." /></View>}<PrimaryButton label="Manage courses" icon="edit" onPress={() => router.push("/operations/courses" as never)} /><View style={styles.boundary}><MaterialIcons name="verified-user" size={19} color={COLORS.green} /><Text style={styles.boundaryText}>Teacher actions require delegated permission. Payment and content storage configuration are maintained as protected provider boundaries.</Text></View></ScreenContainer>;
+}
+
+const styles = StyleSheet.create({
+  header: { paddingTop: 12, paddingBottom: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  title: { color: COLORS.ink, fontSize: 20, fontWeight: "800" },
+  subtitle: { color: COLORS.muted, fontSize: 13, lineHeight: 19, marginBottom: 16 },
+  center: { flex: 1, justifyContent: "center" },
+  metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  metric: { width: "48.5%", flexGrow: 1, minHeight: 123, borderRadius: 19, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, padding: 13, gap: 6 },
+  metricValue: { color: COLORS.ink, fontSize: 25, fontWeight: "900", marginTop: 2 },
+  metricLabel: { color: COLORS.muted, fontSize: 12, fontWeight: "700" },
+  sectionHeader: { marginTop: 25, marginBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  sectionTitle: { color: COLORS.ink, fontSize: 18, fontWeight: "800" },
+  sectionDetail: { color: COLORS.muted, fontSize: 11 },
+  courseList: { gap: 9, paddingBottom: 12 },
+  courseRow: { minHeight: 70, borderRadius: 18, backgroundColor: COLORS.white, borderColor: COLORS.line, borderWidth: 1, padding: 12, gap: 10, flexDirection: "row", alignItems: "center" },
+  courseIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: COLORS.indigoSoft, alignItems: "center", justifyContent: "center" },
+  courseCopy: { flex: 1, gap: 4 },
+  courseTitle: { color: COLORS.ink, fontSize: 14, fontWeight: "800" },
+  courseMeta: { color: COLORS.muted, fontSize: 11 },
+  boundary: { marginTop: 6, borderRadius: 15, padding: 13, flexDirection: "row", gap: 9, backgroundColor: "#F4FBF7", alignItems: "flex-start" },
+  boundaryText: { flex: 1, color: COLORS.green, fontSize: 12, lineHeight: 17 },
+});

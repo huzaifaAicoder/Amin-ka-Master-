@@ -5,18 +5,19 @@ import { SESSION_TOKEN_KEY, USER_INFO_KEY } from "@/constants/oauth";
 export type User = {
   id: number;
   openId: string;
-  name: string | null;
+  fullName: string | null;
   email: string | null;
+  mobile: string | null;
   loginMethod: string | null;
-  lastSignedIn: Date;
+  role: "student" | "teacher" | "admin" | "super_admin";
+  avatarUrl: string | null;
+  createdAt?: Date | string;
 };
 
 export async function getSessionToken(): Promise<string | null> {
   try {
-    // Web platform uses cookie-based auth, no manual token management needed
     if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token retrieval");
-      return null;
+      return window.localStorage.getItem(SESSION_TOKEN_KEY);
     }
 
     // Use SecureStore for native
@@ -35,9 +36,8 @@ export async function getSessionToken(): Promise<string | null> {
 
 export async function setSessionToken(token: string): Promise<void> {
   try {
-    // Web platform uses cookie-based auth, no manual token management needed
     if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token storage");
+      window.localStorage.setItem(SESSION_TOKEN_KEY, token);
       return;
     }
 
@@ -53,9 +53,8 @@ export async function setSessionToken(token: string): Promise<void> {
 
 export async function removeSessionToken(): Promise<void> {
   try {
-    // Web platform uses cookie-based auth, logout is handled by server clearing cookie
     if (Platform.OS === "web") {
-      console.log("[Auth] Web platform uses cookie-based auth, skipping token removal");
+      window.localStorage.removeItem(SESSION_TOKEN_KEY);
       return;
     }
 

@@ -27,11 +27,21 @@ const requireUser = t.middleware(async (opts) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+export const requireRoles = (roles: Array<"teacher" | "admin" | "super_admin">) =>
+  protectedProcedure.use(
+    t.middleware(({ ctx, next }) => {
+      if (!ctx.user || !roles.includes(ctx.user.role as (typeof roles)[number])) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission for this operation" });
+      }
+      return next({ ctx: { ...ctx, user: ctx.user } });
+    }),
+  );
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async (opts) => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== "admin") {
+    if (!ctx.user || !["admin", "super_admin"].includes(ctx.user.role)) {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 

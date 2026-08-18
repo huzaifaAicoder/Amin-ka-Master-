@@ -23,16 +23,16 @@ async function syncUser(userInfo: {
   const lastSignedIn = new Date();
   await upsertUser({
     openId: userInfo.openId,
-    name: userInfo.name || null,
+    fullName: userInfo.name || null,
     email: userInfo.email ?? null,
-    loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+    loginMethod: userInfo.loginMethod ?? userInfo.platform ?? "manus_oauth",
     lastSignedIn,
   });
   const saved = await getUserByOpenId(userInfo.openId);
   return (
     saved ?? {
       openId: userInfo.openId,
-      name: userInfo.name,
+      fullName: userInfo.name,
       email: userInfo.email,
       loginMethod: userInfo.loginMethod ?? null,
       lastSignedIn,
@@ -45,7 +45,7 @@ function buildUserResponse(
     | Awaited<ReturnType<typeof getUserByOpenId>>
     | {
         openId: string;
-        name?: string | null;
+        fullName?: string | null;
         email?: string | null;
         loginMethod?: string | null;
         lastSignedIn?: Date | null;
@@ -54,7 +54,7 @@ function buildUserResponse(
   return {
     id: (user as any)?.id ?? null,
     openId: user?.openId ?? null,
-    name: user?.name ?? null,
+    name: user?.fullName ?? null,
     email: user?.email ?? null,
     loginMethod: user?.loginMethod ?? null,
     lastSignedIn: (user?.lastSignedIn ?? new Date()).toISOString(),

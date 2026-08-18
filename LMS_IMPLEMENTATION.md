@@ -1,0 +1,70 @@
+# Amin Ka Master — Implementation & Handoff
+
+## What is implemented
+
+The project is an Expo mobile LMS with a server-backed MySQL/Drizzle data model. The initial delivery implements a student workflow from public catalog discovery through authenticated enrollment, protected lesson access, persisted learning activity, timed MCQ assessment, live-class visibility, notifications, and session management. An authorized operations dashboard exposes server-derived operational metrics and course publication state.
+
+| Area | Included in this delivery |
+| --- | --- |
+| Identity | Email-or-mobile/password registration and login, salted `scrypt` password hashes, revocable opaque sessions, sign-out, and sign-out-everywhere. |
+| Roles | Student, Teacher, Admin, and Super Admin role values with server-side role middleware and delegated teacher permissions. |
+| Course catalog | Managed categories, course status, pricing/access attributes, modules, lessons, and resources. Public discovery exposes published records only. |
+| Learning | Server-validated enrollment, protected lesson access, watched/completion progress, private notes, and bookmarks. |
+| Assessments | Server-issued questions, persisted attempts/answers, server-derived scores, duplicate-submission protection, and server-enforced attempt expiry. |
+| Live and communications | Entitlement-filtered live-class schedule and a per-user in-app notification inbox. |
+| Operations | Role-gated metrics, course publication visibility, teacher permission checks, create-category API, and audit records for course/category actions. |
+| Mobile experience | Home, Explore, My Learning, Account, course, lesson, tests, test attempt, live-class, notifications, active-session, and operations screens. |
+
+## Demonstration accounts
+
+These are **non-production seed accounts** included solely to make feature review practical. Replace or delete them before any public deployment.
+
+| Role | Identity | Password | Intended review |
+| --- | --- | --- | --- |
+| Student | `student@aminkamaster.demo` | `AminMaster!2026` | Free enrollment, lesson progress, test attempt, notifications and sessions. |
+| Teacher | `teacher@aminkamaster.demo` | `AminMaster!2026` | Operations dashboard and delegated course-management permissions. |
+| Super Admin | `admin@aminkamaster.demo` | `AminMaster!2026` | Full operations view and protected administrative APIs. |
+
+## Security controls
+
+> The mobile client renders the experience; the server decides identity, role, publishing state, entitlement, price, assessment access, score, and staff permission.
+
+| Control | Implementation |
+| --- | --- |
+| Password storage | Passwords are persisted only as per-user salt + `scrypt` derived hashes. Raw password values are not persisted by the application. |
+| Session safety | Each session is an opaque, hashed record with expiry and revocation. Sign-out everywhere deletes every server record for the current account. |
+| Authorization | Protected procedures derive the actor from server-authenticated session context. The role in a mobile payload is not trusted. |
+| Ownership boundaries | Notes, bookmarks, learning progress, notifications, test attempts and answer data are filtered by the authenticated user ID. |
+| Paid access | The app does not unlock paid courses from a client success event. It deliberately blocks payment capture until provider verification and signed webhook configuration are supplied. |
+| Assessments | Correct answers do not leave the assessment endpoint. Scores are calculated from database answer keys. Attempt timeout is also enforced server-side. |
+| Operations | Teacher actions require a delegated permission; administrative APIs repeat role validation and emit audit records for the implemented CMS mutations. |
+
+## Provider boundaries and required configuration
+
+The project deliberately does not include hard-coded payment, email, streaming or storage credentials.
+
+| Capability | Current boundary | Needed before production activation |
+| --- | --- | --- |
+| Razorpay payments | Client presents an explicit configuration boundary; no payment currently unlocks a paid course. | `RAZORPAY_KEY_ID`, server-only `RAZORPAY_KEY_SECRET`, signed webhook verification, reconciliation and refund policy. |
+| Transactional email | In-app inbox works without external services. | An approved email provider, sender domain, templates, opt-out policy, and server-only credentials. |
+| Video streaming | Lesson metadata is protected; a video player provider is not yet configured. | A streaming/storage provider, signed playback URLs, content upload workflow, and video retention policy. |
+| Live meetings | Authorized schedule and link metadata are supported. | Approved meeting provider account, host process and, if required, recording retention rules. |
+| Push notifications | Intentionally deferred. | Expo push token lifecycle, backend send policy and user consent/notification preference flows. |
+
+## Production release checklist
+
+1. Rotate/delete every demonstration account and establish an initial Super Admin through a controlled runbook.
+2. Configure production environment secrets through the application secret settings—not in the source tree or mobile bundle.
+3. Select and configure payment, email, streaming and live-class providers; add signed webhook verification before exposing checkout.
+4. Apply a privacy policy, terms, refund policy, content ownership policy, instructor agreement and user support contact details via CMS settings.
+5. Add account recovery and email/mobile verification flow before opening registration to the public.
+6. Carry out penetration testing, abuse/rate-limit testing, device/session review, database backups and disaster-recovery rehearsals.
+7. Add internal dashboards for payment reconciliation, failed notification delivery, moderation queue and audit-log review.
+
+## Test evidence
+
+The automated suite verifies password hashing behavior, rejection of unauthenticated learning access and rejection of student access to operations routes. TypeScript compilation was executed after the mobile navigation and operations screens were added.
+
+## Known scope boundaries
+
+The requested specification covers a full commercial LMS. The first delivery intentionally does not simulate a payment provider, email sender, video CDN, live-video host, authentication recovery channel, push-notification service, certificate renderer, file uploader, or a comprehensive browser-based CMS. The database and server authorization boundaries are established for these extensions, and the current UI makes their configuration requirement explicit instead of falsely displaying completed transactions or media playback.

@@ -47,10 +47,13 @@ export default function OAuthCallback() {
               const userInfo: Auth.User = {
                 id: userData.id,
                 openId: userData.openId,
-                name: userData.name,
+                fullName: userData.name ?? null,
                 email: userData.email,
+                mobile: null,
                 loginMethod: userData.loginMethod,
-                lastSignedIn: new Date(userData.lastSignedIn || Date.now()),
+                role: "student",
+                avatarUrl: null,
+                createdAt: new Date(userData.lastSignedIn || Date.now()),
               };
               await Auth.setUserInfo(userInfo);
               console.log("[OAuth] User info stored:", userInfo);
@@ -198,10 +201,13 @@ export default function OAuthCallback() {
             const userInfo: Auth.User = {
               id: result.user.id,
               openId: result.user.openId,
-              name: result.user.name,
+              fullName: result.user.name ?? null,
               email: result.user.email,
+              mobile: null,
               loginMethod: result.user.loginMethod,
-              lastSignedIn: new Date(result.user.lastSignedIn || Date.now()),
+              role: "student",
+              avatarUrl: null,
+              createdAt: new Date(result.user.lastSignedIn || Date.now()),
             };
             await Auth.setUserInfo(userInfo);
             console.log("[OAuth] User info stored:", userInfo);

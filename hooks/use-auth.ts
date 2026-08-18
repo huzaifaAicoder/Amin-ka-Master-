@@ -29,10 +29,13 @@ export function useAuth(options?: UseAuthOptions) {
           const userInfo: Auth.User = {
             id: apiUser.id,
             openId: apiUser.openId,
-            name: apiUser.name,
+            fullName: apiUser.name ?? null,
             email: apiUser.email,
+            mobile: null,
             loginMethod: apiUser.loginMethod,
-            lastSignedIn: new Date(apiUser.lastSignedIn),
+            role: "student",
+            avatarUrl: null,
+            createdAt: new Date(apiUser.lastSignedIn),
           };
           setUser(userInfo);
           // Cache user info in localStorage for faster subsequent loads
