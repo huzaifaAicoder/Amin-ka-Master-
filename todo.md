@@ -50,3 +50,5 @@
 - [x] Add Super Admin staff-passkey rotation with confirmation, hashed storage, active staff-session invalidation, and audit logging.
 - [x] Perform and document a full authentication lifecycle hardening review for sign-up, login, refresh, logout, protected routes, browser back navigation, and clean re-login.
 - [x] Repair the Account-screen Sign out control so its confirmation and redirect work consistently on physical mobile devices.
+- [x] Add a Super Admin-only workflow to create Teacher and Admin accounts with secure initial credentials and audit logging.
+- [x] Add protected staff onboarding controls to the Super Admin people-management interface without changing student-only public registration.

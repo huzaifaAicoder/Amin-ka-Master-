@@ -83,5 +83,6 @@ describe("LMS security boundaries", () => {
     await expect(caller.operations.masterSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.auditLogs()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.rotateStaffPasskey({ currentPasskey: "current-passkey", nextPasskey: "a-strong-next-passkey", confirmation: "a-strong-next-passkey" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.createStaffAccount({ fullName: "Unapproved Staff", email: "unapproved@example.com", mobile: "", password: "AminStaff!2026", role: "teacher" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

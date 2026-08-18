@@ -195,6 +195,39 @@ export async function registerCredentialUser(input: {
   return created[0];
 }
 
+export async function createStaffCredentialUser(input: {
+  fullName: string;
+  email?: string;
+  mobile?: string;
+  password: string;
+  role: "teacher" | "admin";
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const email = input.email ? normalizeIdentity(input.email) : null;
+  const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
+  const identityMatch = await database
+    .select({ id: users.id })
+    .from(users)
+    .where(or(email ? eq(users.email, email) : sql`false`, mobile ? eq(users.mobile, mobile) : sql`false`))
+    .limit(1);
+  if (identityMatch[0]) throw new Error("An account already exists for that email or mobile number");
+
+  const result = await database.insert(users).values({
+    openId: `local_${randomUUID()}`,
+    fullName: input.fullName.trim(),
+    email,
+    mobile,
+    passwordHash: hashPassword(input.password),
+    loginMethod: "password",
+    role: input.role,
+    status: "active",
+    lastSignedIn: new Date(),
+  });
+  const created = await database.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
+  return created[0];
+}
+
 export async function authenticateCredentialUser(identity: string, password: string) {
   const user = await getUserByIdentity(identity);
   if (!user || user.status !== "active" || !user.passwordHash) return undefined;

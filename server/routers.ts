@@ -350,6 +350,14 @@ export const appRouter = router({
       return { success: true } as const;
     }),
     people: requireRoles(["admin", "super_admin"]).input(z.object({ search: z.string().trim().max(160).optional() }).optional()).query(({ input }) => db.listManagedUsers(input?.search)),
+    createStaffAccount: requireRoles(["super_admin"]).input(z.object({ fullName: z.string().trim().min(2).max(160), email: z.string().trim().email().max(320).optional().or(z.literal("")), mobile: mobileSchema.optional().or(z.literal("")), password: z.string().min(12, "Use an initial password of at least 12 characters").max(128), role: z.enum(["teacher", "admin"]) }).superRefine((input, ctx) => {
+      if (!input.email && !input.mobile) ctx.addIssue({ code: "custom", message: "Provide an email address or mobile number", path: ["email"] });
+    })).mutation(async ({ ctx, input }) => {
+      const user = await db.createStaffCredentialUser({ fullName: input.fullName, email: input.email || undefined, mobile: input.mobile || undefined, password: input.password, role: input.role });
+      if (!user) throw new Error("Could not create the staff account");
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "staff_account.created", entityType: "user", entityId: user.id, metadata: { role: input.role, email: user.email, mobile: user.mobile } });
+      return { user: safeUser(user) };
+    }),
     updatePerson: requireRoles(["super_admin"]).input(z.object({ userId: z.number().int().positive(), role: z.enum(["student", "teacher", "admin"]).optional(), status: z.enum(["active", "suspended"]).optional() }).refine((value) => value.role !== undefined || value.status !== undefined, "Choose a role or status update")).mutation(async ({ ctx, input }) => {
       await db.updateManagedUser(input.userId, { role: input.role, status: input.status });
       await db.writeAudit({ actorUserId: ctx.user.id, action: "person.updated", entityType: "user", entityId: input.userId, metadata: { role: input.role, status: input.status } });
