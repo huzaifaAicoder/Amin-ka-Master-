@@ -53,3 +53,5 @@
 - [x] Add a Super Admin-only workflow to create Teacher and Admin accounts with secure initial credentials and audit logging.
 - [x] Add protected staff onboarding controls to the Super Admin people-management interface without changing student-only public registration.
 - [x] Add a secure and discoverable first Super Admin provisioning path so staff accounts can be created before ordinary Staff/Admin login is attempted.
+- [x] Repair Super Admin Operations layout so management controls are visible and usable on mobile screens.
+- [x] Repair Operations back navigation so Super Admin can reliably return to the authenticated app.
