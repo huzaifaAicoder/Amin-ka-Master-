@@ -56,3 +56,4 @@
 - [x] Repair Super Admin Operations layout so management controls are visible and usable on mobile screens.
 - [x] Repair Operations back navigation so Super Admin can reliably return to the authenticated app.
 - [x] Run release-readiness checks for the Student flow and Super Admin/Staff controls, then save a backup checkpoint without publishing.
+- [x] Add reciprocal First Owner Setup and Staff/Admin Login navigation while keeping ordinary staff-account creation Super Admin-only.
