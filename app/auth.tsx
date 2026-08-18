@@ -19,6 +19,7 @@ export default function AuthScreen() {
   const [fullName, setFullName] = useState("");
   const [identity, setIdentity] = useState("");
   const [password, setPassword] = useState("");
+  const [staffPasskey, setStaffPasskey] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [resetToken, setResetToken] = useState("");
@@ -34,7 +35,7 @@ export default function AuthScreen() {
 
   const clearFeedback = () => { setError(null); setNotice(null); };
   const start = (nextPortal: Portal, nextMode: "login" | "register" = "login") => {
-    setPortal(nextPortal); setMode(nextMode); setPassword(""); setConfirmPassword(""); setOtpCode(""); setResetToken(""); clearFeedback();
+    setPortal(nextPortal); setMode(nextMode); setPassword(""); setStaffPasskey(""); setConfirmPassword(""); setOtpCode(""); setResetToken(""); clearFeedback();
   };
   const goBack = () => {
     if (mode === "forgot") setMode("login");
@@ -47,6 +48,7 @@ export default function AuthScreen() {
     const message = cause instanceof Error ? cause.message : "";
     if (message.includes("Staff / Admin portal")) return "This is a staff account. Please choose Staff / Admin Login.";
     if (message.includes("not authorized for the Staff")) return "This account is not authorized for the Staff / Admin portal.";
+    if (message.includes("Staff Passkey")) return "Your Staff Passkey is required and must be current. Contact your Super Admin if it was recently rotated.";
     if (message.toLowerCase().includes("already") || message.toLowerCase().includes("exists")) return "An account already exists with these details. Please sign in instead.";
     if (mode === "login") return "The email/mobile number or password is incorrect. Please check both and try again.";
     if (mode === "otp") return message || "We could not verify that recovery code. Try again or request a new one.";
@@ -59,6 +61,7 @@ export default function AuthScreen() {
     clearFeedback();
     if (!identity.trim()) return setError("Enter your email address or mobile number.");
     if (!password) return setError("Enter your password to continue.");
+    if (mode === "login" && portal === "staff" && !staffPasskey) return setError("Enter the Staff Passkey to continue to the protected staff portal.");
     if (mode === "register" && fullName.trim().length < 2) return setError("Enter your full name to create your learner profile.");
     try {
       if (mode === "register") {
@@ -67,7 +70,7 @@ export default function AuthScreen() {
         const payload = await registerMutation.mutateAsync({ fullName, email: isEmail ? cleanIdentity : "", mobile: isEmail ? "" : cleanIdentity, password });
         await completeLogin(payload); router.replace("/"); return;
       }
-      const payload = await loginMutation.mutateAsync({ identity, password, portal });
+      const payload = await loginMutation.mutateAsync({ identity, password, portal, staffPasskey: portal === "staff" ? staffPasskey : undefined });
       await completeLogin(payload);
       router.replace(payload.user.role === "student" ? "/" : "/operations");
     } catch (cause) { setError(messageForFailure(cause)); }
@@ -122,6 +125,7 @@ export default function AuthScreen() {
         {mode === "register" ? <Field label="Full name" value={fullName} onChangeText={(value) => { setFullName(value); clearFeedback(); }} placeholder="Your full name" icon="person-outline" autoCapitalize="words" editable={!isBusy} /> : null}
         {(mode === "login" || mode === "register" || mode === "forgot") ? <Field label={mode === "forgot" ? "Registered email or mobile" : "Email or mobile number"} value={identity} onChangeText={(value) => { setIdentity(value); clearFeedback(); }} placeholder="name@example.com or +91 90000 00000" icon="alternate-email" autoCapitalize="none" keyboardType="email-address" editable={!isBusy} /> : null}
         {(mode === "login" || mode === "register") ? <Field label="Password" value={password} onChangeText={(value) => { setPassword(value); clearFeedback(); }} placeholder={mode === "register" ? "At least 8 characters" : "Your password"} icon="lock-outline" secureTextEntry editable={!isBusy} /> : null}
+        {mode === "login" && portal === "staff" ? <Field label="Staff Passkey" value={staffPasskey} onChangeText={(value) => { setStaffPasskey(value); clearFeedback(); }} placeholder="Current staff access key" icon="key" secureTextEntry editable={!isBusy} /> : null}
         {mode === "otp" ? <Field label="Six-digit recovery code" value={otpCode} onChangeText={(value) => { setOtpCode(value.replace(/\D/g, "").slice(0, 6)); clearFeedback(); }} placeholder="000000" icon="security" keyboardType="numeric" editable={!isBusy} /> : null}
         {mode === "reset" ? <><Field label="New password" value={password} onChangeText={(value) => { setPassword(value); clearFeedback(); }} placeholder="At least 8 characters" icon="lock-reset" secureTextEntry editable={!isBusy} /><Field label="Confirm new password" value={confirmPassword} onChangeText={(value) => { setConfirmPassword(value); clearFeedback(); }} placeholder="Repeat your new password" icon="lock-outline" secureTextEntry editable={!isBusy} /></> : null}
         {feedback}
@@ -129,7 +133,7 @@ export default function AuthScreen() {
         <Pressable accessibilityRole="button" accessibilityState={{ busy: isBusy, disabled: isBusy }} disabled={isBusy} onPress={mode === "forgot" ? requestReset : mode === "otp" ? verifyCode : mode === "reset" ? resetPassword : submitLoginOrRegistration} style={({ pressed }) => [styles.submit, (pressed || isBusy) && styles.pressed, isBusy && styles.disabled]}>{isBusy ? <><ActivityIndicator size="small" color={COLORS.white} /><Text style={styles.submitText}>{mode === "forgot" ? "Sending recovery code…" : mode === "otp" ? "Verifying code…" : mode === "reset" ? "Updating password…" : mode === "register" ? "Creating your account…" : "Signing you in…"}</Text></> : <><Text style={styles.submitText}>{mode === "forgot" ? "Send recovery code" : mode === "otp" ? "Verify code" : mode === "reset" ? "Update password" : mode === "register" ? "Create student account" : portal === "student" ? "Login as student" : "Login to staff portal"}</Text><MaterialIcons name="arrow-forward" size={19} color={COLORS.white} /></>}</Pressable>
         {mode === "otp" ? <Pressable disabled={isBusy} onPress={requestReset} style={({ pressed }) => [styles.resendLink, pressed && styles.pressed]}><Text style={styles.forgotText}>Resend recovery code</Text></Pressable> : null}
       </View>
-      <Text style={styles.footnote}>{mode === "forgot" || mode === "otp" || mode === "reset" ? "Recovery codes expire in 10 minutes, can only be used once, and are protected against repeated guessing." : portal === "staff" ? "Selecting this portal never grants a role. The server verifies your active account, role and permissions after login." : mode === "register" ? "Staff accounts are created by authorized administrators, not public registration." : "Use password recovery if you cannot sign in."}</Text></>}
+      <Text style={styles.footnote}>{mode === "forgot" || mode === "otp" || mode === "reset" ? "Recovery codes expire in 10 minutes, can only be used once, and are protected against repeated guessing." : portal === "staff" ? "Selecting this portal never grants a role. The server verifies your active account, Staff Passkey, role and permissions after login." : mode === "register" ? "Staff accounts are created by authorized administrators, not public registration." : "Use password recovery if you cannot sign in."}</Text></>}
   </ScrollView></KeyboardAvoidingView></ScreenContainer>;
 }
 

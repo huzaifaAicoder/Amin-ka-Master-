@@ -82,5 +82,6 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.operations.masterSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.auditLogs()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.rotateStaffPasskey({ currentPasskey: "current-passkey", nextPasskey: "a-strong-next-passkey", confirmation: "a-strong-next-passkey" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

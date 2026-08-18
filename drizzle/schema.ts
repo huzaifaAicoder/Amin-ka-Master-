@@ -48,6 +48,19 @@ export const authSessions = mysqlTable(
   (table) => [uniqueIndex("auth_sessions_token_hash_uq").on(table.tokenHash), index("auth_sessions_user_idx").on(table.userId)],
 );
 
+export const staffPasskeys = mysqlTable(
+  "staff_passkeys",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    passkeyHash: varchar("passkeyHash", { length: 255 }).notNull(),
+    createdByUserId: int("createdByUserId").notNull(),
+    activatedAt: timestamp("activatedAt").defaultNow().notNull(),
+    revokedAt: timestamp("revokedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  (table) => [index("staff_passkeys_active_idx").on(table.revokedAt, table.activatedAt)],
+);
+
 export const otpChallenges = mysqlTable(
   "otp_challenges",
   {

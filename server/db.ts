@@ -33,6 +33,7 @@ import {
   orders,
   personalNotes,
   questions,
+  staffPasskeys,
   testAnswers,
   testAttempts,
   tests,
@@ -250,6 +251,65 @@ export async function revokeAllSessions(userId: number) {
       .set({ revokedAt: new Date() })
       .where(and(eq(authSessions.userId, userId), sql`${authSessions.revokedAt} IS NULL`));
   }
+}
+
+export async function revokeAllStaffSessions() {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const staffUsers = await database
+    .select({ id: users.id })
+    .from(users)
+    .where(inArray(users.role, ["teacher", "admin", "super_admin"]));
+  const staffUserIds = staffUsers.map((user) => user.id);
+  if (!staffUserIds.length) return;
+  await database
+    .update(authSessions)
+    .set({ revokedAt: new Date() })
+    .where(and(inArray(authSessions.userId, staffUserIds), sql`${authSessions.revokedAt} IS NULL`));
+}
+
+export async function getActiveStaffPasskey() {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const rows = await database
+    .select()
+    .from(staffPasskeys)
+    .where(sql`${staffPasskeys.revokedAt} IS NULL`)
+    .orderBy(desc(staffPasskeys.activatedAt))
+    .limit(1);
+  return rows[0];
+}
+
+export async function verifyActiveStaffPasskey(candidate: string) {
+  const activePasskey = await getActiveStaffPasskey();
+  return Boolean(activePasskey && verifyPassword(candidate, activePasskey.passkeyHash));
+}
+
+export async function bootstrapStaffPasskey(actorUserId: number, passkey: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const activePasskey = await getActiveStaffPasskey();
+  if (activePasskey) return { created: false as const };
+  await database.insert(staffPasskeys).values({ passkeyHash: hashPassword(passkey), createdByUserId: actorUserId });
+  return { created: true as const };
+}
+
+export async function rotateStaffPasskey(actorUserId: number, currentPasskey: string, nextPasskey: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const activePasskey = await getActiveStaffPasskey();
+  if (!activePasskey || !verifyPassword(currentPasskey, activePasskey.passkeyHash)) return { rotated: false as const };
+  const now = new Date();
+  await database.transaction(async (tx) => {
+    const revoked = await tx
+      .update(staffPasskeys)
+      .set({ revokedAt: now })
+      .where(and(eq(staffPasskeys.id, activePasskey.id), sql`${staffPasskeys.revokedAt} IS NULL`));
+    if (revoked[0].affectedRows !== 1) throw new Error("The Staff Passkey has changed. Try again with the current value.");
+    await tx.insert(staffPasskeys).values({ passkeyHash: hashPassword(nextPasskey), createdByUserId: actorUserId, activatedAt: now });
+  });
+  await revokeAllStaffSessions();
+  return { rotated: true as const };
 }
 
 export async function getRecentOtpCount(destination: string, windowMinutes = 60) {
@@ -912,6 +972,8 @@ const MANAGED_SETTINGS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
+  "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
+  "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 
 export type ManagedSettingKey = typeof MANAGED_SETTINGS[number];

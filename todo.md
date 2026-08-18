@@ -44,3 +44,9 @@
 - [x] Implement expiring, single-use, rate-limited OTP challenges for secure account recovery and verification.
 - [x] Add a password-reset flow that verifies an OTP server-side, updates the password hash, and revokes existing sessions.
 - [x] Build mobile recovery and OTP screens and document the required email/SMS provider configuration for real code delivery.
+- [x] Fix mobile safe-area/header overlap on the Account screen and verify the revised portrait layout.
+- [x] Add structured Help & Support, Contact Us, and professional Developer Details experiences with administrator-editable placeholders.
+- [x] Require a server-validated Staff Passkey for Teacher, Admin, and Super Admin login without exposing it in student-facing interfaces.
+- [x] Add Super Admin staff-passkey rotation with confirmation, hashed storage, active staff-session invalidation, and audit logging.
+- [x] Perform and document a full authentication lifecycle hardening review for sign-up, login, refresh, logout, protected routes, browser back navigation, and clean re-login.
+- [x] Repair the Account-screen Sign out control so its confirmation and redirect work consistently on physical mobile devices.

@@ -71,6 +71,10 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
   const logout = useCallback(async () => {
     try {
       await logoutMutation.mutateAsync();
+    } catch (error) {
+      // Device access must be cleared even if an intermittent network failure
+      // prevents the best-effort server revocation request from completing.
+      console.warn("[Session] Server logout request did not complete", error);
     } finally {
       await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
       utils.auth.me.setData(undefined, null);

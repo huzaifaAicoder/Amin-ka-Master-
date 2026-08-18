@@ -5,6 +5,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
+import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
 import { protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
 import * as db from "./db";
 
@@ -90,7 +91,7 @@ export const appRouter = router({
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),
-    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128), portal: z.enum(["student", "staff"]) })).mutation(async ({ input, ctx }) => {
+    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128), portal: z.enum(["student", "staff"]), staffPasskey: z.string().min(1).max(256).optional() })).mutation(async ({ input, ctx }) => {
       const user = await db.authenticateCredentialUser(input.identity, input.password);
       if (!user) throw new Error("Incorrect credentials or inactive account");
       if (input.portal === "student" && user.role !== "student") {
@@ -98,6 +99,16 @@ export const appRouter = router({
       }
       if (input.portal === "staff" && user.role === "student") {
         throw new TRPCError({ code: "FORBIDDEN", message: "This account is not authorized for the Staff / Admin portal." });
+      }
+      if (input.portal === "staff") {
+        if (!input.staffPasskey) throw new TRPCError({ code: "UNAUTHORIZED", message: "A valid Staff Passkey is required for Staff / Admin Login." });
+        let staffPasskeyValid = await db.verifyActiveStaffPasskey(input.staffPasskey);
+        if (!staffPasskeyValid && user.role === "super_admin" && verifyStaffPasskeyBootstrap(input.staffPasskey)) {
+          const bootstrap = await db.bootstrapStaffPasskey(user.id, input.staffPasskey);
+          staffPasskeyValid = bootstrap.created || await db.verifyActiveStaffPasskey(input.staffPasskey);
+          if (staffPasskeyValid) await db.writeAudit({ actorUserId: user.id, action: "staff_passkey.bootstrapped", entityType: "staff_passkey", metadata: { source: "server_bootstrap" } });
+        }
+        if (!staffPasskeyValid) throw new TRPCError({ code: "UNAUTHORIZED", message: "The Staff Passkey is invalid or has been rotated." });
       }
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
@@ -329,10 +340,10 @@ export const appRouter = router({
     }),
     masterSettings: requireRoles(["super_admin"]).query(() => db.getManagedSettings()),
     saveMasterSettings: requireRoles(["super_admin"]).input(z.object({
-      appName: z.string().trim().min(2).max(80).optional(), tagline: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(320).optional(), contactPhone: z.string().trim().max(40).optional(), whatsapp: z.string().trim().max(40).optional(), heroTitle: z.string().trim().max(220).optional(), heroSubtitle: z.string().trim().max(500).optional(), heroCta: z.string().trim().max(80).optional(), showLive: z.boolean().optional(), registrationEnabled: z.boolean().optional(), maintenanceEnabled: z.boolean().optional(),
+      appName: z.string().trim().min(2).max(80).optional(), tagline: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(320).optional(), contactPhone: z.string().trim().max(40).optional(), whatsapp: z.string().trim().max(40).optional(), heroTitle: z.string().trim().max(220).optional(), heroSubtitle: z.string().trim().max(500).optional(), heroCta: z.string().trim().max(80).optional(), showLive: z.boolean().optional(), registrationEnabled: z.boolean().optional(), maintenanceEnabled: z.boolean().optional(), supportEmail: z.string().trim().email().max(320).optional().or(z.literal("")), supportPhone: z.string().trim().max(40).optional(), officeInfo: z.string().trim().max(500).optional(), helpIntro: z.string().trim().max(500).optional(), developerName: z.string().trim().max(160).optional(), developerRole: z.string().trim().max(160).optional(), developerProjectInfo: z.string().trim().max(600).optional(), developerContact: z.string().trim().max(320).optional(), developerCopyright: z.string().trim().max(240).optional(),
     })).mutation(async ({ ctx, input }) => {
       const values = {
-        ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}), ...(input.tagline !== undefined ? { "brand.tagline": input.tagline } : {}), ...(input.contactEmail !== undefined ? { "brand.contact_email": input.contactEmail } : {}), ...(input.contactPhone !== undefined ? { "brand.contact_phone": input.contactPhone } : {}), ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}), ...(input.heroTitle !== undefined ? { "homepage.hero_title": input.heroTitle } : {}), ...(input.heroSubtitle !== undefined ? { "homepage.hero_subtitle": input.heroSubtitle } : {}), ...(input.heroCta !== undefined ? { "homepage.hero_cta": input.heroCta } : {}), ...(input.showLive !== undefined ? { "homepage.show_live": input.showLive } : {}), ...(input.registrationEnabled !== undefined ? { "platform.registration_enabled": input.registrationEnabled } : {}), ...(input.maintenanceEnabled !== undefined ? { "platform.maintenance_enabled": input.maintenanceEnabled } : {}),
+        ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}), ...(input.tagline !== undefined ? { "brand.tagline": input.tagline } : {}), ...(input.contactEmail !== undefined ? { "brand.contact_email": input.contactEmail } : {}), ...(input.contactPhone !== undefined ? { "brand.contact_phone": input.contactPhone } : {}), ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}), ...(input.heroTitle !== undefined ? { "homepage.hero_title": input.heroTitle } : {}), ...(input.heroSubtitle !== undefined ? { "homepage.hero_subtitle": input.heroSubtitle } : {}), ...(input.heroCta !== undefined ? { "homepage.hero_cta": input.heroCta } : {}), ...(input.showLive !== undefined ? { "homepage.show_live": input.showLive } : {}), ...(input.registrationEnabled !== undefined ? { "platform.registration_enabled": input.registrationEnabled } : {}), ...(input.maintenanceEnabled !== undefined ? { "platform.maintenance_enabled": input.maintenanceEnabled } : {}), ...(input.supportEmail !== undefined ? { "support.support_email": input.supportEmail } : {}), ...(input.supportPhone !== undefined ? { "support.support_phone": input.supportPhone } : {}), ...(input.officeInfo !== undefined ? { "support.office_info": input.officeInfo } : {}), ...(input.helpIntro !== undefined ? { "support.help_intro": input.helpIntro } : {}), ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}), ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}), ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}), ...(input.developerContact !== undefined ? { "developer.contact": input.developerContact } : {}), ...(input.developerCopyright !== undefined ? { "developer.copyright": input.developerCopyright } : {}),
       };
       await db.saveManagedSettings(ctx.user.id, values);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });
@@ -365,6 +376,12 @@ export const appRouter = router({
       return { announcementId };
     }),
     auditLogs: requireRoles(["super_admin"]).query(() => db.listManagedAuditLogs()),
+    rotateStaffPasskey: requireRoles(["super_admin"]).input(z.object({ currentPasskey: z.string().min(1).max(256), nextPasskey: z.string().min(12, "Use at least 12 characters").max(256), confirmation: z.string().min(12).max(256) }).refine((input) => input.nextPasskey === input.confirmation, { message: "The new Staff Passkey confirmation does not match", path: ["confirmation"] })).mutation(async ({ ctx, input }) => {
+      const result = await db.rotateStaffPasskey(ctx.user.id, input.currentPasskey, input.nextPasskey);
+      if (!result.rotated) throw new TRPCError({ code: "BAD_REQUEST", message: "The current Staff Passkey is incorrect or no active passkey is available." });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "staff_passkey.rotated", entityType: "staff_passkey", metadata: { revokedExistingStaffSessions: true } });
+      return { success: true as const };
+    }),
     createCategory: requireRoles(["admin", "super_admin"]).input(z.object({ name: z.string().trim().min(3).max(120), slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(140), description: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
       const categoryId = await db.createCategory(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "category.created", entityType: "category", entityId: categoryId, metadata: { name: input.name } });
