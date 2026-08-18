@@ -1,0 +1,37 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter } from "expo-router";
+import { useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+
+import { ScreenContainer } from "@/components/screen-container";
+import { COLORS, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
+import { useLmsSession } from "@/lib/lms-session";
+import { trpc } from "@/lib/trpc";
+
+export default function TestsManagerScreen() {
+  const router = useRouter();
+  const { user } = useLmsSession();
+  const coursesQuery = trpc.operations.courses.useQuery(undefined, { enabled: Boolean(user && user.role !== "student"), retry: false });
+  const testsQuery = trpc.operations.tests.useQuery(undefined, { enabled: Boolean(user && user.role !== "student"), retry: false });
+  const createMutation = trpc.operations.createTest.useMutation({ onSuccess: () => void testsQuery.refetch() });
+  const [creating, setCreating] = useState(false);
+  const [courseIndex, setCourseIndex] = useState(0);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [duration, setDuration] = useState("30");
+  const [passing, setPassing] = useState("0");
+  if (!user || user.role === "student") return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.denied}>Operations permission is required.</Text></ScreenContainer>;
+  const courses = coursesQuery.data ?? [];
+  const selectedCourse = courses[courseIndex];
+  const createTest = async () => {
+    if (title.trim().length < 3) return Alert.alert("Add a test title", "Enter a clear title for the assessment.");
+    try {
+      const result = await createMutation.mutateAsync({ courseId: selectedCourse?.course.id ?? null, title: title.trim(), description: description.trim() || undefined, durationMinutes: Math.max(1, Number(duration) || 30), passingMarks: Math.max(0, Number(passing) || 0) });
+      setCreating(false); setTitle(""); setDescription("");
+      router.push(`/operations/tests/${result.testId}` as never);
+    } catch (cause) { Alert.alert("Test not created", cause instanceof Error ? cause.message : "Please check your staff permissions."); }
+  };
+  return <ScreenContainer className="px-5" edges={["top", "left", "right"]}><View style={styles.header}><Pressable onPress={() => creating ? setCreating(false) : router.back()}><MaterialIcons name={creating ? "close" : "arrow-back"} size={23} color={COLORS.indigo} /></Pressable><Text style={styles.title}>{creating ? "Create test" : "Manage tests"}</Text>{!creating ? <Pressable onPress={() => setCreating(true)}><MaterialIcons name="add-circle" size={25} color={COLORS.indigo} /></Pressable> : <View style={{ width: 25 }} />}</View>{creating ? <ScrollView contentContainerStyle={styles.form}><Text style={styles.formTitle}>Timed MCQ assessment</Text><Text style={styles.note}>Create a draft first, then add questions and publish it when ready.</Text><Label text="Test title" /><TextInput value={title} onChangeText={setTitle} placeholder="e.g. Surveying weekly test" placeholderTextColor="#98A2B3" style={styles.input} /><Label text="Course" /><Pressable onPress={() => setCourseIndex((value) => courses.length ? (value + 1) % courses.length : 0)} style={styles.selector}><Text style={styles.selectorText}>{selectedCourse?.course.title ?? "General test (no course)"}</Text><MaterialIcons name="sync" size={18} color={COLORS.indigo} /></Pressable><Label text="Description" /><TextInput value={description} onChangeText={setDescription} placeholder="What will this test assess?" placeholderTextColor="#98A2B3" multiline style={[styles.input, styles.textarea]} textAlignVertical="top" /><View style={styles.row}><View style={styles.half}><Label text="Duration (minutes)" /><TextInput value={duration} onChangeText={setDuration} keyboardType="number-pad" style={styles.input} /></View><View style={styles.half}><Label text="Passing marks" /><TextInput value={passing} onChangeText={setPassing} keyboardType="number-pad" style={styles.input} /></View></View><PrimaryButton label={createMutation.isPending ? "Creating…" : "Create draft and add questions"} icon="assignment" onPress={createTest} disabled={createMutation.isPending} /></ScrollView> : testsQuery.isLoading ? <View style={styles.center}><ActivityIndicator color={COLORS.indigo} /></View> : <FlatList data={testsQuery.data ?? []} keyExtractor={(item) => item.test.id.toString()} contentContainerStyle={styles.list} ListHeaderComponent={<Text style={styles.helper}>Open a test to manage questions and publish it.</Text>} renderItem={({ item }) => <Pressable onPress={() => router.push(`/operations/tests/${item.test.id}` as never)} style={({ pressed }) => [styles.card, pressed && styles.pressed]}><IconCircle icon="assignment" size={43} /><View style={styles.copy}><Text style={styles.testTitle}>{item.test.title}</Text><Text style={styles.meta}>{item.courseTitle ?? "General test"} · {item.questionCount} question{item.questionCount === 1 ? "" : "s"}</Text><Text style={styles.meta}>{item.test.durationMinutes} min · Pass {item.test.passingMarks}</Text></View><Tag label={item.test.status.toUpperCase()} tone={item.test.status === "published" ? "green" : item.test.status === "draft" ? "saffron" : "neutral"} /></Pressable>} />}</ScreenContainer>;
+}
+function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
+const styles = StyleSheet.create({ header:{paddingTop:12,paddingBottom:17,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},title:{color:COLORS.ink,fontSize:20,fontWeight:"800"},denied:{color:COLORS.muted},center:{flex:1,alignItems:"center",justifyContent:"center"},form:{paddingBottom:34,gap:9},formTitle:{fontSize:21,fontWeight:"800",color:COLORS.ink},note:{color:COLORS.muted,fontSize:13,lineHeight:19,marginBottom:5},label:{color:COLORS.ink,fontSize:13,fontWeight:"800",marginTop:4},input:{minHeight:52,borderWidth:1,borderColor:COLORS.line,borderRadius:14,backgroundColor:COLORS.white,paddingHorizontal:13,color:COLORS.ink,fontSize:14},textarea:{minHeight:92,paddingTop:12},selector:{minHeight:52,borderWidth:1,borderColor:COLORS.line,borderRadius:14,backgroundColor:COLORS.white,paddingHorizontal:13,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},selectorText:{flex:1,color:COLORS.indigo,fontSize:14,fontWeight:"800"},row:{flexDirection:"row",gap:10},half:{flex:1},list:{gap:10,paddingBottom:34},helper:{borderRadius:13,backgroundColor:COLORS.indigoSoft,color:COLORS.indigo,padding:12,fontSize:12,lineHeight:18},card:{backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.line,borderRadius:18,padding:13,flexDirection:"row",alignItems:"center",gap:10},copy:{flex:1,gap:4},testTitle:{color:COLORS.ink,fontWeight:"800",fontSize:15},meta:{color:COLORS.muted,fontSize:11},pressed:{opacity:0.72,transform:[{scale:0.985}]}});

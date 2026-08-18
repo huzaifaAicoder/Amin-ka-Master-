@@ -548,6 +548,88 @@ export async function listOperationsCourses() {
   return database.select({ course: courses, categoryName: categories.name, instructorName: users.fullName }).from(courses).innerJoin(categories, eq(courses.categoryId, categories.id)).leftJoin(users, eq(courses.instructorId, users.id)).orderBy(desc(courses.updatedAt));
 }
 
+export async function listOperationsTests() {
+  const database = await getDb();
+  if (!database) return [];
+  return database
+    .select({ test: tests, courseTitle: courses.title, questionCount: sql<number>`count(${questions.id})` })
+    .from(tests)
+    .leftJoin(courses, eq(tests.courseId, courses.id))
+    .leftJoin(questions, eq(questions.testId, tests.id))
+    .groupBy(tests.id, courses.title)
+    .orderBy(desc(tests.updatedAt));
+}
+
+export async function getOperationsTest(testId: number) {
+  const database = await getDb();
+  if (!database) return undefined;
+  const test = await database.select().from(tests).where(eq(tests.id, testId)).limit(1);
+  if (!test[0]) return undefined;
+  const testQuestions = await database.select().from(questions).where(eq(questions.testId, testId)).orderBy(asc(questions.displayOrder));
+  return { test: test[0], questions: testQuestions };
+}
+
+export async function createManagedTest(input: { courseId?: number | null; title: string; description?: string; durationMinutes: number; passingMarks: number; createdByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(tests).values({ ...input, status: "draft" });
+  return Number(result[0].insertId);
+}
+
+export async function updateManagedTest(input: { testId: number; courseId?: number | null; title: string; description?: string; durationMinutes: number; passingMarks: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(tests).set({ courseId: input.courseId, title: input.title, description: input.description, durationMinutes: input.durationMinutes, passingMarks: input.passingMarks }).where(eq(tests.id, input.testId));
+}
+
+export async function setManagedTestStatus(testId: number, status: "draft" | "published" | "archived") {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(tests).set({ status }).where(eq(tests.id, testId));
+}
+
+export async function saveManagedQuestion(input: { questionId?: number; testId: number; prompt: string; options: string[]; correctOptionIndex: number; marks: number; explanation?: string; displayOrder: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (input.questionId) {
+    await database.update(questions).set({ prompt: input.prompt, options: input.options, correctOptionIndex: input.correctOptionIndex, marks: input.marks, explanation: input.explanation, displayOrder: input.displayOrder }).where(and(eq(questions.id, input.questionId), eq(questions.testId, input.testId)));
+    return input.questionId;
+  }
+  const result = await database.insert(questions).values({ testId: input.testId, prompt: input.prompt, options: input.options, correctOptionIndex: input.correctOptionIndex, marks: input.marks, explanation: input.explanation, displayOrder: input.displayOrder });
+  return Number(result[0].insertId);
+}
+
+export async function deleteManagedQuestion(questionId: number, testId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.delete(questions).where(and(eq(questions.id, questionId), eq(questions.testId, testId)));
+}
+
+export async function listOperationsLiveClasses() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ liveClass: liveClasses, courseTitle: courses.title, instructorName: users.fullName }).from(liveClasses).leftJoin(courses, eq(liveClasses.courseId, courses.id)).leftJoin(users, eq(liveClasses.instructorId, users.id)).orderBy(desc(liveClasses.startsAt));
+}
+
+export async function createManagedLiveClass(input: { courseId?: number | null; instructorId: number; title: string; description?: string; startsAt: Date; endsAt?: Date | null; meetingUrl?: string; recordingUrl?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(liveClasses).values({ ...input, status: "upcoming" });
+  return Number(result[0].insertId);
+}
+
+export async function updateManagedLiveClass(input: { liveClassId: number; courseId?: number | null; title: string; description?: string; startsAt: Date; endsAt?: Date | null; meetingUrl?: string; recordingUrl?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(liveClasses).set({ courseId: input.courseId, title: input.title, description: input.description, startsAt: input.startsAt, endsAt: input.endsAt, meetingUrl: input.meetingUrl, recordingUrl: input.recordingUrl }).where(eq(liveClasses.id, input.liveClassId));
+}
+
+export async function setManagedLiveClassStatus(liveClassId: number, status: "upcoming" | "live" | "completed" | "cancelled") {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(liveClasses).set({ status }).where(eq(liveClasses.id, liveClassId));
+}
+
 export async function createCourse(input: {
   categoryId: number;
   instructorId?: number | null;

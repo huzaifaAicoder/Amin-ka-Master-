@@ -21,3 +21,5 @@
 - [ ] Configure the paid-course checkout as an India-focused, UPI-first Razorpay experience with Indian cards, net banking and eligible wallets available through the merchant account.
 - [x] Make the admin workspace demonstrably accessible from preview without relying on an unseen role state.
 - [x] Fix logout so it revokes the local session and returns reliably to the unauthenticated experience.
+- [x] Add admin test management for creating, editing, publishing, and scheduling timed MCQ assessments with questions.
+- [x] Add admin live-class scheduling for creating, editing, status control, secure meeting links, and recordings.

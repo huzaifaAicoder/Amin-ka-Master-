@@ -19,6 +19,28 @@ const credentialSchema = z.object({
   }
 });
 
+const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
+const testDetailsSchema = z.object({
+  courseId: z.number().int().positive().nullable().optional(),
+  title: z.string().trim().min(3).max(220),
+  description: z.string().trim().max(10000).optional(),
+  durationMinutes: z.number().int().min(1).max(720),
+  passingMarks: z.number().int().min(0).max(10000),
+});
+const liveClassDetailsSchema = z.object({
+  courseId: z.number().int().positive().nullable().optional(),
+  title: z.string().trim().min(3).max(220),
+  description: z.string().trim().max(10000).optional(),
+  startsAt: z.date(),
+  endsAt: z.date().nullable().optional(),
+  meetingUrl: optionalUrl,
+  recordingUrl: optionalUrl,
+}).superRefine((value, ctx) => {
+  if (value.endsAt && value.endsAt <= value.startsAt) {
+    ctx.addIssue({ code: "custom", message: "Class end time must be after start time", path: ["endsAt"] });
+  }
+});
+
 function safeUser(user: NonNullable<Awaited<ReturnType<typeof db.getUserByOpenId>>>) {
   return {
     id: user.id,
@@ -186,6 +208,65 @@ export const appRouter = router({
         await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title } });
         return { success: true } as const;
       }),
+    tests: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsTests()),
+    test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ input }) => {
+      const result = await db.getOperationsTest(input.testId);
+      if (!result) throw new Error("Test was not found");
+      return result;
+    }),
+    createTest: requireRoles(["teacher", "admin", "super_admin"]).input(testDetailsSchema).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      const testId = await db.createManagedTest({ ...input, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "test.created", entityType: "test", entityId: testId, metadata: { title: input.title } });
+      return { testId };
+    }),
+    updateTest: requireRoles(["teacher", "admin", "super_admin"]).input(testDetailsSchema.extend({ testId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      await db.updateManagedTest(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "test.updated", entityType: "test", entityId: input.testId, metadata: { title: input.title } });
+      return { success: true } as const;
+    }),
+    setTestStatus: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive(), status: z.enum(["draft", "published", "archived"]) })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.publish");
+      if (input.status === "published") {
+        const test = await db.getOperationsTest(input.testId);
+        if (!test?.questions.length) throw new Error("Add at least one MCQ question before publishing a test");
+      }
+      await db.setManagedTestStatus(input.testId, input.status);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "test.status_changed", entityType: "test", entityId: input.testId, metadata: { status: input.status } });
+      return { success: true } as const;
+    }),
+    saveQuestion: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ questionId: z.number().int().positive().optional(), testId: z.number().int().positive(), prompt: z.string().trim().min(5).max(10000), options: z.array(z.string().trim().min(1).max(1000)).length(4), correctOptionIndex: z.number().int().min(0).max(3), marks: z.number().int().min(1).max(1000), explanation: z.string().trim().max(5000).optional(), displayOrder: z.number().int().min(0).max(10000) })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      const questionId = await db.saveManagedQuestion(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.questionId ? "question.updated" : "question.created", entityType: "question", entityId: questionId, metadata: { testId: input.testId } });
+      return { questionId };
+    }),
+    deleteQuestion: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive(), questionId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      await db.deleteManagedQuestion(input.questionId, input.testId);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "question.deleted", entityType: "question", entityId: input.questionId, metadata: { testId: input.testId } });
+      return { success: true } as const;
+    }),
+    liveClasses: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsLiveClasses()),
+    createLiveClass: requireRoles(["teacher", "admin", "super_admin"]).input(liveClassDetailsSchema).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "live_classes.manage");
+      const liveClassId = await db.createManagedLiveClass({ ...input, instructorId: ctx.user.id, meetingUrl: input.meetingUrl || undefined, recordingUrl: input.recordingUrl || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.created", entityType: "live_class", entityId: liveClassId, metadata: { title: input.title } });
+      return { liveClassId };
+    }),
+    updateLiveClass: requireRoles(["teacher", "admin", "super_admin"]).input(liveClassDetailsSchema.safeExtend({ liveClassId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "live_classes.manage");
+      await db.updateManagedLiveClass({ ...input, meetingUrl: input.meetingUrl || undefined, recordingUrl: input.recordingUrl || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.updated", entityType: "live_class", entityId: input.liveClassId, metadata: { title: input.title } });
+      return { success: true } as const;
+    }),
+    setLiveClassStatus: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ liveClassId: z.number().int().positive(), status: z.enum(["upcoming", "live", "completed", "cancelled"]) })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "live_classes.manage");
+      await db.setManagedLiveClassStatus(input.liveClassId, input.status);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.status_changed", entityType: "live_class", entityId: input.liveClassId, metadata: { status: input.status } });
+      return { success: true } as const;
+    }),
     createCategory: requireRoles(["admin", "super_admin"]).input(z.object({ name: z.string().trim().min(3).max(120), slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(140), description: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
       const categoryId = await db.createCategory(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "category.created", entityType: "category", entityId: categoryId, metadata: { name: input.name } });

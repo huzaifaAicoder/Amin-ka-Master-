@@ -47,4 +47,10 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("rejects a student attempting to manage assessments or live classes", async () => {
+    const caller = appRouter.createCaller(createContext(student));
+    await expect(caller.operations.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.liveClasses()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
