@@ -5,7 +5,7 @@ import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
-import { isOwnerSetupConfigured, verifyOwnerSetupCode } from "./owner-setup";
+import { verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
 import { protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
 import * as db from "./db";
@@ -93,7 +93,7 @@ async function requireDelegatedPermission(
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    ownerSetupStatus: publicProcedure.query(async () => ({ available: isOwnerSetupConfigured() && await db.isInitialOwnerSetupAvailable() })),
+    ownerSetupStatus: publicProcedure.query(async () => ({ available: await db.isInitialOwnerSetupAvailable() })),
     claimInitialOwner: publicProcedure.input(ownerSetupSchema).mutation(async ({ input, ctx }) => {
       if (!verifyOwnerSetupCode(input.ownerSetupCode)) throw new TRPCError({ code: "FORBIDDEN", message: "Initial owner setup is unavailable or the setup code is incorrect." });
       const result = await db.claimInitialOwnerAccount({ fullName: input.fullName, email: input.email || undefined, mobile: input.mobile || undefined, password: input.password, staffPasskey: input.staffPasskey });
