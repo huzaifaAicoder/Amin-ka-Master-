@@ -20,7 +20,7 @@ export default function AccountScreen() {
     return <ScreenContainer className="px-5" edges={["top", "left", "right"]}><View style={styles.anonHeader}><Text style={styles.title}>Account</Text><Text style={styles.subtitle}>Keep your study history secure and accessible.</Text></View><View style={styles.signInCard}><IconCircle icon="account-circle" size={64} /><Text style={styles.signInTitle}>A learning profile that travels with you</Text><Text style={styles.signInBody}>Sign in with email or mobile to enroll, save notes, track progress and take tests.</Text><Pressable onPress={() => router.push("/auth")} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}><Text style={styles.primaryText}>Sign in or create account</Text></Pressable></View></ScreenContainer>;
   }
 
-  const confirmLogout = () => Alert.alert("Sign out", "Your session will be revoked on this device.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => void logout() }]);
+  const confirmLogout = () => Alert.alert("Sign out", "Your session will be revoked on this device.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: async () => { await logout(); router.replace("/"); } }]);
   return (
     <ScreenContainer className="px-5" edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

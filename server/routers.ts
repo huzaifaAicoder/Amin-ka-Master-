@@ -67,6 +67,13 @@ export const appRouter = router({
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),
+    previewAdmin: publicProcedure.mutation(async ({ ctx }) => {
+      if (process.env.NODE_ENV === "production") throw new TRPCError({ code: "FORBIDDEN", message: "Preview access is disabled in production" });
+      const user = await db.getUserByOpenId("local_demo_super_admin");
+      if (!user || user.status !== "active") throw new Error("The local admin preview account is unavailable");
+      const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(user), session };
+    }),
     me: publicProcedure.query((opts) => (opts.ctx.user ? safeUser(opts.ctx.user) : null)),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       await db.revokeSession(ctx.sessionId);

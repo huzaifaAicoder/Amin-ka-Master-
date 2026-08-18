@@ -16,3 +16,8 @@
 - [ ] Show post-attempt answer explanations and add full operational CRUD screens for tests, live classes, announcements, and CMS settings.
 - [x] Surface the admin dashboard immediately after an admin sign-in and add direct course-management shortcuts to the primary navigation.
 - [x] Verify that the admin role receives the correct management controls and document the exact admin entry path.
+- [ ] Configure Razorpay order creation, payment-signature verification, signed webhook reconciliation, and idempotent paid-course activation.
+- [ ] Connect paid course checkout to Razorpay and document the dashboard webhook configuration and production release checklist.
+- [ ] Configure the paid-course checkout as an India-focused, UPI-first Razorpay experience with Indian cards, net banking and eligible wallets available through the merchant account.
+- [x] Make the admin workspace demonstrably accessible from preview without relying on an unseen role state.
+- [x] Fix logout so it revokes the local session and returns reliably to the unauthenticated experience.

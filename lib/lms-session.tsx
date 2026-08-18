@@ -28,6 +28,7 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
   const [tokenReady, setTokenReady] = useState(false);
   const [hasToken, setHasToken] = useState(false);
   const [localUser, setLocalUser] = useState<LmsUser | null>(null);
+  const utils = trpc.useUtils();
   const meQuery = trpc.auth.me.useQuery(undefined, { enabled: tokenReady && hasToken, retry: false });
   const logoutMutation = trpc.auth.logout.useMutation();
 
@@ -63,10 +64,11 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
       await logoutMutation.mutateAsync();
     } finally {
       await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
+      utils.auth.me.setData(undefined, null);
       setLocalUser(null);
       setHasToken(false);
     }
-  }, [logoutMutation]);
+  }, [logoutMutation, utils.auth.me]);
 
   const refresh = useCallback(async () => {
     if (hasToken) await meQuery.refetch();

@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, IconCircle, PrimaryButton, ProgressBar, SectionHeading, Tag, formatPrice } from "@/components/lms-ui";
@@ -9,13 +9,23 @@ import { trpc } from "@/lib/trpc";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useLmsSession();
+  const { user, completeLogin } = useLmsSession();
   const categoriesQuery = trpc.catalog.categories.useQuery();
   const coursesQuery = trpc.catalog.courses.useQuery();
   const learningQuery = trpc.student.learning.useQuery(undefined, { enabled: Boolean(user), retry: false });
   const liveQuery = trpc.student.liveClasses.useQuery(undefined, { enabled: Boolean(user), retry: false });
+  const previewAdminMutation = trpc.auth.previewAdmin.useMutation();
   const activeLearning = learningQuery.data?.[0];
   const upcomingClass = liveQuery.data?.[0];
+  const openAdminPreview = async () => {
+    try {
+      const payload = await previewAdminMutation.mutateAsync();
+      await completeLogin(payload);
+      router.replace("/operations");
+    } catch (cause) {
+      Alert.alert("Admin preview unavailable", cause instanceof Error ? cause.message : "Please try again.");
+    }
+  };
 
   return (
     <ScreenContainer containerClassName="bg-background" className="px-5" edges={["top", "left", "right"]}>
@@ -54,6 +64,8 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
 
+        {__DEV__ && !user ? <Pressable onPress={() => void openAdminPreview()} style={({ pressed }) => [styles.previewAdmin, pressed && styles.pressed]}><IconCircle icon="admin-panel-settings" size={39} color={COLORS.saffron} background="rgba(255,255,255,0.12)" /><View style={styles.previewCopy}><Text style={styles.previewLabel}>PREVIEW MODE</Text><Text style={styles.previewTitle}>{previewAdminMutation.isPending ? "Opening admin workspace…" : "Open admin workspace"}</Text><Text style={styles.previewBody}>Test course creation, editing and publishing before release.</Text></View><MaterialIcons name="arrow-forward" size={22} color={COLORS.white} /></Pressable> : null}
+
         <SectionHeading title="Study by topic" action="Explore" onPress={() => router.push("/explore")} />
         {categoriesQuery.isLoading ? <ActivityIndicator color={COLORS.indigo} /> : <FlatList horizontal showsHorizontalScrollIndicator={false} data={categoriesQuery.data ?? []} contentContainerStyle={styles.categories} keyExtractor={(item) => item.id.toString()} renderItem={({ item, index }) => <Pressable onPress={() => router.push(`/explore?category=${item.slug}`)} style={({ pressed }) => [styles.categoryCard, index % 2 === 1 && styles.categoryCardWarm, pressed && styles.pressed]}><MaterialIcons name={index % 2 === 0 ? "straighten" : "account-balance"} size={23} color={COLORS.indigo} /><Text style={styles.categoryText}>{item.name}</Text></Pressable>} />}
 
@@ -84,6 +96,11 @@ const styles = StyleSheet.create({
   liveLabel: { color: COLORS.green, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   liveTitle: { color: COLORS.ink, fontWeight: "800", fontSize: 14 },
   liveMeta: { color: COLORS.muted, fontSize: 12 },
+  previewAdmin: { marginTop: 16, padding: 13, borderRadius: 19, backgroundColor: COLORS.indigo, flexDirection: "row", gap: 10, alignItems: "center" },
+  previewCopy: { flex: 1, gap: 2 },
+  previewLabel: { color: COLORS.saffron, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  previewTitle: { color: COLORS.white, fontSize: 15, fontWeight: "900" },
+  previewBody: { color: "#D6DFF2", fontSize: 11, lineHeight: 16 },
   categories: { gap: 10, paddingRight: 20 },
   categoryCard: { width: 136, minHeight: 105, borderRadius: 18, padding: 14, gap: 15, backgroundColor: "#EAF0FA", justifyContent: "space-between" },
   categoryCardWarm: { backgroundColor: "#FFF1DE" },
