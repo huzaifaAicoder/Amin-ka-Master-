@@ -106,3 +106,9 @@
 - [x] Add secure student-facing timed MCQ attempt history with server-derived status, score, and timing metadata.
 - [x] Add detailed post-attempt per-question answer explanations without exposing active-test answers before submission.
 - [x] Add a staff-authorized edit workflow for existing MCQ prompts, options, correct answers, marks, and learner explanations.
+- [x] Audit and apply the uploaded master instruction set in ordered phases without rebuilding or regressing existing LMS, security, and Shorts features.
+- [x] Stabilize Shorts FlatList viewability callbacks and verify empty Operations course lists remain successful responses.
+- [x] Strengthen supported student-session capture protection and in-app media handling without weakening authorized resource access.
+- [x] Add controlled per-student Shorts upload permission with Owner/Admin management and pending moderation preservation.
+- [x] Improve media upload feedback with measurable progress, cancellation, and completion/error notifications.
+- [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.

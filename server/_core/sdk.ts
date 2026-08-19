@@ -311,6 +311,7 @@ function buildCronUser(userInfo: GetUserInfoWithJwtResponse): AuthenticatedUser 
     loginMethod: "cron",
     role: "super_admin",
     status: "active",
+    canUploadShorts: false,
     avatarUrl: null,
     createdAt: now,
     updatedAt: now,

@@ -429,6 +429,8 @@ export const appRouter = router({
       if (value.mimeType && !value.mimeType.startsWith("video/")) ctx.addIssue({ code: "custom", message: "Student submissions must be video files.", path: ["mimeType"] });
     })).mutation(async ({ ctx, input }) => {
       requireStudentAccess(ctx.user.role);
+      const access = await db.getStudentShortUploadAccess(ctx.user.id);
+      if (!access.canUploadShorts) throw new TRPCError({ code: "FORBIDDEN", message: "Short uploads are not enabled for your student account." });
       const videoUrl = input.contentUrl ?? "";
       const storageKey = input.storageKey ?? "";
       if (!storageKey || !videoUrl.startsWith("/manus-storage/")) throw new TRPCError({ code: "BAD_REQUEST", message: "Upload a managed video before submitting a Short." });
@@ -439,6 +441,10 @@ export const appRouter = router({
     myShortSubmissions: protectedProcedure.query(async ({ ctx }) => {
       requireStudentAccess(ctx.user.role);
       return db.listMyShortSubmissions(ctx.user.id);
+    }),
+    shortUploadAccess: protectedProcedure.query(async ({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.getStudentShortUploadAccess(ctx.user.id);
     }),
     askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "The Doubt Solver is available in the student learning experience." });
@@ -677,6 +683,11 @@ export const appRouter = router({
       return { success: true } as const;
     }),
     people: requireRoles(["admin", "super_admin"]).input(z.object({ search: z.string().trim().max(160).optional() }).optional()).query(({ input }) => db.listManagedUsers(input?.search)),
+    setStudentShortUploadPermission: requireRoles(["admin", "super_admin"]).input(z.object({ userId: z.number().int().positive(), canUploadShorts: z.boolean() })).mutation(async ({ ctx, input }) => {
+      await db.setStudentShortUploadPermission(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.canUploadShorts ? "student_short_upload.granted" : "student_short_upload.revoked", entityType: "user", entityId: input.userId, metadata: { canUploadShorts: input.canUploadShorts } });
+      return { success: true } as const;
+    }),
     createStaffAccount: requireRoles(["super_admin"]).input(z.object({ fullName: z.string().trim().min(2).max(160), email: z.string().trim().email().max(320).optional().or(z.literal("")), mobile: mobileSchema.optional().or(z.literal("")), password: z.string().min(12, "Use an initial password of at least 12 characters").max(128), role: z.enum(["teacher", "admin"]) }).superRefine((input, ctx) => {
       if (!input.email && !input.mobile) ctx.addIssue({ code: "custom", message: "Provide an email address or mobile number", path: ["email"] });
     })).mutation(async ({ ctx, input }) => {

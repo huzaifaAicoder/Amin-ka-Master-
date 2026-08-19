@@ -2,7 +2,6 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
 import { useEffect } from "react";
 import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -53,19 +52,17 @@ export default function CourseDetailScreen() {
     try {
       const issued = await resourceDownloadMutation.mutateAsync({ resourceId });
       if (Platform.OS === "web") {
-        await Linking.openURL(issued.signedUrl);
+        Alert.alert("Native app required", "Secure offline PDF storage is available only in the Android or iOS app. Web downloads are intentionally not opened in an external browser.");
         return;
       }
-      const cacheDirectory = FileSystem.cacheDirectory;
-      if (!cacheDirectory) throw new Error("Your device does not provide a temporary download folder.");
+      const documentDirectory = FileSystem.documentDirectory;
+      if (!documentDirectory) throw new Error("Your device does not provide private app storage.");
       const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-note"}.pdf`;
-      const targetUri = `${cacheDirectory}${Date.now()}-${safeFileName}`;
-      const result = await FileSystem.downloadAsync(issued.signedUrl, targetUri);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(result.uri, { mimeType: issued.resource.mimeType, dialogTitle: `Save or share ${issued.resource.title}` });
-        return;
-      }
-      Alert.alert("PDF downloaded", "The file is ready in this app’s temporary download area.");
+      const privateFolder = `${documentDirectory}protected-resources/`;
+      await FileSystem.makeDirectoryAsync(privateFolder, { intermediates: true });
+      const targetUri = `${privateFolder}${Date.now()}-${safeFileName}`;
+      await FileSystem.downloadAsync(issued.signedUrl, targetUri);
+      Alert.alert("Stored securely", "This PDF was saved to the app’s private storage. Sharing to other applications and public download locations is disabled.");
     } catch (error) {
       Alert.alert("Download unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
     }

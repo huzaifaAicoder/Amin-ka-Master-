@@ -1528,6 +1528,8 @@ export async function addShortComment(userId: number, shortId: number, body: str
 export async function submitStudentShort(input: { userId: number; title: string; description?: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
+  const [student] = await database.select({ role: users.role, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!student || student.role !== "student" || !student.canUploadShorts) throw new Error("Short uploads are not enabled for this student account.");
   const result = await database.insert(educationalShorts).values({
     title: input.title,
     description: input.description,
@@ -1673,7 +1675,7 @@ export async function listManagedUsers(search?: string) {
   if (!database) return [];
   const needle = search?.trim();
   const condition = needle ? or(like(users.fullName, `%${needle}%`), like(users.email, `%${needle}%`), like(users.mobile, `%${needle}%`)) : undefined;
-  const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
+  const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, canUploadShorts: users.canUploadShorts, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
   if (!people.length) return [];
   const grants = await database.select({ userId: userPermissions.userId, permission: userPermissions.permission }).from(userPermissions).where(inArray(userPermissions.userId, people.map((person) => person.id)));
   const permissionsByUser = new Map<number, string[]>();
@@ -1697,6 +1699,21 @@ export async function updateManagedUser(userId: number, input: { role?: "student
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   await database.update(users).set(input).where(eq(users.id, userId));
+}
+
+export async function getStudentShortUploadAccess(userId: number) {
+  const database = await getDb();
+  if (!database) return { canUploadShorts: false };
+  const [student] = await database.select({ role: users.role, status: users.status, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, userId)).limit(1);
+  return { canUploadShorts: Boolean(student?.role === "student" && student.status === "active" && student.canUploadShorts) };
+}
+
+export async function setStudentShortUploadPermission(input: { userId: number; canUploadShorts: boolean }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [student] = await database.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!student || student.role !== "student") throw new Error("Short upload permission can only be changed for Student accounts.");
+  await database.update(users).set({ canUploadShorts: input.canUploadShorts }).where(eq(users.id, input.userId));
 }
 
 export async function listManagedEnrollments() {

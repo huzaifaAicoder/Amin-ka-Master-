@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { ActivityIndicator, Platform, View } from "react-native";
+import { usePreventScreenCapture } from "expo-screen-capture";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import {
@@ -49,6 +50,17 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
   }
   return <>{children}</>;
+}
+
+function NativeStudentCaptureGuard() {
+  usePreventScreenCapture("student-session");
+  return null;
+}
+
+function StudentSessionCaptureGuard() {
+  const { user } = useLmsSession();
+  if (Platform.OS === "web" || user?.role !== "student") return null;
+  return <NativeStudentCaptureGuard />;
 }
 
 export const unstable_settings = {
@@ -113,6 +125,7 @@ export default function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <LmsSessionProvider>
+            <StudentSessionCaptureGuard />
             <AuthenticationGate>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />

@@ -8,7 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { getSessionUser, hasAnyPermission } from "../db";
+import { getSessionUser, getStudentShortUploadAccess, hasAnyPermission } from "../db";
 import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -95,6 +95,10 @@ async function startServer() {
       }
       if (session.user.role === "teacher" && !(await hasAnyPermission(session.user, ["course_content.manage", "media.manage"]))) {
         res.status(403).json({ error: "Your Teacher account is not permitted to upload learning media." });
+        return;
+      }
+      if (isStudentShortUpload && !(await getStudentShortUploadAccess(session.user.id)).canUploadShorts) {
+        res.status(403).json({ error: "Short uploads are not enabled for this student account." });
         return;
       }
       const uploadedFile = req.file;

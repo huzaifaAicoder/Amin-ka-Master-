@@ -26,6 +26,7 @@ export const users = mysqlTable(
       .default("student")
       .notNull(),
     status: mysqlEnum("status", ["active", "suspended"]).default("active").notNull(),
+    canUploadShorts: boolean("canUploadShorts").default(false).notNull(),
     avatarUrl: varchar("avatarUrl", { length: 1024 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

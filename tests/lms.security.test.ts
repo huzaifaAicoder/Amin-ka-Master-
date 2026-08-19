@@ -23,6 +23,7 @@ const student = {
   loginMethod: "password",
   role: "student" as const,
   status: "active" as const,
+  canUploadShorts: false,
   avatarUrl: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -95,6 +96,14 @@ describe("LMS security boundaries", () => {
     await expect(staffCaller.student.shortComments({ shortId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(staffCaller.student.addShortComment({ shortId: 1, body: "Helpful explanation" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(staffCaller.student.submitShort({ title: "My field tip", contentUrl: "/manus-storage/fake.mp4", storageKey: "student-short-submissions/902/fake.mp4", provider: "managed_storage", mimeType: "video/mp4", durationSeconds: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps student Shorts upload grants default-denied and restricted to Admin or Owner controls", async () => {
+    const studentCaller = appRouter.createCaller(createContext(student));
+    const teacherCaller = appRouter.createCaller(createContext(teacherWithoutGrant));
+    await expect(studentCaller.operations.setStudentShortUploadPermission({ userId: 901, canUploadShorts: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(teacherCaller.operations.setStudentShortUploadPermission({ userId: 901, canUploadShorts: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(studentCaller.student.submitShort({ title: "Permission-gated tip", contentUrl: "/manus-storage/fake.mp4", storageKey: "student-short-submissions/901/fake.mp4", provider: "managed_storage", mimeType: "video/mp4", durationSeconds: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("isolates private Developer procedures from Student, Admin, and Operations access", async () => {
