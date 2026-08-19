@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
 export const COLORS = {
   indigo: "#14213D",
@@ -18,7 +18,7 @@ export const COLORS = {
   white: "#FFFFFF",
 };
 
-export function PrimaryButton({ label, onPress, icon, disabled, subtle = false }: { label: string; onPress: () => void; icon?: React.ComponentProps<typeof MaterialIcons>["name"]; disabled?: boolean; subtle?: boolean }) {
+export function PrimaryButton({ label, onPress, icon, disabled, subtle = false, loading = false }: { label: string; onPress: () => void; icon?: React.ComponentProps<typeof MaterialIcons>["name"]; disabled?: boolean; subtle?: boolean; loading?: boolean }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -26,7 +26,7 @@ export function PrimaryButton({ label, onPress, icon, disabled, subtle = false }
       onPress={onPress}
       style={({ pressed }) => [styles.button, subtle && styles.buttonSubtle, disabled && styles.buttonDisabled, pressed && !disabled && styles.buttonPressed]}
     >
-      {icon ? <MaterialIcons name={icon} size={18} color={subtle ? COLORS.indigo : COLORS.white} /> : null}
+      {loading ? <ActivityIndicator size="small" color={subtle ? COLORS.indigo : COLORS.white} /> : icon ? <MaterialIcons name={icon} size={18} color={subtle ? COLORS.indigo : COLORS.white} /> : null}
       <Text style={[styles.buttonText, subtle && styles.buttonTextSubtle]}>{label}</Text>
     </Pressable>
   );
