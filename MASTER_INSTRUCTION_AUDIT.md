@@ -15,6 +15,7 @@
 | Phase 4 — Media Studio | Added XMLHttpRequest byte progress, a visible cancellation action, and dismissible success/error feedback to the established authenticated upload flow. | Existing draft/publish mutations, 150 MB server limit, type validation, protected storage, and External URL validation remain unchanged. |
 | Phase 4 — Course CMS | Added an `All / Draft / Published / Archived` dropdown filter to the existing Course Manager list. | Explicit edit-form course status selection and existing category editing remain unchanged. |
 | Phase 5 — Student Short permission | Added default-false `users.canUploadShorts`, an Admin/Owner control screen, Student visibility gating, upload-endpoint enforcement, submission-endpoint enforcement, and audit records. | Existing isolated student upload namespace and pending → approve/reject moderation lifecycle remain unchanged. |
+| Release-candidate recovery | Restored the consistent `d9f92094` advanced baseline after detecting that a shared rollback had left application code ahead of its schema and deleted migrations. Restored schema/migration files from that verified checkpoint only; no destructive repository reset was used. | Developer, Shorts, moderation, assessment, and upload-permission types now align again. |
 
 ## 2. Bugs discovered and fixed
 
@@ -26,14 +27,17 @@
 | Media Studio gave only generic loading feedback. | **GREEN** | Added byte percentage, progress bar, cancel control, and inline success/error feedback. |
 | Provider links redirected learners outside the app. | **GREEN, platform-limited** | Native inline provider embeds replace external-app/browser redirects; provider-blocked behavior remains inside the feed. |
 | Authorized PDF flow exposed a share/browser handoff. | **GREEN, partial workflow** | Removed sharing and public handoff, using private app storage. A fully app-owned offline reader remains outstanding. |
+| Full regression suite hit a 5-second timeout during the first invalid-token password-reset call while the database connection warmed. | **GREEN** | Confirmed the assertion passes in isolation and raised only that test’s deadline to 15 seconds; the security assertion and behavior were unchanged. |
 
 ## 3. Database and schema changes
 
 | Migration | Change | Data effect |
 |---|---|---|
+| `drizzle/0009_stiff_tempest.sql` | Adds Developer role, Short comments, pending/rejected moderation states, source metadata, and related moderation fields. | Additive social-learning and role-isolation change. |
 | `drizzle/0010_black_silver_fox.sql` | Adds `users.canUploadShorts boolean NOT NULL DEFAULT false`. | Additive only; existing accounts default to denied. |
+| `drizzle/0011_yellow_vulture.sql` | Adds `educational_shorts.subjectCategory` with `General` fallback for existing records. | Additive only; enables moderation category filtering. |
 
-The migration was reviewed before application and applied successfully. A live schema query confirmed `canUploadShorts` is non-null with default `0`.
+The migrations were reviewed before application and the live schema was restored to the verified advanced checkpoint. The `canUploadShorts` field is non-null with default `0`; the Short moderation states, source metadata, comments, and `subjectCategory` are represented in the checked-in schema and migration chain.
 
 ## 4. API and security/RBAC changes
 
@@ -51,11 +55,11 @@ The migration was reviewed before application and applied successfully. A live s
 
 | Area tested | Result | Evidence |
 |---|---|---|
-| TypeScript build | **GREEN** | `pnpm check` completed successfully after all implementation code changes. |
-| Lint and automated regression/security suite | **GREEN** | `pnpm lint` and six test files completed successfully: **30 assertions** passed. |
+| TypeScript build | **GREEN** | Bounded `pnpm exec tsc --noEmit --pretty false` completed successfully after restoring the consistent schema/migration files. |
+| Lint and automated regression/security suite | **GREEN** | `pnpm lint` and six test files completed successfully: **30 assertions** passed. The invalid-token password-reset check is resilient to first database connection latency. |
 | Android bundle | **GREEN** | `expo export --platform android` succeeded and emitted the Android Hermes bundle. |
 | API health | **GREEN** | `GET /api/health` returned `{"ok":true,...}` from the active API service. |
-| User schema migration | **GREEN** | Live `SHOW COLUMNS` confirmed `canUploadShorts tinyint(1) NOT NULL DEFAULT 0`. |
+| User/Short schema migrations | **GREEN** | Verified migration chain includes 0009 social/moderation fields, 0010 default-false `canUploadShorts`, and 0011 `subjectCategory`; live database connectivity and schema metadata were checked during the release audit. |
 | Developer passkey / Developer route isolation | **GREEN, server** | Existing focused passkey verifier and role-isolation regression coverage passed. |
 | Owner isolation from Developer procedures | **GREEN, server** | Existing route and server checks remain in the passing regression suite. |
 | Student/Teacher denial of Short permission grant | **GREEN, server** | New regression assertions reject Student and Teacher callers. |
@@ -69,6 +73,7 @@ The migration was reviewed before application and applied successfully. A live s
 | Private offline PDF storage | **GREEN, boundary; RED for complete reader workflow** | Native sharing/browser handoff is removed and private storage is used. No in-app offline PDF reader currently reopens saved copies. |
 | Navigation, every screen/button, device media, physical capture, upload cancellation | **RED — not fully verified** | A sandbox cannot complete exhaustive authenticated Android/iOS touch, gallery, camera, provider-login, and screen-recording walkthroughs. These remain explicitly listed in the verification matrix. |
 | Payment, real SMS/email delivery, certificate issuance | **RED — credential/dependency incomplete** | Razorpay merchant/webhook credentials, provider credentials, and a certificate workflow are not configured or verified. |
+| Shared-project baseline integrity | **GREEN** | Detected and repaired stale schema/migration divergence before final validation; the consistent advanced checkpoint now type-checks and the full 30-test suite passes. |
 
 ## 6. Remaining limitations and exact reason
 

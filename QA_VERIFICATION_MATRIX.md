@@ -8,7 +8,7 @@
 | Authentication | Teacher/Admin sign-in and Staff Passkey | Verified | Server-side Staff Passkey validation and permission tests are present. |
 | Authentication | Owner/Super Admin sign-in and setup code | Verified | Owner code checks and first-owner test coverage are present. |
 | Authentication | Developer Portal passkey and route isolation | Verified, server | `DEVELOPER_PORTAL_PASSKEY` is server-only and has a focused verifier test. Role-isolation regression tests deny Student/Admin access to Developer procedures and deny Developer access to Operations. Complete a real initial-provisioning device walkthrough before release. |
-| Navigation | Developer Portal discoverability and panel refresh | Verified, build | The public landing screen now exposes a low-prominence Developer Portal link. Home, Explore, Learning, Shorts, Account, and Operations use native pull-to-refresh; all mounted queries refetch when the app returns to the foreground. Complete a physical-device gesture walkthrough. |
+| Navigation | Developer Portal discoverability and panel refresh | Verified, build | The public landing screen retains its low-prominence Developer Portal link and seven-tap/three-second logo discovery path. Home, Explore, Learning, Shorts, Account, and Operations use native pull-to-refresh; all mounted queries refetch when the app returns to the foreground. Complete a physical-device gesture walkthrough. |
 | Authentication | Logout, session invalidation, expired session | Verified | Logout regression tests and server session revocation are present; a revoked browser session was verified to clear local identity and redirect to sign-in on HTTP 401. |
 | Authentication | Invalid credentials and unauthorized route access | Verified | Login feedback and protected-route/security regression coverage are present. |
 | Student | Home, discovery, search, category filtering | Needs QA | Requires authenticated student UI and persistence-path walkthrough in this QA cycle. The Home screen now also links an authenticated Student to the explicitly labelled Ask AI placeholder. |
@@ -32,7 +32,7 @@
 | Owner | Teacher permission grant/revoke | Needs QA | Explicit server enforcement exists; test grant, revoke, and immediate denial after revoke. |
 | Owner | Passkey rotation and audit controls | Needs QA | Server and tests exist; verify user flow and active-session invalidation. |
 | Owner | Settings, enrollments, reviews, announcements | Needs QA | Control Center foundation exists; complete CRUD and negative authorization checks. |
-| Security | Four-tier role isolation and social-content moderation | Verified, server | Twenty-eight tests cover Student/Teacher/Admin/Developer boundary denials, pending moderation access, trusted external source rejection, and server-only Developer Passkey verification. |
+| Security | Four-tier role isolation and social-content moderation | Verified, server | Thirty tests cover Student/Teacher/Admin/Developer boundary denials, pending moderation access, trusted external source rejection, protected assessment review, and server-only Developer Passkey verification. |
 | Security | Direct protected media access | Needs QA | Signed URL delivery is implemented; test unauthenticated, unenrolled, expired, unpublished, and authorized cases. |
 | Security | Direct API manipulation and invalid IDs | Needs QA | Expand targeted API adversarial calls across operations and learning resources. |
 | Data integrity | User, permission, session, course and media consistency | Needs QA | Initial read-only relational checks passed; extend to CRUD lifecycle and duplicate/integrity cases. |
@@ -43,6 +43,7 @@
 | External services | Razorpay UPI payments | Credential-dependent | Boundary exists; merchant keys and webhook configuration are still required. |
 | External services | OTP email/SMS delivery | Credential-dependent | Provider boundary exists; real provider configuration required for delivery. |
 | External services | AI tutor/Q&A | Needs QA | A student-only chat-like UI and protected placeholder mutation return a transparent non-provider response. Tests reject unauthenticated and staff callers; select a provider and complete safety, retention, and quality QA before generated answers are enabled. |
+| Developer | System Health / AI Monitor | Verified, server | Developer-only read-only diagnostics expose sanitized API/database readiness and recommendations; raw logs, secrets, OTP values, CAPTCHA bypasses, and automated fixes are not returned. | 
 | Responsive QA | Mobile, tablet, desktop | Needs QA | Desktop authenticated flows were observed; perform targeted phone/tablet layout and native feature checks. |
 
 ## Verification Procedure
@@ -55,6 +56,6 @@ The current recovery fixed four coupled issues: the demo student/teacher account
 
 ## Final Automated and Integrity Evidence
 
-The current master-instruction validation run completed with TypeScript checking, linting, and six automated test files containing **thirty assertions**. The Developer Passkey verifier ran without exposing its configured value. The Android static export completed successfully and emitted the Android bundle plus export metadata. Migration `0010_black_silver_fox.sql` added `users.canUploadShorts` as a non-null, default-false field; the live schema check confirmed the default. The social migrations retain Developer role support, Short pending/rejected moderation states, trusted external source metadata, and indexed comments without altering existing users or published Shorts.
+The current master-instruction validation run completed with TypeScript checking, linting, and six automated test files containing **thirty assertions**. The invalid-token password-reset assertion tolerates the verified first-connection database latency without changing its security expectation. The Developer Passkey verifier ran without exposing its configured value. The Android static export completed successfully and emitted the Android bundle plus export metadata. Migrations `0009_stiff_tempest.sql`, `0010_black_silver_fox.sql`, and `0011_yellow_vulture.sql` retain Developer role support, default-deny Short upload permission, Short pending/rejected moderation states, trusted external source metadata, subject categories, and indexed comments without altering existing users or published Shorts.
 
 The final read-only database-integrity query found zero orphaned sessions, enrollments, learning-progress records, Short likes, or Short saves, and zero duplicate enrollment, like, or save relationships. These checks validate current relational consistency; they do not replace production backup, observability, or provider-level monitoring.

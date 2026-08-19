@@ -114,3 +114,8 @@
 - [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.
 - [x] Build a dedicated Admin/Owner Shorts moderation dashboard with review context, preview, decision notes, approval, rejection, and pending-queue refresh.
 - [x] Add upload-date sorting and subject-category filters to the Admin/Owner Shorts moderation dashboard.
+- [x] Make the password-reset security regression resilient to the verified database cold-start latency without weakening its assertion.
+- [x] Review and apply the newly attached instruction set without rebuilding or regressing the current LMS, authentication, Shorts, moderation, and preview-refresh workflows.
+- [x] Recover the last verified advanced release-candidate baseline after detecting shared-state schema/migration divergence.
+- [x] Complete the release-candidate GREEN/RED audit against the restored and updated baseline.
+- [x] Make the password-reset security regression resilient to the verified database cold-start latency without weakening its assertion.

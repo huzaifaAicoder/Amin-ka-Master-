@@ -63,7 +63,7 @@ describe("LMS security boundaries", () => {
 
   it("does not reset a password without a valid one-time recovery token", async () => {
     await expect(resetPasswordWithToken("invalid-recovery-token", "AminMaster!2026")).resolves.toEqual({ status: "invalid_or_expired" });
-  });
+  }, 15_000);
 
   it("rejects protected learning requests without an authenticated server session", async () => {
     const caller = appRouter.createCaller(createContext(null));
