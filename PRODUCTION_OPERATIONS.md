@@ -60,7 +60,7 @@ Do not use moderation for emergency takedown alone: where a file needs removal f
 
 To permit a supplementary-note download, open **Operations → Course structure & lessons**, edit the relevant module resource, select **PDF note**, upload the PDF through protected storage, and enable **Allow enrolled students to download** before saving. Leave this control off unless the material is deliberately approved for offline distribution. Video resources cannot be made downloadable.
 
-Student tests are scored server-side. On submission, the student receives the configured passing threshold, answer review, and any authored explanations. The client timer triggers submission at zero, while the server independently rejects attempts submitted after the permitted time.
+Student tests are scored server-side. On submission, the student receives the configured passing threshold, elapsed time, answer review, and any authored explanations. **Practice tests → Attempt history** shows the learner’s own most recent 60 attempts, including score, time used, completion state, and a detailed option-by-option review. Staff and other students cannot retrieve these records. The client timer triggers submission at zero; the server derives remaining time from the persisted start timestamp, records a stale timed-out attempt as expired, and never accepts answers after the permitted deadline.
 
 ## Credential-dependent integrations
 

@@ -887,9 +887,96 @@ export async function startTestAttempt(userId: number, testId: number) {
     if (!enrollmentIsActive(enrollment)) throw new Error("Course enrollment is required for this test");
   }
   const existing = await database.select().from(testAttempts).where(and(eq(testAttempts.userId, userId), eq(testAttempts.testId, testId), eq(testAttempts.status, "in_progress"))).limit(1);
-  const attemptId = existing[0]?.id ?? Number((await database.insert(testAttempts).values({ userId, testId, status: "in_progress" }))[0].insertId);
   const testQuestions = await database.select({ id: questions.id, prompt: questions.prompt, options: questions.options, marks: questions.marks, displayOrder: questions.displayOrder }).from(questions).where(eq(questions.testId, testId)).orderBy(asc(questions.displayOrder));
-  return { attemptId, test: test[0], questions: testQuestions };
+  let activeAttempt: typeof testAttempts.$inferSelect | undefined = existing[0];
+  if (activeAttempt && Date.now() >= activeAttempt.startedAt.getTime() + test[0].durationMinutes * 60 * 1000) {
+    const scoredQuestions = await database.select().from(questions).where(eq(questions.testId, testId)).orderBy(asc(questions.displayOrder));
+    await saveScoredAttempt(database, activeAttempt, test[0], scoredQuestions, [], "expired");
+    activeAttempt = undefined;
+  }
+  if (!activeAttempt) {
+    const result = await database.insert(testAttempts).values({ userId, testId, status: "in_progress" });
+    const attemptId = Number(result[0].insertId);
+    activeAttempt = { id: attemptId, userId, testId, status: "in_progress", startedAt: new Date(), submittedAt: null, score: 0, totalMarks: 0, createdAt: new Date() };
+  }
+  const remainingSeconds = Math.max(0, test[0].durationMinutes * 60 - getAttemptElapsedSeconds(activeAttempt.startedAt, new Date(), test[0].durationMinutes));
+  return { attemptId: activeAttempt.id, test: test[0], questions: testQuestions, startedAt: activeAttempt.startedAt, remainingSeconds };
+}
+
+type ScoredAttemptAnswer = {
+  attemptId: number;
+  questionId: number;
+  selectedOptionIndex: number | null;
+  isCorrect: boolean;
+  marksAwarded: number;
+};
+
+function getAttemptElapsedSeconds(startedAt: Date, completedAt: Date | null, durationMinutes: number) {
+  const rawElapsed = Math.max(0, Math.floor(((completedAt ?? new Date()).getTime() - startedAt.getTime()) / 1000));
+  return Math.min(rawElapsed, durationMinutes * 60);
+}
+
+function buildAttemptReview(
+  attempt: typeof testAttempts.$inferSelect,
+  test: typeof tests.$inferSelect,
+  testQuestions: Array<typeof questions.$inferSelect>,
+  answerRows: ScoredAttemptAnswer[],
+) {
+  const answersByQuestion = new Map(answerRows.map((answer) => [answer.questionId, answer]));
+  const calculatedTotalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
+  const totalMarks = attempt.totalMarks || calculatedTotalMarks;
+  const score = attempt.score;
+  return {
+    attemptId: attempt.id,
+    testId: test.id,
+    testTitle: test.title,
+    status: attempt.status,
+    score,
+    totalMarks,
+    passingMarks: test.passingMarks,
+    durationMinutes: test.durationMinutes,
+    elapsedSeconds: getAttemptElapsedSeconds(attempt.startedAt, attempt.submittedAt, test.durationMinutes),
+    startedAt: attempt.startedAt,
+    submittedAt: attempt.submittedAt,
+    review: testQuestions.map((question) => {
+      const answer = answersByQuestion.get(question.id);
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        options: question.options,
+        selectedOptionIndex: answer?.selectedOptionIndex ?? null,
+        correctOptionIndex: question.correctOptionIndex,
+        isCorrect: answer?.isCorrect ?? false,
+        marksAwarded: answer?.marksAwarded ?? 0,
+        explanation: question.explanation,
+      };
+    }),
+  };
+}
+
+async function saveScoredAttempt(
+  database: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  attempt: typeof testAttempts.$inferSelect,
+  test: typeof tests.$inferSelect,
+  testQuestions: Array<typeof questions.$inferSelect>,
+  answers: Array<{ questionId: number; selectedOptionIndex: number | null }>,
+  status: "submitted" | "expired",
+) {
+  const answersByQuestion = new Map(answers.map((answer) => [answer.questionId, answer.selectedOptionIndex]));
+  const resultRows: ScoredAttemptAnswer[] = testQuestions.map((question) => {
+    // Answers are deliberately discarded after the server-authoritative deadline.
+    const selectedOptionIndex = status === "expired" ? null : answersByQuestion.get(question.id) ?? null;
+    const isCorrect = selectedOptionIndex === question.correctOptionIndex;
+    return { attemptId: attempt.id, questionId: question.id, selectedOptionIndex, isCorrect, marksAwarded: isCorrect ? question.marks : 0 };
+  });
+  const score = resultRows.reduce((sum, answer) => sum + answer.marksAwarded, 0);
+  const totalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
+  const submittedAt = new Date();
+  for (const row of resultRows) {
+    await database.insert(testAnswers).values(row).onDuplicateKeyUpdate({ set: { selectedOptionIndex: row.selectedOptionIndex, isCorrect: row.isCorrect, marksAwarded: row.marksAwarded } });
+  }
+  await database.update(testAttempts).set({ status, submittedAt, score, totalMarks }).where(eq(testAttempts.id, attempt.id));
+  return buildAttemptReview({ ...attempt, status, submittedAt, score, totalMarks }, test, testQuestions, resultRows);
 }
 
 export async function submitTestAttempt(userId: number, attemptId: number, answers: Array<{ questionId: number; selectedOptionIndex: number | null }>) {
@@ -898,48 +985,62 @@ export async function submitTestAttempt(userId: number, attemptId: number, answe
   const attempt = await database.select().from(testAttempts).where(and(eq(testAttempts.id, attemptId), eq(testAttempts.userId, userId))).limit(1);
   if (!attempt[0]) throw new Error("Test attempt was not found");
   if (attempt[0].status !== "in_progress") throw new Error("This attempt has already been submitted");
-  const test = await database.select({ durationMinutes: tests.durationMinutes, passingMarks: tests.passingMarks }).from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
+  const test = await database.select().from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
   if (!test[0]) throw new Error("Test configuration was not found");
-  const endsAt = attempt[0].startedAt.getTime() + test[0].durationMinutes * 60 * 1000;
-  if (Date.now() > endsAt) {
-    await database.update(testAttempts).set({ status: "expired", submittedAt: new Date() }).where(eq(testAttempts.id, attemptId));
-    throw new Error("The permitted test time has elapsed");
-  }
-  const testQuestions = await database.select().from(questions).where(eq(questions.testId, attempt[0].testId));
-  const answersByQuestion = new Map(answers.map((answer) => [answer.questionId, answer.selectedOptionIndex]));
+  const testQuestions = await database.select().from(questions).where(eq(questions.testId, attempt[0].testId)).orderBy(asc(questions.displayOrder));
   const validQuestionIds = new Set(testQuestions.map((question) => question.id));
   if (answers.some((answer) => !validQuestionIds.has(answer.questionId))) throw new Error("Invalid question submission");
-  let score = 0;
-  const resultRows = testQuestions.map((question) => {
-    const selectedOptionIndex = answersByQuestion.get(question.id) ?? null;
-    const isCorrect = selectedOptionIndex === question.correctOptionIndex;
-    const marksAwarded = isCorrect ? question.marks : 0;
-    score += marksAwarded;
-    return { attemptId, questionId: question.id, selectedOptionIndex, isCorrect, marksAwarded };
-  });
-  for (const row of resultRows) {
-    await database.insert(testAnswers).values(row).onDuplicateKeyUpdate({ set: { selectedOptionIndex: row.selectedOptionIndex, isCorrect: row.isCorrect, marksAwarded: row.marksAwarded } });
+  const endsAt = attempt[0].startedAt.getTime() + test[0].durationMinutes * 60 * 1000;
+  if (Date.now() > endsAt) {
+    return saveScoredAttempt(database, attempt[0], test[0], testQuestions, [], "expired");
   }
-  const totalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
-  await database.update(testAttempts).set({ status: "submitted", submittedAt: new Date(), score, totalMarks }).where(eq(testAttempts.id, attemptId));
-  return {
-    score,
-    totalMarks,
-    passingMarks: test[0].passingMarks,
-    review: resultRows.map((answer) => {
-      const question = testQuestions.find((item) => item.id === answer.questionId)!;
-      return {
-        questionId: question.id,
-        prompt: question.prompt,
-        options: question.options,
-        selectedOptionIndex: answer.selectedOptionIndex,
-        correctOptionIndex: question.correctOptionIndex,
-        isCorrect: answer.isCorrect,
-        marksAwarded: answer.marksAwarded,
-        explanation: question.explanation,
-      };
-    }),
-  };
+  return saveScoredAttempt(database, attempt[0], test[0], testQuestions, answers, "submitted");
+}
+
+export async function listMyTestAttempts(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database
+    .select({ attempt: testAttempts, test: tests, courseTitle: courses.title })
+    .from(testAttempts)
+    .innerJoin(tests, eq(testAttempts.testId, tests.id))
+    .leftJoin(courses, eq(tests.courseId, courses.id))
+    .where(eq(testAttempts.userId, userId))
+    .orderBy(desc(testAttempts.startedAt))
+    .limit(60);
+  return rows.map(({ attempt, test, courseTitle }) => ({
+    attemptId: attempt.id,
+    testId: test.id,
+    testTitle: test.title,
+    courseTitle,
+    status: attempt.status,
+    score: attempt.score,
+    totalMarks: attempt.totalMarks,
+    passingMarks: test.passingMarks,
+    durationMinutes: test.durationMinutes,
+    elapsedSeconds: getAttemptElapsedSeconds(attempt.startedAt, attempt.submittedAt, test.durationMinutes),
+    startedAt: attempt.startedAt,
+    submittedAt: attempt.submittedAt,
+  }));
+}
+
+export async function getMyTestAttemptReview(userId: number, attemptId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const rows = await database
+    .select({ attempt: testAttempts, test: tests })
+    .from(testAttempts)
+    .innerJoin(tests, eq(testAttempts.testId, tests.id))
+    .where(and(eq(testAttempts.id, attemptId), eq(testAttempts.userId, userId)))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  if (row.attempt.status === "in_progress") return { status: "in_progress" as const, attemptId: row.attempt.id, testId: row.test.id };
+  const [testQuestions, answerRows] = await Promise.all([
+    database.select().from(questions).where(eq(questions.testId, row.test.id)).orderBy(asc(questions.displayOrder)),
+    database.select().from(testAnswers).where(eq(testAnswers.attemptId, row.attempt.id)),
+  ]);
+  return buildAttemptReview(row.attempt, row.test, testQuestions, answerRows);
 }
 
 export async function listMyNotifications(userId: number) {

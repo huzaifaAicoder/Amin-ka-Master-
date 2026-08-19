@@ -14,7 +14,7 @@
 | Student | Home, discovery, search, category filtering | Needs QA | Requires authenticated student UI and persistence-path walkthrough in this QA cycle. The Home screen now also links an authenticated Student to the explicitly labelled Ask AI placeholder. |
 | Student | Course details, free enrollment, access checks | Needs QA | Server entitlement logic exists; exercise published/free and unauthorized paths. |
 | Student | Lesson navigation, video, progress, bookmarks, notes | Needs QA | Authorized delivery has been implemented; test on student UI and verify refresh persistence. |
-| Student | Tests, timeout, scoring, review | Needs QA | Server-authoritative scoring and review exist; run student attempt and invalid/duplicate checks. |
+| Student | Tests, timeout, score, attempt history, and detailed review | Verified, build | Student-only APIs now provide a bounded personal attempt history and private completed-review route with server-derived elapsed time, option-by-option answers, and staff-authored explanations. Regression tests reject anonymous and staff access. Complete a physical-device timed submit, resume, and expiry walkthrough. |
 | Student | Notifications and live classes | Needs QA | Verify empty, populated, read, and unauthorized states. |
 | Student | Social Shorts, comments, and student uploads | Needs QA | Feed now has play/pause feedback, Like, Save, Share, comments, and a private pending-upload workflow. Automated role tests reject staff social actions; complete student submit → Admin review → approved feed → rejected-item device walkthrough. |
 | Student | Saved Shorts library | Verified | Protected per-student saved-only API and Account entry point return only currently published items with fresh signed playback URLs; removal invalidates both saved and feed caches. |
@@ -55,6 +55,6 @@ The current recovery fixed four coupled issues: the demo student/teacher account
 
 ## Final Automated and Integrity Evidence
 
-The current release-gate run completed with TypeScript checking, linting, and six automated test files containing twenty-eight assertions. The Developer Passkey verifier ran without exposing its configured value. The Android static export completed successfully and emitted the Android bundle plus export metadata. The social migration added Developer role support, Short pending/rejected moderation states, trusted external source metadata, and indexed comments without altering existing users or published Shorts.
+The current release-gate run completed with TypeScript checking, linting, and six automated test files containing twenty-nine assertions. The Developer Passkey verifier ran without exposing its configured value. The Android static export completed successfully and emitted the Android bundle plus export metadata. The social migration added Developer role support, Short pending/rejected moderation states, trusted external source metadata, and indexed comments without altering existing users or published Shorts.
 
 The final read-only database-integrity query found zero orphaned sessions, enrollments, learning-progress records, Short likes, or Short saves, and zero duplicate enrollment, like, or save relationships. These checks validate current relational consistency; they do not replace production backup, observability, or provider-level monitoring.

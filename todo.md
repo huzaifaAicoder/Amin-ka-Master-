@@ -6,7 +6,7 @@
 - [x] Create database migrations and managed LMS seed data.
 - [x] Implement public catalog discovery, course search, free enrollment, and entitlement checks.
 - [x] Implement lesson hierarchy, protected learning access, persisted progress, bookmarks, and personal notes.
-- [ ] Implement timed MCQ tests, server-derived scoring, explanations, and attempt history.
+- [x] Implement timed MCQ tests, server-derived scoring, explanations, and attempt history.
 - [x] Implement authorized live-class and in-app notification workflows.
 - [ ] Implement role-aware operations screens and server procedures for course, assessment, live class, and CMS management.
 - [x] Create payment-provider and email-delivery boundaries without exposing credentials or granting unverified paid access.
@@ -103,3 +103,5 @@
 - [x] Extend supported native capture prevention to protected Shorts and document web and device limitations.
 - [x] Add a discreet Developer Portal entry on the public landing screen while preserving private passkey and role enforcement.
 - [x] Add shared pull-to-refresh or visible refresh controls across the primary learner and Operations panels.
+- [x] Add secure student-facing timed MCQ attempt history with server-derived status, score, and timing metadata.
+- [x] Add detailed post-attempt per-question answer explanations without exposing active-test answers before submission.

@@ -72,11 +72,22 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.toggleShortSave({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.askAi({ question: "How do I calculate a field area?" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.testHistory()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.testAttemptReview({ attemptId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("does not let staff use the student PDF-download endpoint", async () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps timed-test attempts, answer reviews, and explanations inside the student learning role", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.student.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.startTest({ testId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.submitTest({ attemptId: 1, answers: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.testHistory()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.testAttemptReview({ attemptId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("keeps Short comments and student submissions inside the student learning role", async () => {

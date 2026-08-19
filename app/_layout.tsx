@@ -33,7 +33,7 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const isAuthRoute = rootSegment === "auth" || rootSegment === "oauth";
   const isDeveloperRoute = rootSegment === "dev-portal";
   const isStaffRoute = rootSegment === "operations";
-  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
+  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
 
   useEffect(() => {
     if (loading) return;

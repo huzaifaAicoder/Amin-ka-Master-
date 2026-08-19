@@ -369,9 +369,28 @@ export const appRouter = router({
       if (!lesson?.authorized) throw new Error("You do not have access to this lesson");
       return { bookmarked: await db.toggleBookmark(ctx.user.id, input.lessonId) };
     }),
-    tests: protectedProcedure.query(({ ctx }) => db.listAvailableTests(ctx.user.id)),
-    startTest: protectedProcedure.input(z.object({ testId: z.number().int().positive() })).mutation(({ ctx, input }) => db.startTestAttempt(ctx.user.id, input.testId)),
-    submitTest: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), answers: z.array(z.object({ questionId: z.number().int().positive(), selectedOptionIndex: z.number().int().min(0).max(20).nullable() })).max(250) })).mutation(({ ctx, input }) => db.submitTestAttempt(ctx.user.id, input.attemptId, input.answers)),
+    tests: protectedProcedure.query(({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.listAvailableTests(ctx.user.id);
+    }),
+    startTest: protectedProcedure.input(z.object({ testId: z.number().int().positive() })).mutation(({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.startTestAttempt(ctx.user.id, input.testId);
+    }),
+    submitTest: protectedProcedure.input(z.object({ attemptId: z.number().int().positive(), answers: z.array(z.object({ questionId: z.number().int().positive(), selectedOptionIndex: z.number().int().min(0).max(20).nullable() })).max(250) })).mutation(({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.submitTestAttempt(ctx.user.id, input.attemptId, input.answers);
+    }),
+    testHistory: protectedProcedure.query(({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.listMyTestAttempts(ctx.user.id);
+    }),
+    testAttemptReview: protectedProcedure.input(z.object({ attemptId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      const review = await db.getMyTestAttemptReview(ctx.user.id, input.attemptId);
+      if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "This assessment attempt was not found." });
+      return review;
+    }),
     notifications: protectedProcedure.query(({ ctx }) => db.listMyNotifications(ctx.user.id)),
     markNotificationRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       await db.markNotificationRead(ctx.user.id, input.notificationId);
