@@ -9,6 +9,11 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
+    if (key.startsWith("learning-media/")) {
+      res.status(403).send("Protected learning media must be opened through an authorized learning session.");
+      return;
+    }
+
     if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
       res.status(500).send("Storage proxy not configured");
       return;

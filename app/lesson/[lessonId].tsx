@@ -1,7 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
@@ -29,6 +30,7 @@ export default function LessonScreen() {
 
   if (!user) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="lock-person" title="Sign in to continue" body="Lessons, notes and progress are available only through your authorized learning account." action={<PrimaryButton label="Sign in" onPress={() => router.push("/auth")} />} /></View></ScreenContainer>;
   if (lessonQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
+  if (lessonQuery.isError) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="wifi-off" title="Lesson could not load" body="Check your connection, then retry. Your learning access has not changed." action={<PrimaryButton label="Retry" icon="refresh" onPress={() => void lessonQuery.refetch()} />} /></View></ScreenContainer>;
   if (!authorizedData) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="lock" title="Lesson locked" body="Enroll in the course first. Protected content is not delivered until the server confirms your access." action={<PrimaryButton label="Go to my learning" onPress={() => router.replace("/learning")} />} /></View></ScreenContainer>;
   const { lesson, course } = authorizedData;
   const completed = Boolean(authorizedData.progress?.isCompleted);
@@ -47,6 +49,10 @@ export default function LessonScreen() {
   const toggleBookmark = async () => {
     try { await bookmarkMutation.mutateAsync({ lessonId: lesson.id }); } catch (cause) { Alert.alert("Bookmark not updated", cause instanceof Error ? cause.message : "Please try again."); }
   };
+  const openResource = async (url?: string | null) => {
+    if (!url) return Alert.alert("Resource unavailable", "This resource does not have a published link yet.");
+    try { await Linking.openURL(url); } catch { Alert.alert("Resource could not open", "Please check your connection and try again."); }
+  };
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5">
@@ -55,12 +61,12 @@ export default function LessonScreen() {
         <Text style={styles.courseName}>{course.title.toUpperCase()}</Text>
         <Text style={styles.title}>{lesson.title}</Text>
         <View style={styles.meta}><Tag label={lesson.contentType.toUpperCase()} tone="indigo" /><Text style={styles.metaText}>{Math.ceil(lesson.durationSeconds / 60)} min lesson</Text>{completed ? <Tag label="COMPLETE" tone="green" /> : null}</View>
-        <View style={styles.player}><View style={styles.playerGrid}><MaterialIcons name={lesson.contentType === "video" ? "play-circle-filled" : "menu-book"} size={55} color={COLORS.saffron} /></View><Text style={styles.playerLabel}>{lesson.contentType === "video" ? "Secure media playback is connected through the selected video provider." : "Lesson reading"}</Text></View>
+        {lesson.contentType === "video" && lesson.contentUrl ? <LessonVideoPlayer source={lesson.contentUrl} /> : <View style={styles.player}><View style={styles.playerGrid}><MaterialIcons name={lesson.contentType === "video" ? "play-circle-filled" : "menu-book"} size={55} color={COLORS.saffron} /></View><Text style={styles.playerLabel}>{lesson.contentType === "video" ? "This video has not been published with a playback URL yet." : "Lesson reading"}</Text></View>}
         <Text style={styles.description}>{lesson.description ?? "Study the lesson and record your key takeaways below."}</Text>
-        {lesson.contentType !== "video" ? <Card style={styles.readingCard}><Text style={styles.readingTitle}>Field note</Text><Text style={styles.readingText}>Work from consistent units, record observations clearly, and verify every measurement before you move to the next field point. Reliable Amin work begins with a repeatable method.</Text></Card> : null}
+        {lesson.contentType !== "video" ? <Card style={styles.readingCard}><Text style={styles.readingTitle}>Lesson material</Text><Text style={styles.readingText}>{lesson.contentUrl ? "Open the published lesson material, then record your own field notes below." : "The teacher has not added a reading or document link for this lesson yet."}</Text>{lesson.contentUrl ? <Pressable accessibilityRole="link" onPress={() => void openResource(lesson.contentUrl)} style={({ pressed }) => [styles.openMaterial, pressed && styles.pressed]}><MaterialIcons name="open-in-new" size={17} color={COLORS.indigo} /><Text style={styles.openMaterialText}>Open lesson material</Text></Pressable> : null}</Card> : null}
         <PrimaryButton label={completed ? "Lesson completed" : progressMutation.isPending ? "Saving progress…" : "Mark complete"} icon={completed ? "check-circle" : "check"} onPress={complete} disabled={completed || progressMutation.isPending} />
         <Text style={styles.sectionTitle}>Resources</Text>
-        {authorizedData.resources.length ? <View style={styles.resources}>{authorizedData.resources.map((resource) => <Card key={resource.id} style={styles.resourceRow}><IconCircle icon={resource.resourceType === "pdf" ? "picture-as-pdf" : resource.resourceType === "link" ? "link" : "description"} size={38} /><View style={{ flex: 1 }}><Text style={styles.resourceTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></View><MaterialIcons name="download" size={22} color={COLORS.indigo} /></Card>)}</View> : <Card style={styles.noResource}><Text style={styles.noResourceText}>No extra resources have been published for this lesson.</Text></Card>}
+        {authorizedData.resources.length ? <View style={styles.resources}>{authorizedData.resources.map((resource) => <Pressable key={resource.id} accessibilityRole="link" onPress={() => void openResource(resource.externalUrl)} style={({ pressed }) => [styles.resourceRow, pressed && styles.pressed]}><IconCircle icon={resource.resourceType === "pdf" ? "picture-as-pdf" : resource.resourceType === "link" ? "link" : "description"} size={38} /><View style={{ flex: 1 }}><Text style={styles.resourceTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></View><MaterialIcons name="open-in-new" size={22} color={COLORS.indigo} /></Pressable>)}</View> : <Card style={styles.noResource}><Text style={styles.noResourceText}>No extra resources have been published for this lesson.</Text></Card>}
         <Text style={styles.sectionTitle}>My private notes</Text>
         <TextInput value={note} onChangeText={setNote} multiline placeholder="Write a takeaway, formula or question for later…" placeholderTextColor="#98A2B3" style={styles.noteInput} textAlignVertical="top" maxLength={6000} />
         <Pressable onPress={saveNote} disabled={noteMutation.isPending} style={({ pressed }) => [styles.saveNote, (pressed || noteMutation.isPending) && styles.pressed]}><MaterialIcons name="save" size={18} color={COLORS.indigo} /><Text style={styles.saveNoteText}>{noteMutation.isPending ? "Saving…" : "Save private note"}</Text></Pressable>
@@ -68,6 +74,14 @@ export default function LessonScreen() {
       </ScrollView>
     </ScreenContainer>
   );
+}
+
+function LessonVideoPlayer({ source }: { source: string }) {
+  const player = useVideoPlayer(source, (instance) => {
+    instance.loop = false;
+    instance.staysActiveInBackground = false;
+  });
+  return <View style={styles.videoShell}><VideoView style={styles.video} player={player} nativeControls allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" /></View>;
 }
 
 const styles = StyleSheet.create({
@@ -80,6 +94,8 @@ const styles = StyleSheet.create({
   meta: { marginTop: 12, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   metaText: { color: COLORS.muted, fontSize: 12 },
   player: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20, justifyContent: "center", alignItems: "center" },
+  videoShell: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20 },
+  video: { width: "100%", height: "100%" },
   playerGrid: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)" },
   playerLabel: { color: "#D6DFF2", fontSize: 12, position: "absolute", bottom: 17, textAlign: "center", paddingHorizontal: 24 },
   description: { color: COLORS.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
@@ -88,7 +104,7 @@ const styles = StyleSheet.create({
   readingText: { color: COLORS.ink, fontSize: 14, lineHeight: 21 },
   sectionTitle: { color: COLORS.ink, fontSize: 19, fontWeight: "800", marginTop: 28, marginBottom: 10 },
   resources: { gap: 9 },
-  resourceRow: { padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  resourceRow: { padding: 12, flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 17, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
   resourceTitle: { color: COLORS.ink, fontWeight: "800", fontSize: 14 },
   resourceType: { color: COLORS.muted, fontSize: 10, fontWeight: "900", marginTop: 3, letterSpacing: 0.7 },
   noResource: { padding: 14 },
@@ -96,6 +112,8 @@ const styles = StyleSheet.create({
   noteInput: { minHeight: 130, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, borderRadius: 17, padding: 14, color: COLORS.ink, fontSize: 14, lineHeight: 20 },
   saveNote: { alignSelf: "flex-start", minHeight: 42, borderRadius: 12, backgroundColor: COLORS.indigoSoft, paddingHorizontal: 14, marginTop: 9, flexDirection: "row", alignItems: "center", gap: 7 },
   saveNoteText: { color: COLORS.indigo, fontWeight: "800", fontSize: 13 },
+  openMaterial: { alignSelf: "flex-start", minHeight: 38, paddingHorizontal: 12, borderRadius: 11, marginTop: 10, backgroundColor: COLORS.indigoSoft, flexDirection: "row", alignItems: "center", gap: 6 },
+  openMaterialText: { color: COLORS.indigo, fontWeight: "900", fontSize: 12 },
   navigation: { flexDirection: "row", justifyContent: "space-between", gap: 10, marginTop: 28 },
   navButton: { flex: 1, minHeight: 45, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   navDisabled: { opacity: 0.35 },

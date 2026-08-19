@@ -49,12 +49,23 @@ import {
   type User,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
+import { storageGetSignedUrl } from "./storage";
 
 export const SESSION_DURATION_DAYS = 30;
 export const OTP_CODE_TTL_MS = 10 * 60 * 1000;
 export const OTP_RESET_TOKEN_TTL_MS = 10 * 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_MAX_REQUESTS_PER_HOUR = 3;
+export const STAFF_PERMISSION_OPTIONS = [
+  "courses.manage",
+  "courses.publish",
+  "course_content.manage",
+  "media.manage",
+  "assessments.manage",
+  "assessments.publish",
+  "live_classes.manage",
+] as const;
+export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
 
 export function getOtpVerificationState(input: {
   expiresAt: Date;
@@ -552,6 +563,18 @@ export async function hasPermission(user: User, permission: string) {
   return Boolean(grants[0]);
 }
 
+export async function hasAnyPermission(user: User, permissions: readonly string[]) {
+  if (user.role === "super_admin") return true;
+  const database = await getDb();
+  if (!database) return false;
+  const grants = await database
+    .select({ id: userPermissions.id })
+    .from(userPermissions)
+    .where(and(eq(userPermissions.userId, user.id), inArray(userPermissions.permission, [...permissions])))
+    .limit(1);
+  return Boolean(grants[0]);
+}
+
 export async function listPublicCategories() {
   const database = await getDb();
   if (!database) return [];
@@ -685,13 +708,17 @@ export async function getCourseLearning(userId: number, courseId: number) {
         .where(and(inArray(moduleResources.moduleId, moduleIds), eq(moduleResources.isPublished, true)))
         .orderBy(asc(moduleResources.displayOrder))
     : [];
+  const securedResources = await Promise.all(resourceRows.map(async (resource) => ({
+    ...resource,
+    contentUrl: await resolveManagedMediaUrl(resource.contentUrl, resource.storageKey),
+  })));
   return {
     course: course[0],
     enrolled: true as const,
     modules: modules.map((module) => ({
       ...module,
       lessons: lessonRows.filter((row) => row.lesson.moduleId === module.id),
-      resources: resourceRows.filter((resource) => resource.moduleId === module.id),
+      resources: securedResources.filter((resource) => resource.moduleId === module.id),
     })),
   };
 }
@@ -716,7 +743,19 @@ export async function getAuthorizedLesson(userId: number, lessonId: number) {
     database.select().from(personalNotes).where(and(eq(personalNotes.userId, userId), eq(personalNotes.lessonId, lessonId))).limit(1),
     database.select().from(bookmarks).where(and(eq(bookmarks.userId, userId), eq(bookmarks.lessonId, lessonId))).limit(1),
   ]);
-  return { authorized: true as const, ...row, resources, progress: progress[0] ?? null, note: note[0] ?? null, bookmarked: Boolean(bookmark[0]) };
+  const securedResources = await Promise.all(resources.map(async (resource) => ({
+    ...resource,
+    externalUrl: await resolveManagedMediaUrl(resource.externalUrl, resource.storageKey),
+  })));
+  return {
+    authorized: true as const,
+    ...row,
+    lesson: { ...row.lesson, contentUrl: await resolveManagedMediaUrl(row.lesson.contentUrl) },
+    resources: securedResources,
+    progress: progress[0] ?? null,
+    note: note[0] ?? null,
+    bookmarked: Boolean(bookmark[0]),
+  };
 }
 
 export async function updateLessonProgress(userId: number, input: { courseId: number; lessonId: number; watchedSeconds: number; completed: boolean }) {
@@ -791,7 +830,7 @@ export async function submitTestAttempt(userId: number, attemptId: number, answe
   const attempt = await database.select().from(testAttempts).where(and(eq(testAttempts.id, attemptId), eq(testAttempts.userId, userId))).limit(1);
   if (!attempt[0]) throw new Error("Test attempt was not found");
   if (attempt[0].status !== "in_progress") throw new Error("This attempt has already been submitted");
-  const test = await database.select({ durationMinutes: tests.durationMinutes }).from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
+  const test = await database.select({ durationMinutes: tests.durationMinutes, passingMarks: tests.passingMarks }).from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
   if (!test[0]) throw new Error("Test configuration was not found");
   const endsAt = attempt[0].startedAt.getTime() + test[0].durationMinutes * 60 * 1000;
   if (Date.now() > endsAt) {
@@ -815,7 +854,24 @@ export async function submitTestAttempt(userId: number, attemptId: number, answe
   }
   const totalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
   await database.update(testAttempts).set({ status: "submitted", submittedAt: new Date(), score, totalMarks }).where(eq(testAttempts.id, attemptId));
-  return { score, totalMarks, resultRows };
+  return {
+    score,
+    totalMarks,
+    passingMarks: test[0].passingMarks,
+    review: resultRows.map((answer) => {
+      const question = testQuestions.find((item) => item.id === answer.questionId)!;
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        options: question.options,
+        selectedOptionIndex: answer.selectedOptionIndex,
+        correctOptionIndex: question.correctOptionIndex,
+        isCorrect: answer.isCorrect,
+        marksAwarded: answer.marksAwarded,
+        explanation: question.explanation,
+      };
+    }),
+  };
 }
 
 export async function listMyNotifications(userId: number) {
@@ -1116,7 +1172,13 @@ export async function listPublishedFreePlaylists() {
   const playlists = await database.select().from(freePlaylists).where(eq(freePlaylists.isPublished, true)).orderBy(asc(freePlaylists.displayOrder));
   const playlistIds = playlists.map((playlist) => playlist.id);
   const items = playlistIds.length ? await database.select().from(freePlaylistItems).where(and(inArray(freePlaylistItems.playlistId, playlistIds), eq(freePlaylistItems.isPublished, true))).orderBy(asc(freePlaylistItems.displayOrder)) : [];
-  return { playlists, items };
+  return {
+    playlists,
+    items: await Promise.all(items.map(async (item) => ({
+      ...item,
+      contentUrl: await resolveManagedMediaUrl(item.contentUrl, item.storageKey),
+    }))),
+  };
 }
 
 export async function listOperationsShorts() {
@@ -1137,6 +1199,18 @@ export async function saveEducationalShort(input: { shortId?: number; title: str
   return Number(result[0].insertId);
 }
 
+function managedStorageKey(contentUrl?: string | null, storageKey?: string | null) {
+  if (storageKey?.trim()) return storageKey;
+  if (!contentUrl?.startsWith("/manus-storage/")) return undefined;
+  return contentUrl.slice("/manus-storage/".length);
+}
+
+async function resolveManagedMediaUrl(contentUrl?: string | null, storageKey?: string | null) {
+  const key = managedStorageKey(contentUrl, storageKey);
+  if (!key) return contentUrl ?? null;
+  return storageGetSignedUrl(key);
+}
+
 export async function listPublishedShorts(userId: number) {
   const database = await getDb();
   if (!database) return [];
@@ -1154,12 +1228,13 @@ export async function listPublishedShorts(userId: number) {
   const likedShortIds = new Set(studentLikeRows.map((row) => row.shortId));
   const savedShortIds = new Set(studentSaveRows.map((row) => row.shortId));
 
-  return shorts.map((short) => ({
+  return Promise.all(shorts.map(async (short) => ({
     ...short,
+    videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl,
     likeCount: likeCounts.get(short.id) ?? 0,
     isLiked: likedShortIds.has(short.id),
     isSaved: savedShortIds.has(short.id),
-  }));
+  })));
 }
 
 async function isPublishedShort(shortId: number) {
@@ -1258,7 +1333,24 @@ export async function listManagedUsers(search?: string) {
   if (!database) return [];
   const needle = search?.trim();
   const condition = needle ? or(like(users.fullName, `%${needle}%`), like(users.email, `%${needle}%`), like(users.mobile, `%${needle}%`)) : undefined;
-  return database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
+  const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
+  if (!people.length) return [];
+  const grants = await database.select({ userId: userPermissions.userId, permission: userPermissions.permission }).from(userPermissions).where(inArray(userPermissions.userId, people.map((person) => person.id)));
+  const permissionsByUser = new Map<number, string[]>();
+  for (const grant of grants) permissionsByUser.set(grant.userId, [...(permissionsByUser.get(grant.userId) ?? []), grant.permission]);
+  return people.map((person) => ({ ...person, permissions: permissionsByUser.get(person.id) ?? [] }));
+}
+
+export async function setManagedUserPermission(input: { userId: number; permission: StaffPermission; granted: boolean; grantedByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!target || target.role !== "teacher") throw new Error("Permissions can only be changed for Teacher accounts.");
+  if (input.granted) {
+    await database.insert(userPermissions).values({ userId: input.userId, permission: input.permission, grantedByUserId: input.grantedByUserId }).onDuplicateKeyUpdate({ set: { grantedByUserId: input.grantedByUserId } });
+  } else {
+    await database.delete(userPermissions).where(and(eq(userPermissions.userId, input.userId), eq(userPermissions.permission, input.permission)));
+  }
 }
 
 export async function updateManagedUser(userId: number, input: { role?: "student" | "teacher" | "admin"; status?: "active" | "suspended" }) {

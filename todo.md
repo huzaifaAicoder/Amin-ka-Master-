@@ -69,3 +69,11 @@
 - [x] Improve legacy Android 10-plus rendering, low-data media handling, and responsive desktop web layouts for course and admin experiences.
 - [x] Add Course Manager and Test Manager skeleton states and retry controls for failed dashboard requests.
 - [x] Add persistent Like and Save state plus Share controls to the student Shorts feed with protected student APIs.
+- [x] Audit all implemented routes, operations controls, server procedures, database integrity, and configuration against the final production requirements.
+- [ ] Close verifiable role-authorization, operational CRUD, navigation, accessibility, and error-handling gaps without replacing working flows.
+- [x] Produce and validate a production operations and external-integration guide covering payment, AI, email, storage, backups, migrations, and deployment constraints.
+- [x] Run and record full regression, adversarial security, database-integrity, responsive, and Android export validation before release checkpoint.
+- [x] Enforce granular server-side Teacher permissions and give Super Admin a safe grant/revoke workflow.
+- [x] Replace lesson placeholders with functional authorized media/resource delivery while preventing direct access to protected managed files.
+- [x] Complete student MCQ timeout, configured pass/fail, answer-explanation, and attempt-review workflows.
+- [ ] Complete owner-operable category and existing-media management paths with resilient loading, errors, and editing controls.

@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -35,7 +35,7 @@ export default function MediaStudioScreen() {
 
   const playlists = playlistsQuery.data?.playlists ?? [];
   const playlistItems = playlistsQuery.data?.items ?? [];
-  const selectedPlaylist = useMemo(() => playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null, [playlists, selectedPlaylistId]);
+  const selectedPlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId) ?? null;
   const busy = uploading || savePlaylist.isPending || saveItem.isPending || saveShort.isPending;
   if (!user || user.role === "student") return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.denied}>Operations permission is required.</Text></ScreenContainer>;
 

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { COLORS, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
+import { COLORS, IconCircle, PrimaryButton } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 import { uploadLearningMedia, type PickedLearningMedia } from "@/lib/media-upload";
 import { trpc } from "@/lib/trpc";

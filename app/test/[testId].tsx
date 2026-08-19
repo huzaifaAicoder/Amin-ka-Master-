@@ -1,14 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, EmptyState, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
-
-type ActiveAttempt = NonNullable<ReturnType<typeof useAttemptState>>;
 
 function useAttemptState() {
   const [attempt, setAttempt] = useState<{ attemptId: number; durationMinutes: number; title: string; questions: Array<{ id: number; prompt: string; options: unknown; marks: number }> } | null>(null);
@@ -25,7 +23,8 @@ export default function TestAttemptScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [result, setResult] = useState<{ score: number; totalMarks: number } | null>(null);
+  const [result, setResult] = useState<{ score: number; totalMarks: number; passingMarks: number; review: { questionId: number; prompt: string; options: unknown; selectedOptionIndex: number | null; correctOptionIndex: number; isCorrect: boolean; marksAwarded: number; explanation: string | null }[] } | null>(null);
+  const autoSubmitting = useRef(false);
 
   useEffect(() => {
     if (!attempt || result || remainingSeconds <= 0) return;
@@ -42,22 +41,30 @@ export default function TestAttemptScreen() {
       Alert.alert("Test unavailable", cause instanceof Error ? cause.message : "Please return to the test list.");
     }
   };
-  const submit = async () => {
+  const submit = useCallback(async () => {
     if (!attempt) return;
     try {
       const data = await submitMutation.mutateAsync({ attemptId: attempt.attemptId, answers: attempt.questions.map((question) => ({ questionId: question.id, selectedOptionIndex: answers[question.id] ?? null })) });
-      setResult({ score: data.score, totalMarks: data.totalMarks });
+      setResult({ score: data.score, totalMarks: data.totalMarks, passingMarks: data.passingMarks, review: data.review });
     } catch (cause) {
       Alert.alert("Unable to submit", cause instanceof Error ? cause.message : "Your attempt was not submitted. Please try again.");
     }
-  };
+  }, [answers, attempt, submitMutation]);
+  useEffect(() => {
+    if (!attempt || result || remainingSeconds !== 0 || submitMutation.isPending || autoSubmitting.current) return;
+    autoSubmitting.current = true;
+    void submit();
+  }, [attempt, remainingSeconds, result, submitMutation.isPending, submit]);
   const currentQuestion = attempt?.questions[currentIndex];
   const currentOptions = useMemo(() => Array.isArray(currentQuestion?.options) ? currentQuestion.options.filter((option): option is string => typeof option === "string") : [], [currentQuestion?.options]);
   const minutes = Math.floor(remainingSeconds / 60).toString().padStart(2, "0");
   const seconds = (remainingSeconds % 60).toString().padStart(2, "0");
 
   if (!user) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="lock-person" title="Sign in to take a test" body="Secure assessment attempts belong to an authenticated learning profile." /></View></ScreenContainer>;
-  if (result) return <ScreenContainer className="px-5"><View style={styles.resultWrap}><View style={styles.scoreRing}><Text style={styles.score}>{result.score}</Text><Text style={styles.outOf}>of {result.totalMarks}</Text></View><Tag label={result.score >= Math.ceil(result.totalMarks / 2) ? "ATTEMPT COMPLETE" : "RESULT RECORDED"} tone={result.score >= Math.ceil(result.totalMarks / 2) ? "green" : "saffron"} /><Text style={styles.resultTitle}>{result.score >= Math.ceil(result.totalMarks / 2) ? "Strong work" : "Keep practising"}</Text><Text style={styles.resultBody}>Your score was calculated on the server from stored answer keys and saved to your attempt history.</Text><PrimaryButton label="Back to tests" onPress={() => router.replace("/tests")} icon="assignment" /></View></ScreenContainer>;
+  if (result) {
+    const passed = result.passingMarks > 0 && result.score >= result.passingMarks;
+    return <ScreenContainer className="px-5" edges={["top", "bottom", "left", "right"]}><ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}><View style={styles.resultWrap}><View style={styles.scoreRing}><Text style={styles.score}>{result.score}</Text><Text style={styles.outOf}>of {result.totalMarks}</Text></View><Tag label={result.passingMarks > 0 ? passed ? "PASSED" : "KEEP PRACTISING" : "ATTEMPT COMPLETE"} tone={passed || result.passingMarks === 0 ? "green" : "saffron"} /><Text style={styles.resultTitle}>{passed || result.passingMarks === 0 ? "Attempt recorded" : "Keep practising"}</Text><Text style={styles.resultBody}>Your score and review were calculated on the server from the stored answer key. Passing mark: {result.passingMarks || "not configured"}.</Text></View><Text style={styles.reviewTitle}>Answer review</Text>{result.review.map((item, index) => { const options = Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === "string") : []; const selected = item.selectedOptionIndex === null ? "Not answered" : options[item.selectedOptionIndex] ?? "Selected answer"; const correct = options[item.correctOptionIndex] ?? "Correct answer"; return <View key={item.questionId} style={[styles.reviewCard, item.isCorrect ? styles.reviewCorrect : styles.reviewIncorrect]}><View style={styles.reviewHeader}><Text style={styles.reviewQuestion}>Question {index + 1}</Text><Tag label={item.isCorrect ? "CORRECT" : "REVIEW"} tone={item.isCorrect ? "green" : "saffron"} /></View><Text style={styles.reviewPrompt}>{item.prompt}</Text><Text style={styles.reviewAnswer}>Your answer: {selected}</Text>{!item.isCorrect ? <Text style={styles.correctAnswer}>Correct answer: {correct}</Text> : null}{item.explanation ? <Text style={styles.explanation}>{item.explanation}</Text> : null}</View>; })}<PrimaryButton label="Back to tests" onPress={() => router.replace("/tests")} icon="assignment" /></ScrollView></ScreenContainer>;
+  }
   if (!attempt) return <ScreenContainer className="px-5"><View style={styles.center}><Text style={styles.preTitle}>TIMED MCQ ASSESSMENT</Text><Text style={styles.readyTitle}>Ready to begin?</Text><Text style={styles.readyBody}>The timer starts when the server creates your attempt. Your score is calculated only when you submit.</Text><PrimaryButton label={startMutation.isPending ? "Starting test…" : "Start test"} onPress={begin} icon="play-arrow" disabled={startMutation.isPending} /></View></ScreenContainer>;
   if (!currentQuestion) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
   return <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5"><View style={styles.attemptHeader}><Pressable onPress={() => router.back()} hitSlop={8}><MaterialIcons name="close" size={24} color={COLORS.indigo} /></Pressable><View style={styles.timer}><MaterialIcons name="timer" size={18} color={remainingSeconds < 60 ? COLORS.red : COLORS.indigo} /><Text style={[styles.timerText, remainingSeconds < 60 && { color: COLORS.red }]}>{minutes}:{seconds}</Text></View></View><View style={styles.attemptBody}><Text style={styles.attemptTitle}>{attempt.title}</Text><View style={styles.questionMeta}><Text style={styles.questionCount}>Question {currentIndex + 1} of {attempt.questions.length}</Text><Text style={styles.marks}>{currentQuestion.marks} mark{currentQuestion.marks === 1 ? "" : "s"}</Text></View><View style={styles.questionCard}><Text style={styles.question}>{currentQuestion.prompt}</Text>{currentOptions.map((option, index) => { const selected = answers[currentQuestion.id] === index; return <Pressable key={`${option}-${index}`} onPress={() => setAnswers((current) => ({ ...current, [currentQuestion.id]: index }))} style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}><View style={[styles.optionMark, selected && styles.optionMarkSelected]}>{selected ? <MaterialIcons name="check" size={16} color={COLORS.white} /> : <Text style={styles.optionLetter}>{String.fromCharCode(65 + index)}</Text>}</View><Text style={[styles.optionText, selected && styles.optionTextSelected]}>{option}</Text></Pressable>; })}</View></View><View style={styles.footer}><Pressable disabled={currentIndex === 0} onPress={() => setCurrentIndex((value) => Math.max(0, value - 1))} style={[styles.previous, currentIndex === 0 && styles.disabled]}><Text style={styles.previousText}>Previous</Text></Pressable>{currentIndex === attempt.questions.length - 1 ? <PrimaryButton label={submitMutation.isPending ? "Submitting…" : "Submit test"} onPress={submit} disabled={submitMutation.isPending} /> : <PrimaryButton label="Next question" icon="arrow-forward" onPress={() => setCurrentIndex((value) => Math.min(attempt.questions.length - 1, value + 1))} />}</View></ScreenContainer>;
@@ -69,11 +76,14 @@ const styles = StyleSheet.create({
   readyTitle: { color: COLORS.ink, fontSize: 30, fontWeight: "800" },
   readyBody: { color: COLORS.muted, fontSize: 14, lineHeight: 21, marginBottom: 10 },
   resultWrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 13, paddingHorizontal: 20 },
+  reviewContent: { paddingVertical: 22, gap: 11 },
   scoreRing: { width: 154, height: 154, borderRadius: 77, borderWidth: 12, borderColor: COLORS.greenSoft, backgroundColor: COLORS.white, alignItems: "center", justifyContent: "center" },
   score: { color: COLORS.indigo, fontSize: 43, fontWeight: "900" },
   outOf: { color: COLORS.muted, fontSize: 13 },
   resultTitle: { color: COLORS.ink, fontSize: 28, fontWeight: "800", marginTop: 4 },
   resultBody: { color: COLORS.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 7 },
+  reviewTitle: { color: COLORS.ink, fontSize: 19, fontWeight: "900", marginTop: 12 },
+  reviewCard: { borderRadius: 18, padding: 13, borderWidth: 1, gap: 7, backgroundColor: COLORS.white }, reviewCorrect: { borderColor: "#B5E0C6" }, reviewIncorrect: { borderColor: "#F3D0A7" }, reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, reviewQuestion: { color: COLORS.ink, fontSize: 12, fontWeight: "900" }, reviewPrompt: { color: COLORS.ink, fontSize: 14, lineHeight: 20, fontWeight: "800" }, reviewAnswer: { color: COLORS.muted, fontSize: 12, lineHeight: 18 }, correctAnswer: { color: COLORS.green, fontSize: 12, lineHeight: 18, fontWeight: "800" }, explanation: { color: COLORS.earth, backgroundColor: "#FFF5E8", borderRadius: 10, padding: 10, fontSize: 12, lineHeight: 18 },
   attemptHeader: { paddingTop: 10, minHeight: 61, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   timer: { minHeight: 39, backgroundColor: COLORS.indigoSoft, paddingHorizontal: 12, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 6 },
   timerText: { color: COLORS.indigo, fontWeight: "900", fontVariant: ["tabular-nums"] },

@@ -122,8 +122,17 @@ async function requireDelegatedPermission(
 }
 
 async function requireContentManagementPermission(user: NonNullable<Awaited<ReturnType<typeof db.getUserByOpenId>>>) {
+  await requireAnyDelegatedPermission(user, ["courses.manage", "course_content.manage"]);
+}
+
+async function requireAnyDelegatedPermission(
+  user: NonNullable<Awaited<ReturnType<typeof db.getUserByOpenId>>>,
+  permissions: readonly string[],
+) {
   requireStaffAccess(user.role);
-  if (user.role === "teacher") return;
+  if (user.role === "teacher" && !(await db.hasAnyPermission(user, permissions))) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Your account has not been granted this teaching permission" });
+  }
 }
 
 export const appRouter = router({
@@ -315,7 +324,10 @@ export const appRouter = router({
       requireStaffAccess(ctx.user.role);
       return db.getOperationsSummary();
     }),
-    courses: requireRoles(["teacher", "admin", "super_admin"]).query(({ ctx }) => db.listOperationsCourses()),
+    courses: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireAnyDelegatedPermission(ctx.user, ["courses.manage", "course_content.manage"]);
+      return db.listOperationsCourses();
+    }),
     createCourse: requireRoles(["teacher", "admin", "super_admin"])
       .input(z.object({
         categoryId: z.number().int().positive(),
@@ -364,7 +376,10 @@ export const appRouter = router({
         await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title } });
         return { success: true } as const;
       }),
-    courseStructure: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ courseId: z.number().int().positive() })).query(({ input }) => db.getManagedCourseStructure(input.courseId)),
+    courseStructure: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ courseId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      await requireContentManagementPermission(ctx.user);
+      return db.getManagedCourseStructure(input.courseId);
+    }),
     saveModule: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ moduleId: z.number().int().positive().optional(), courseId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), displayOrder: z.number().int().min(0).max(10000), isPublished: z.boolean() })).mutation(async ({ ctx, input }) => {
       await requireContentManagementPermission(ctx.user);
       const moduleId = await db.saveManagedModule(input);
@@ -384,32 +399,35 @@ export const appRouter = router({
       return { resourceId };
     }),
     freePlaylists: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
-      await requireContentManagementPermission(ctx.user);
+      await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
       return db.listOperationsFreePlaylists();
     }),
     saveFreePlaylist: requireRoles(["teacher", "admin", "super_admin"]).input(freePlaylistSchema).mutation(async ({ ctx, input }) => {
-      await requireContentManagementPermission(ctx.user);
+      await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
       const playlistId = await db.saveFreePlaylist({ ...input, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.playlistId ? "free_playlist.updated" : "free_playlist.created", entityType: "free_playlist", entityId: playlistId, metadata: { isPublished: input.isPublished } });
       return { playlistId };
     }),
     saveFreePlaylistItem: requireRoles(["teacher", "admin", "super_admin"]).input(freePlaylistItemSchema).mutation(async ({ ctx, input }) => {
-      await requireContentManagementPermission(ctx.user);
+      await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
       const itemId = await db.saveFreePlaylistItem({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.itemId ? "free_playlist_item.updated" : "free_playlist_item.created", entityType: "free_playlist_item", entityId: itemId, metadata: { playlistId: input.playlistId, contentType: input.contentType } });
       return { itemId };
     }),
     shorts: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
-      await requireContentManagementPermission(ctx.user);
+      await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
       return db.listOperationsShorts();
     }),
     saveShort: requireRoles(["teacher", "admin", "super_admin"]).input(educationalShortSchema).mutation(async ({ ctx, input }) => {
-      await requireContentManagementPermission(ctx.user);
+      await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
       const shortId = await db.saveEducationalShort({ ...input, videoUrl: input.contentUrl || "", storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.shortId ? "short.updated" : "short.created", entityType: "educational_short", entityId: shortId, metadata: { status: input.status } });
       return { shortId };
     }),
-    tests: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsTests()),
+    tests: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      return db.listOperationsTests();
+    }),
     test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ input }) => {
       const result = await db.getOperationsTest(input.testId);
       if (!result) throw new Error("Test was not found");
@@ -449,7 +467,10 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "question.deleted", entityType: "question", entityId: input.questionId, metadata: { testId: input.testId } });
       return { success: true } as const;
     }),
-    liveClasses: requireRoles(["teacher", "admin", "super_admin"]).query(() => db.listOperationsLiveClasses()),
+    liveClasses: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireDelegatedPermission(ctx.user, "live_classes.manage");
+      return db.listOperationsLiveClasses();
+    }),
     createLiveClass: requireRoles(["teacher", "admin", "super_admin"]).input(liveClassDetailsSchema).mutation(async ({ ctx, input }) => {
       await requireDelegatedPermission(ctx.user, "live_classes.manage");
       const liveClassId = await db.createManagedLiveClass({ ...input, instructorId: ctx.user.id, meetingUrl: input.meetingUrl || undefined, recordingUrl: input.recordingUrl || undefined });
@@ -491,6 +512,11 @@ export const appRouter = router({
     updatePerson: requireRoles(["super_admin"]).input(z.object({ userId: z.number().int().positive(), role: z.enum(["student", "teacher", "admin"]).optional(), status: z.enum(["active", "suspended"]).optional() }).refine((value) => value.role !== undefined || value.status !== undefined, "Choose a role or status update")).mutation(async ({ ctx, input }) => {
       await db.updateManagedUser(input.userId, { role: input.role, status: input.status });
       await db.writeAudit({ actorUserId: ctx.user.id, action: "person.updated", entityType: "user", entityId: input.userId, metadata: { role: input.role, status: input.status } });
+      return { success: true } as const;
+    }),
+    setTeacherPermission: requireRoles(["super_admin"]).input(z.object({ userId: z.number().int().positive(), permission: z.enum(db.STAFF_PERMISSION_OPTIONS), granted: z.boolean() })).mutation(async ({ ctx, input }) => {
+      await db.setManagedUserPermission({ ...input, grantedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.granted ? "teacher_permission.granted" : "teacher_permission.revoked", entityType: "user_permission", entityId: input.userId, metadata: { permission: input.permission } });
       return { success: true } as const;
     }),
     enrollments: requireRoles(["admin", "super_admin"]).query(() => db.listManagedEnrollments()),

@@ -30,6 +30,7 @@ const student = {
 };
 
 const admin = { ...student, id: 902, openId: "security-test-admin", email: "admin-security@example.com", role: "admin" as const };
+const teacherWithoutGrant = { ...student, id: 903, openId: "security-test-teacher", email: "teacher-security@example.com", role: "teacher" as const };
 
 describe("LMS security boundaries", () => {
   it("stores a password as a salted one-way hash and validates only the correct value", () => {
@@ -95,11 +96,18 @@ describe("LMS security boundaries", () => {
     await expect(caller.operations.liveClasses()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("requires explicit Teacher grants for course and media operations", async () => {
+    const caller = appRouter.createCaller(createContext(teacherWithoutGrant));
+    await expect(caller.operations.courses()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.freePlaylists()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("reserves owner controls for Super Admin and rejects an ordinary Admin", async () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.operations.masterSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.auditLogs()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.rotateStaffPasskey({ currentPasskey: "current-passkey", nextPasskey: "a-strong-next-passkey", confirmation: "a-strong-next-passkey" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.createStaffAccount({ fullName: "Unapproved Staff", email: "unapproved@example.com", mobile: "", password: "AminStaff!2026", role: "teacher" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.setTeacherPermission({ userId: 903, permission: "courses.manage", granted: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

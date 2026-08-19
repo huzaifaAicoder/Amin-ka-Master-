@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { getSessionUser } from "../db";
+import { getSessionUser, hasAnyPermission } from "../db";
 import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -18,6 +18,18 @@ function isPortAvailable(port: number): Promise<boolean> {
     });
     server.on("error", () => resolve(false));
   });
+}
+
+function isAllowedCorsOrigin(origin: string) {
+  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  if (configured.includes(origin)) return true;
+  if (process.env.NODE_ENV === "production") return false;
+  try {
+    const url = new URL(origin);
+    return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname.endsWith(".manus.computer");
+  } catch {
+    return false;
+  }
 }
 
 async function findAvailablePort(startPort: number = 3000): Promise<number> {
@@ -33,19 +45,22 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // Permit credentialed calls only from configured production origins or managed local/preview hosts.
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+    if (origin && isAllowedCorsOrigin(origin)) {
       res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+      res.header("Access-Control-Allow-Credentials", "true");
+    } else if (origin) {
+      res.sendStatus(403);
+      return;
     }
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(
       "Access-Control-Allow-Headers",
       "Origin, X-Requested-With, Content-Type, Accept, Authorization",
     );
-    res.header("Access-Control-Allow-Credentials", "true");
-
     // Handle preflight requests
     if (req.method === "OPTIONS") {
       res.sendStatus(200);
@@ -67,6 +82,10 @@ async function startServer() {
       const session = token ? await getSessionUser(token) : undefined;
       if (!session || !["teacher", "admin", "super_admin"].includes(session.user.role)) {
         res.status(401).json({ error: "Staff authentication is required to upload learning media." });
+        return;
+      }
+      if (session.user.role === "teacher" && !(await hasAnyPermission(session.user, ["course_content.manage", "media.manage"]))) {
+        res.status(403).json({ error: "Your Teacher account is not permitted to upload learning media." });
         return;
       }
       const mimeType = (req.headers["content-type"] ?? "application/octet-stream").split(";")[0].toLowerCase();

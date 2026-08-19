@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Platform, Pressable, Share, StyleSheet, Text, View, type ListRenderItemInfo } from "react-native";
+import { ActivityIndicator, Dimensions, FlatList, Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 import { ScreenContainer } from "@/components/screen-container";

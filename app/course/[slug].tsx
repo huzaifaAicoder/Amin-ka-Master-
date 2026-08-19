@@ -16,6 +16,7 @@ export default function CourseDetailScreen() {
   const enrollMutation = trpc.student.enrollFree.useMutation({ onSuccess: () => void learningQuery.refetch() });
 
   if (courseQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
+  if (courseQuery.isError) return <ScreenContainer className="items-center justify-center px-5"><Card style={styles.errorCard}><Text style={styles.notFound}>Course information could not load. Check your connection and try again.</Text><PrimaryButton label="Retry" icon="refresh" onPress={() => void courseQuery.refetch()} /></Card></ScreenContainer>;
   if (!courseQuery.data) return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.notFound}>This course is not available.</Text></ScreenContainer>;
   const { course, categoryName, instructorName } = courseQuery.data;
   const enrolled = learningQuery.data?.enrolled === true;
@@ -93,5 +94,6 @@ const styles = StyleSheet.create({
   reviewTitle: { color: COLORS.ink, fontWeight: "800", fontSize: 16 },
   reviewBody: { color: COLORS.muted, fontSize: 13, lineHeight: 19, marginBottom: 4 },
   notFound: { color: COLORS.muted, fontSize: 16 },
+  errorCard: { gap: 12, width: "100%" },
   pressed: { opacity: 0.74, transform: [{ scale: 0.985 }] },
 });
