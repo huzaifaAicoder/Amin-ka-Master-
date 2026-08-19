@@ -36,6 +36,7 @@ import {
   personalNotes,
   educationalShorts,
   resourceDownloadEvents,
+  shortComments,
   shortLikes,
   shortSaves,
   freePlaylistItems,
@@ -245,6 +246,37 @@ export async function createStaffCredentialUser(input: {
   });
   const created = await database.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
   return created[0];
+}
+
+export async function isInitialDeveloperSetupAvailable() {
+  const database = await getDb();
+  if (!database) return false;
+  const existing = await database.select({ id: users.id }).from(users).where(eq(users.role, "developer")).limit(1);
+  return !existing[0];
+}
+
+export async function createInitialDeveloperCredentialUser(input: { fullName: string; email: string; password: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const email = normalizeIdentity(input.email);
+  return database.transaction(async (tx) => {
+    const existingDeveloper = await tx.select({ id: users.id }).from(users).where(eq(users.role, "developer")).limit(1);
+    if (existingDeveloper[0]) return { status: "already_claimed" as const };
+    const identityMatch = await tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    if (identityMatch[0]) return { status: "identity_exists" as const };
+    const result = await tx.insert(users).values({
+      openId: `local_${randomUUID()}`,
+      fullName: input.fullName.trim(),
+      email,
+      passwordHash: hashPassword(input.password),
+      loginMethod: "password",
+      role: "developer",
+      status: "active",
+      lastSignedIn: new Date(),
+    });
+    const [user] = await tx.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
+    return { status: "claimed" as const, user };
+  });
 }
 
 const OWNER_SETUP_CLAIM_KEY = "security.owner_setup_claimed";
@@ -855,9 +887,96 @@ export async function startTestAttempt(userId: number, testId: number) {
     if (!enrollmentIsActive(enrollment)) throw new Error("Course enrollment is required for this test");
   }
   const existing = await database.select().from(testAttempts).where(and(eq(testAttempts.userId, userId), eq(testAttempts.testId, testId), eq(testAttempts.status, "in_progress"))).limit(1);
-  const attemptId = existing[0]?.id ?? Number((await database.insert(testAttempts).values({ userId, testId, status: "in_progress" }))[0].insertId);
   const testQuestions = await database.select({ id: questions.id, prompt: questions.prompt, options: questions.options, marks: questions.marks, displayOrder: questions.displayOrder }).from(questions).where(eq(questions.testId, testId)).orderBy(asc(questions.displayOrder));
-  return { attemptId, test: test[0], questions: testQuestions };
+  let activeAttempt: typeof testAttempts.$inferSelect | undefined = existing[0];
+  if (activeAttempt && Date.now() >= activeAttempt.startedAt.getTime() + test[0].durationMinutes * 60 * 1000) {
+    const scoredQuestions = await database.select().from(questions).where(eq(questions.testId, testId)).orderBy(asc(questions.displayOrder));
+    await saveScoredAttempt(database, activeAttempt, test[0], scoredQuestions, [], "expired");
+    activeAttempt = undefined;
+  }
+  if (!activeAttempt) {
+    const result = await database.insert(testAttempts).values({ userId, testId, status: "in_progress" });
+    const attemptId = Number(result[0].insertId);
+    activeAttempt = { id: attemptId, userId, testId, status: "in_progress", startedAt: new Date(), submittedAt: null, score: 0, totalMarks: 0, createdAt: new Date() };
+  }
+  const remainingSeconds = Math.max(0, test[0].durationMinutes * 60 - getAttemptElapsedSeconds(activeAttempt.startedAt, new Date(), test[0].durationMinutes));
+  return { attemptId: activeAttempt.id, test: test[0], questions: testQuestions, startedAt: activeAttempt.startedAt, remainingSeconds };
+}
+
+type ScoredAttemptAnswer = {
+  attemptId: number;
+  questionId: number;
+  selectedOptionIndex: number | null;
+  isCorrect: boolean;
+  marksAwarded: number;
+};
+
+function getAttemptElapsedSeconds(startedAt: Date, completedAt: Date | null, durationMinutes: number) {
+  const rawElapsed = Math.max(0, Math.floor(((completedAt ?? new Date()).getTime() - startedAt.getTime()) / 1000));
+  return Math.min(rawElapsed, durationMinutes * 60);
+}
+
+function buildAttemptReview(
+  attempt: typeof testAttempts.$inferSelect,
+  test: typeof tests.$inferSelect,
+  testQuestions: Array<typeof questions.$inferSelect>,
+  answerRows: ScoredAttemptAnswer[],
+) {
+  const answersByQuestion = new Map(answerRows.map((answer) => [answer.questionId, answer]));
+  const calculatedTotalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
+  const totalMarks = attempt.totalMarks || calculatedTotalMarks;
+  const score = attempt.score;
+  return {
+    attemptId: attempt.id,
+    testId: test.id,
+    testTitle: test.title,
+    status: attempt.status,
+    score,
+    totalMarks,
+    passingMarks: test.passingMarks,
+    durationMinutes: test.durationMinutes,
+    elapsedSeconds: getAttemptElapsedSeconds(attempt.startedAt, attempt.submittedAt, test.durationMinutes),
+    startedAt: attempt.startedAt,
+    submittedAt: attempt.submittedAt,
+    review: testQuestions.map((question) => {
+      const answer = answersByQuestion.get(question.id);
+      return {
+        questionId: question.id,
+        prompt: question.prompt,
+        options: question.options,
+        selectedOptionIndex: answer?.selectedOptionIndex ?? null,
+        correctOptionIndex: question.correctOptionIndex,
+        isCorrect: answer?.isCorrect ?? false,
+        marksAwarded: answer?.marksAwarded ?? 0,
+        explanation: question.explanation,
+      };
+    }),
+  };
+}
+
+async function saveScoredAttempt(
+  database: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  attempt: typeof testAttempts.$inferSelect,
+  test: typeof tests.$inferSelect,
+  testQuestions: Array<typeof questions.$inferSelect>,
+  answers: Array<{ questionId: number; selectedOptionIndex: number | null }>,
+  status: "submitted" | "expired",
+) {
+  const answersByQuestion = new Map(answers.map((answer) => [answer.questionId, answer.selectedOptionIndex]));
+  const resultRows: ScoredAttemptAnswer[] = testQuestions.map((question) => {
+    // Answers are deliberately discarded after the server-authoritative deadline.
+    const selectedOptionIndex = status === "expired" ? null : answersByQuestion.get(question.id) ?? null;
+    const isCorrect = selectedOptionIndex === question.correctOptionIndex;
+    return { attemptId: attempt.id, questionId: question.id, selectedOptionIndex, isCorrect, marksAwarded: isCorrect ? question.marks : 0 };
+  });
+  const score = resultRows.reduce((sum, answer) => sum + answer.marksAwarded, 0);
+  const totalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
+  const submittedAt = new Date();
+  for (const row of resultRows) {
+    await database.insert(testAnswers).values(row).onDuplicateKeyUpdate({ set: { selectedOptionIndex: row.selectedOptionIndex, isCorrect: row.isCorrect, marksAwarded: row.marksAwarded } });
+  }
+  await database.update(testAttempts).set({ status, submittedAt, score, totalMarks }).where(eq(testAttempts.id, attempt.id));
+  return buildAttemptReview({ ...attempt, status, submittedAt, score, totalMarks }, test, testQuestions, resultRows);
 }
 
 export async function submitTestAttempt(userId: number, attemptId: number, answers: Array<{ questionId: number; selectedOptionIndex: number | null }>) {
@@ -866,48 +985,62 @@ export async function submitTestAttempt(userId: number, attemptId: number, answe
   const attempt = await database.select().from(testAttempts).where(and(eq(testAttempts.id, attemptId), eq(testAttempts.userId, userId))).limit(1);
   if (!attempt[0]) throw new Error("Test attempt was not found");
   if (attempt[0].status !== "in_progress") throw new Error("This attempt has already been submitted");
-  const test = await database.select({ durationMinutes: tests.durationMinutes, passingMarks: tests.passingMarks }).from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
+  const test = await database.select().from(tests).where(eq(tests.id, attempt[0].testId)).limit(1);
   if (!test[0]) throw new Error("Test configuration was not found");
-  const endsAt = attempt[0].startedAt.getTime() + test[0].durationMinutes * 60 * 1000;
-  if (Date.now() > endsAt) {
-    await database.update(testAttempts).set({ status: "expired", submittedAt: new Date() }).where(eq(testAttempts.id, attemptId));
-    throw new Error("The permitted test time has elapsed");
-  }
-  const testQuestions = await database.select().from(questions).where(eq(questions.testId, attempt[0].testId));
-  const answersByQuestion = new Map(answers.map((answer) => [answer.questionId, answer.selectedOptionIndex]));
+  const testQuestions = await database.select().from(questions).where(eq(questions.testId, attempt[0].testId)).orderBy(asc(questions.displayOrder));
   const validQuestionIds = new Set(testQuestions.map((question) => question.id));
   if (answers.some((answer) => !validQuestionIds.has(answer.questionId))) throw new Error("Invalid question submission");
-  let score = 0;
-  const resultRows = testQuestions.map((question) => {
-    const selectedOptionIndex = answersByQuestion.get(question.id) ?? null;
-    const isCorrect = selectedOptionIndex === question.correctOptionIndex;
-    const marksAwarded = isCorrect ? question.marks : 0;
-    score += marksAwarded;
-    return { attemptId, questionId: question.id, selectedOptionIndex, isCorrect, marksAwarded };
-  });
-  for (const row of resultRows) {
-    await database.insert(testAnswers).values(row).onDuplicateKeyUpdate({ set: { selectedOptionIndex: row.selectedOptionIndex, isCorrect: row.isCorrect, marksAwarded: row.marksAwarded } });
+  const endsAt = attempt[0].startedAt.getTime() + test[0].durationMinutes * 60 * 1000;
+  if (Date.now() > endsAt) {
+    return saveScoredAttempt(database, attempt[0], test[0], testQuestions, [], "expired");
   }
-  const totalMarks = testQuestions.reduce((sum, question) => sum + question.marks, 0);
-  await database.update(testAttempts).set({ status: "submitted", submittedAt: new Date(), score, totalMarks }).where(eq(testAttempts.id, attemptId));
-  return {
-    score,
-    totalMarks,
-    passingMarks: test[0].passingMarks,
-    review: resultRows.map((answer) => {
-      const question = testQuestions.find((item) => item.id === answer.questionId)!;
-      return {
-        questionId: question.id,
-        prompt: question.prompt,
-        options: question.options,
-        selectedOptionIndex: answer.selectedOptionIndex,
-        correctOptionIndex: question.correctOptionIndex,
-        isCorrect: answer.isCorrect,
-        marksAwarded: answer.marksAwarded,
-        explanation: question.explanation,
-      };
-    }),
-  };
+  return saveScoredAttempt(database, attempt[0], test[0], testQuestions, answers, "submitted");
+}
+
+export async function listMyTestAttempts(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database
+    .select({ attempt: testAttempts, test: tests, courseTitle: courses.title })
+    .from(testAttempts)
+    .innerJoin(tests, eq(testAttempts.testId, tests.id))
+    .leftJoin(courses, eq(tests.courseId, courses.id))
+    .where(eq(testAttempts.userId, userId))
+    .orderBy(desc(testAttempts.startedAt))
+    .limit(60);
+  return rows.map(({ attempt, test, courseTitle }) => ({
+    attemptId: attempt.id,
+    testId: test.id,
+    testTitle: test.title,
+    courseTitle,
+    status: attempt.status,
+    score: attempt.score,
+    totalMarks: attempt.totalMarks,
+    passingMarks: test.passingMarks,
+    durationMinutes: test.durationMinutes,
+    elapsedSeconds: getAttemptElapsedSeconds(attempt.startedAt, attempt.submittedAt, test.durationMinutes),
+    startedAt: attempt.startedAt,
+    submittedAt: attempt.submittedAt,
+  }));
+}
+
+export async function getMyTestAttemptReview(userId: number, attemptId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const rows = await database
+    .select({ attempt: testAttempts, test: tests })
+    .from(testAttempts)
+    .innerJoin(tests, eq(testAttempts.testId, tests.id))
+    .where(and(eq(testAttempts.id, attemptId), eq(testAttempts.userId, userId)))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  if (row.attempt.status === "in_progress") return { status: "in_progress" as const, attemptId: row.attempt.id, testId: row.test.id };
+  const [testQuestions, answerRows] = await Promise.all([
+    database.select().from(questions).where(eq(questions.testId, row.test.id)).orderBy(asc(questions.displayOrder)),
+    database.select().from(testAnswers).where(eq(testAnswers.attemptId, row.attempt.id)),
+  ]);
+  return buildAttemptReview(row.attempt, row.test, testQuestions, answerRows);
 }
 
 export async function listMyNotifications(userId: number) {
@@ -1008,6 +1141,8 @@ export async function saveManagedQuestion(input: { questionId?: number; testId: 
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   if (input.questionId) {
+    const existing = await database.select({ id: questions.id }).from(questions).where(and(eq(questions.id, input.questionId), eq(questions.testId, input.testId))).limit(1);
+    if (!existing[0]) throw new Error("Question was not found in this test");
     await database.update(questions).set({ prompt: input.prompt, options: input.options, correctOptionIndex: input.correctOptionIndex, marks: input.marks, explanation: input.explanation, displayOrder: input.displayOrder }).where(and(eq(questions.id, input.questionId), eq(questions.testId, input.testId)));
     return input.questionId;
   }
@@ -1237,10 +1372,10 @@ export async function listOperationsShorts() {
   return database.select().from(educationalShorts).orderBy(desc(educationalShorts.updatedAt));
 }
 
-export async function saveEducationalShort(input: { shortId?: number; title: string; description?: string; videoUrl: string; storageKey?: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string; status: "draft" | "published" | "archived"; displayOrder: number; createdByUserId: number }) {
+export async function saveEducationalShort(input: { shortId?: number; title: string; description?: string; videoUrl: string; storageKey?: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string; sourceType?: "managed" | "youtube" | "instagram"; status: "draft" | "pending" | "published" | "rejected" | "archived"; displayOrder: number; createdByUserId: number }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
-  const values = { title: input.title, description: input.description, videoUrl: input.videoUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, status: input.status, displayOrder: input.displayOrder };
+  const values = { title: input.title, description: input.description, videoUrl: input.videoUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, sourceType: input.sourceType ?? "managed", status: input.status, displayOrder: input.displayOrder };
   if (input.shortId) {
     await database.update(educationalShorts).set(values).where(eq(educationalShorts.id, input.shortId));
     return input.shortId;
@@ -1268,15 +1403,18 @@ export async function listPublishedShorts(userId: number) {
   if (!shorts.length) return [];
 
   const shortIds = shorts.map((short) => short.id);
-  const [likeRows, studentLikeRows, studentSaveRows] = await Promise.all([
+  const [likeRows, studentLikeRows, studentSaveRows, commentRows] = await Promise.all([
     database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(inArray(shortLikes.shortId, shortIds)),
     database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(and(eq(shortLikes.userId, userId), inArray(shortLikes.shortId, shortIds))),
     database.select({ shortId: shortSaves.shortId }).from(shortSaves).where(and(eq(shortSaves.userId, userId), inArray(shortSaves.shortId, shortIds))),
+    database.select({ shortId: shortComments.shortId }).from(shortComments).where(and(inArray(shortComments.shortId, shortIds), eq(shortComments.status, "published"))),
   ]);
   const likeCounts = new Map<number, number>();
   for (const row of likeRows) likeCounts.set(row.shortId, (likeCounts.get(row.shortId) ?? 0) + 1);
   const likedShortIds = new Set(studentLikeRows.map((row) => row.shortId));
   const savedShortIds = new Set(studentSaveRows.map((row) => row.shortId));
+  const commentCounts = new Map<number, number>();
+  for (const row of commentRows) commentCounts.set(row.shortId, (commentCounts.get(row.shortId) ?? 0) + 1);
 
   return Promise.all(shorts.map(async (short) => ({
     ...short,
@@ -1284,6 +1422,7 @@ export async function listPublishedShorts(userId: number) {
     likeCount: likeCounts.get(short.id) ?? 0,
     isLiked: likedShortIds.has(short.id),
     isSaved: savedShortIds.has(short.id),
+    commentCount: commentCounts.get(short.id) ?? 0,
   })));
 }
 
@@ -1351,6 +1490,97 @@ export async function toggleShortSave(userId: number, shortId: number) {
   return { saved };
 }
 
+export async function listShortComments(shortId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  if (!(await isPublishedShort(shortId))) return null;
+  return database
+    .select({
+      id: shortComments.id,
+      body: shortComments.body,
+      createdAt: shortComments.createdAt,
+      userId: users.id,
+      fullName: users.fullName,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(shortComments)
+    .innerJoin(users, eq(shortComments.userId, users.id))
+    .where(and(eq(shortComments.shortId, shortId), eq(shortComments.status, "published")))
+    .orderBy(desc(shortComments.createdAt))
+    .limit(100);
+}
+
+export async function addShortComment(userId: number, shortId: number, body: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (!(await isPublishedShort(shortId))) return null;
+  const result = await database.insert(shortComments).values({ userId, shortId, body });
+  const commentId = Number(result[0].insertId);
+  const [comment] = await database
+    .select({ id: shortComments.id, body: shortComments.body, createdAt: shortComments.createdAt, userId: users.id, fullName: users.fullName, avatarUrl: users.avatarUrl })
+    .from(shortComments)
+    .innerJoin(users, eq(shortComments.userId, users.id))
+    .where(eq(shortComments.id, commentId))
+    .limit(1);
+  return comment ?? null;
+}
+
+export async function submitStudentShort(input: { userId: number; title: string; description?: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [student] = await database.select({ role: users.role, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!student || student.role !== "student" || !student.canUploadShorts) throw new Error("Short uploads are not enabled for this student account.");
+  const result = await database.insert(educationalShorts).values({
+    title: input.title,
+    description: input.description,
+    videoUrl: input.videoUrl,
+    storageKey: input.storageKey,
+    provider: input.provider,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+    durationSeconds: input.durationSeconds,
+    thumbnailUrl: input.thumbnailUrl,
+    sourceType: "managed",
+    status: "pending",
+    displayOrder: 0,
+    createdByUserId: input.userId,
+  });
+  return Number(result[0].insertId);
+}
+
+export async function listMyShortSubmissions(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database.select().from(educationalShorts).where(eq(educationalShorts.createdByUserId, userId)).orderBy(desc(educationalShorts.updatedAt));
+  return Promise.all(rows.map(async (short) => ({ ...short, videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl })));
+}
+
+export async function listPendingShortsForModeration() {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database
+    .select({ short: educationalShorts, authorName: users.fullName, authorEmail: users.email, authorMobile: users.mobile })
+    .from(educationalShorts)
+    .innerJoin(users, eq(educationalShorts.createdByUserId, users.id))
+    .where(eq(educationalShorts.status, "pending"))
+    .orderBy(asc(educationalShorts.createdAt));
+  return Promise.all(rows.map(async ({ short, ...author }) => ({ ...short, ...author, videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl })));
+}
+
+export async function moderateStudentShort(input: { shortId: number; moderatorUserId: number; status: "published" | "rejected"; moderationNote?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.update(educationalShorts).set({ status: input.status, moderatedByUserId: input.moderatorUserId, moderatedAt: new Date(), moderationNote: input.moderationNote }).where(and(eq(educationalShorts.id, input.shortId), eq(educationalShorts.status, "pending")));
+  if (!result[0].affectedRows) throw new Error("This submission is no longer pending moderation");
+}
+
+export async function updateCategory(input: { categoryId: number; name: string; slug: string; description?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.update(categories).set({ name: input.name, slug: input.slug, description: input.description }).where(eq(categories.id, input.categoryId));
+  if (!result[0].affectedRows) throw new Error("The category was not found");
+}
+
 export async function saveManagedModule(input: { moduleId?: number; courseId: number; title: string; description?: string; displayOrder: number; isPublished: boolean }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
@@ -1381,11 +1611,20 @@ export async function listPublishedAnnouncements() {
 }
 
 const MANAGED_SETTINGS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
+] as const;
+const DEVELOPER_SETTING_KEYS = [
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+  "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
+] as const;
+const OWNER_SETTING_KEYS = [
+  "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
+  "platform.registration_enabled", "platform.maintenance_enabled",
+  "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
 ] as const;
 
 export type ManagedSettingKey = typeof MANAGED_SETTINGS[number];
@@ -1397,6 +1636,21 @@ export async function getManagedSettings() {
   return Object.fromEntries(rows.map((row) => [row.settingKey, row.settingValue])) as Partial<Record<ManagedSettingKey, unknown>>;
 }
 
+async function getSettingsByKeys<T extends readonly ManagedSettingKey[]>(keys: T) {
+  const database = await getDb();
+  if (!database) return {} as Partial<Record<T[number], unknown>>;
+  const rows = await database.select().from(appSettings).where(inArray(appSettings.settingKey, [...keys]));
+  return Object.fromEntries(rows.map((row) => [row.settingKey, row.settingValue])) as Partial<Record<T[number], unknown>>;
+}
+
+export function getOwnerManagedSettings() {
+  return getSettingsByKeys(OWNER_SETTING_KEYS);
+}
+
+export function getDeveloperManagedSettings() {
+  return getSettingsByKeys(DEVELOPER_SETTING_KEYS);
+}
+
 export async function saveManagedSettings(actorUserId: number, values: Partial<Record<ManagedSettingKey, unknown>>) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
@@ -1406,12 +1660,22 @@ export async function saveManagedSettings(actorUserId: number, values: Partial<R
   }
 }
 
+export async function saveDeveloperManagedSettings(actorUserId: number, values: Partial<Record<(typeof DEVELOPER_SETTING_KEYS)[number], unknown>>) {
+  const scoped = Object.fromEntries(Object.entries(values).filter(([key]) => DEVELOPER_SETTING_KEYS.includes(key as (typeof DEVELOPER_SETTING_KEYS)[number])));
+  await saveManagedSettings(actorUserId, scoped as Partial<Record<ManagedSettingKey, unknown>>);
+}
+
+export async function saveOwnerManagedSettings(actorUserId: number, values: Partial<Record<(typeof OWNER_SETTING_KEYS)[number], unknown>>) {
+  const scoped = Object.fromEntries(Object.entries(values).filter(([key]) => OWNER_SETTING_KEYS.includes(key as (typeof OWNER_SETTING_KEYS)[number])));
+  await saveManagedSettings(actorUserId, scoped as Partial<Record<ManagedSettingKey, unknown>>);
+}
+
 export async function listManagedUsers(search?: string) {
   const database = await getDb();
   if (!database) return [];
   const needle = search?.trim();
   const condition = needle ? or(like(users.fullName, `%${needle}%`), like(users.email, `%${needle}%`), like(users.mobile, `%${needle}%`)) : undefined;
-  const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
+  const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, canUploadShorts: users.canUploadShorts, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
   if (!people.length) return [];
   const grants = await database.select({ userId: userPermissions.userId, permission: userPermissions.permission }).from(userPermissions).where(inArray(userPermissions.userId, people.map((person) => person.id)));
   const permissionsByUser = new Map<number, string[]>();
@@ -1435,6 +1699,21 @@ export async function updateManagedUser(userId: number, input: { role?: "student
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   await database.update(users).set(input).where(eq(users.id, userId));
+}
+
+export async function getStudentShortUploadAccess(userId: number) {
+  const database = await getDb();
+  if (!database) return { canUploadShorts: false };
+  const [student] = await database.select({ role: users.role, status: users.status, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, userId)).limit(1);
+  return { canUploadShorts: Boolean(student?.role === "student" && student.status === "active" && student.canUploadShorts) };
+}
+
+export async function setStudentShortUploadPermission(input: { userId: number; canUploadShorts: boolean }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [student] = await database.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!student || student.role !== "student") throw new Error("Short upload permission can only be changed for Student accounts.");
+  await database.update(users).set({ canUploadShorts: input.canUploadShorts }).where(eq(users.id, input.userId));
 }
 
 export async function listManagedEnrollments() {

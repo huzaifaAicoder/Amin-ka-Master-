@@ -23,6 +23,7 @@ const student = {
   loginMethod: "password",
   role: "student" as const,
   status: "active" as const,
+  canUploadShorts: false,
   avatarUrl: null,
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -31,6 +32,7 @@ const student = {
 
 const admin = { ...student, id: 902, openId: "security-test-admin", email: "admin-security@example.com", role: "admin" as const };
 const teacherWithoutGrant = { ...student, id: 903, openId: "security-test-teacher", email: "teacher-security@example.com", role: "teacher" as const };
+const developer = { ...student, id: 904, openId: "security-test-developer", email: "developer-security@example.com", role: "developer" as const };
 
 describe("LMS security boundaries", () => {
   it("stores a password as a salted one-way hash and validates only the correct value", () => {
@@ -71,11 +73,47 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.toggleShortSave({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.askAi({ question: "How do I calculate a field area?" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.testHistory()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.testAttemptReview({ attemptId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("does not let staff use the student PDF-download endpoint", async () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps timed-test attempts, answer reviews, and explanations inside the student learning role", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.student.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.startTest({ testId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.submitTest({ attemptId: 1, answers: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.testHistory()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.testAttemptReview({ attemptId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps Short comments and student submissions inside the student learning role", async () => {
+    const staffCaller = appRouter.createCaller(createContext(admin));
+    await expect(staffCaller.student.shortComments({ shortId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(staffCaller.student.addShortComment({ shortId: 1, body: "Helpful explanation" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(staffCaller.student.submitShort({ title: "My field tip", contentUrl: "/manus-storage/fake.mp4", storageKey: "student-short-submissions/902/fake.mp4", provider: "managed_storage", mimeType: "video/mp4", durationSeconds: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("keeps student Shorts upload grants default-denied and restricted to Admin or Owner controls", async () => {
+    const studentCaller = appRouter.createCaller(createContext(student));
+    const teacherCaller = appRouter.createCaller(createContext(teacherWithoutGrant));
+    await expect(studentCaller.operations.setStudentShortUploadPermission({ userId: 901, canUploadShorts: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(teacherCaller.operations.setStudentShortUploadPermission({ userId: 901, canUploadShorts: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(studentCaller.student.submitShort({ title: "Permission-gated tip", contentUrl: "/manus-storage/fake.mp4", storageKey: "student-short-submissions/901/fake.mp4", provider: "managed_storage", mimeType: "video/mp4", durationSeconds: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("isolates private Developer procedures from Student, Admin, and Operations access", async () => {
+    const studentCaller = appRouter.createCaller(createContext(student));
+    const adminCaller = appRouter.createCaller(createContext(admin));
+    const developerCaller = appRouter.createCaller(createContext(developer));
+    await expect(studentCaller.developer.integrationStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(adminCaller.developer.settings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(developerCaller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(developerCaller.developer.integrationStatus()).resolves.toEqual(expect.objectContaining({ developerPortalPasskeyConfigured: expect.any(Boolean), geminiConfigured: expect.any(Boolean), razorpayConfigured: expect.any(Boolean) }));
   });
 
   it("limits the AI placeholder to students and returns a provider-safe response", async () => {
@@ -145,6 +183,20 @@ describe("LMS security boundaries", () => {
     expect(result.nextCursor === null || typeof result.nextCursor === "number").toBe(true);
   });
 
+  it("reserves pending Short moderation for Admin and Super Admin roles", async () => {
+    const studentCaller = appRouter.createCaller(createContext(student));
+    const teacherCaller = appRouter.createCaller(createContext(teacherWithoutGrant));
+    const adminCaller = appRouter.createCaller(createContext(admin));
+    await expect(studentCaller.operations.pendingShorts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(teacherCaller.operations.pendingShorts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(adminCaller.operations.pendingShorts()).resolves.toEqual(expect.any(Array));
+  });
+
+  it("rejects an untrusted external Short source before media persistence", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.operations.saveShort({ title: "Blocked source", description: "Unsafe URL should be rejected", sourceType: "youtube", contentUrl: "https://example.invalid/not-youtube", durationSeconds: 0, status: "draft", displayOrder: 0 })).rejects.toBeDefined();
+  });
+
   it("rejects a student attempting to manage assessments or live classes", async () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -155,6 +207,7 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(teacherWithoutGrant));
     await expect(caller.operations.courses()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.freePlaylists()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.saveQuestion({ questionId: 1, testId: 1, prompt: "Which field note is required for a boundary survey?", options: ["A", "B", "C", "D"], correctOptionIndex: 0, marks: 1, explanation: "A detailed explanation should remain protected.", displayOrder: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("reserves owner controls for Super Admin and rejects an ordinary Admin", async () => {

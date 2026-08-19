@@ -22,10 +22,11 @@ export const users = mysqlTable(
     mobile: varchar("mobile", { length: 24 }).unique(),
     passwordHash: varchar("passwordHash", { length: 255 }),
     loginMethod: varchar("loginMethod", { length: 64 }).default("password").notNull(),
-    role: mysqlEnum("role", ["student", "teacher", "admin", "super_admin"])
+    role: mysqlEnum("role", ["developer", "student", "teacher", "admin", "super_admin"])
       .default("student")
       .notNull(),
     status: mysqlEnum("status", ["active", "suspended"]).default("active").notNull(),
+    canUploadShorts: boolean("canUploadShorts").default(false).notNull(),
     avatarUrl: varchar("avatarUrl", { length: 1024 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -290,13 +291,20 @@ export const educationalShorts = mysqlTable(
     sizeBytes: int("sizeBytes"),
     durationSeconds: int("durationSeconds").default(0).notNull(),
     thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
-    status: mysqlEnum("shortStatus", ["draft", "published", "archived"]).default("draft").notNull(),
+    sourceType: mysqlEnum("shortSourceType", ["managed", "youtube", "instagram"]).default("managed").notNull(),
+    status: mysqlEnum("shortStatus", ["draft", "pending", "published", "rejected", "archived"]).default("draft").notNull(),
     displayOrder: int("displayOrder").default(0).notNull(),
     createdByUserId: int("createdByUserId").notNull(),
+    moderatedByUserId: int("moderatedByUserId"),
+    moderatedAt: timestamp("moderatedAt"),
+    moderationNote: varchar("moderationNote", { length: 1000 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
-  (table) => [index("educational_shorts_status_order_idx").on(table.status, table.displayOrder)],
+  (table) => [
+    index("educational_shorts_status_order_idx").on(table.status, table.displayOrder),
+    index("educational_shorts_creator_status_idx").on(table.createdByUserId, table.status),
+  ],
 );
 
 export const shortLikes = mysqlTable(
@@ -324,6 +332,23 @@ export const shortSaves = mysqlTable(
   (table) => [
     uniqueIndex("short_save_user_short_uq").on(table.userId, table.shortId),
     index("short_saves_user_idx").on(table.userId),
+  ],
+);
+
+export const shortComments = mysqlTable(
+  "short_comments",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    shortId: int("shortId").notNull(),
+    userId: int("userId").notNull(),
+    body: varchar("body", { length: 1000 }).notNull(),
+    status: mysqlEnum("shortCommentStatus", ["published", "hidden", "removed"]).default("published").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [
+    index("short_comments_short_time_idx").on(table.shortId, table.createdAt),
+    index("short_comments_user_time_idx").on(table.userId, table.createdAt),
   ],
 );
 

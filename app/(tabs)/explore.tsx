@@ -1,11 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, EmptyState, Tag, formatPrice } from "@/components/lms-ui";
 import { trpc } from "@/lib/trpc";
+import { usePanelRefresh } from "@/hooks/use-panel-refresh";
 
 export default function ExploreScreen() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function ExploreScreen() {
   const [categorySlug, setCategorySlug] = useState<string | undefined>(params.category);
   const categoriesQuery = trpc.catalog.categories.useQuery();
   const coursesQuery = trpc.catalog.courses.useQuery({ search: search || undefined, categorySlug });
+  const { refreshing, onRefresh } = usePanelRefresh([categoriesQuery.refetch, coursesQuery.refetch]);
 
   useEffect(() => setCategorySlug(params.category), [params.category]);
 
@@ -29,6 +31,7 @@ export default function ExploreScreen() {
         <FlatList
           data={coursesQuery.data}
           keyExtractor={(item) => item.course.id.toString()}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.indigo]} tintColor={COLORS.indigo} />}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           renderItem={({ item, index }) => (

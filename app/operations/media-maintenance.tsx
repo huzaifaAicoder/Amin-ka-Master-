@@ -31,7 +31,7 @@ export default function MediaMaintenanceScreen() {
   const items = playlistsQuery.data?.items ?? [];
   const busy = saveShort.isPending || savePlaylist.isPending || saveItem.isPending;
   const reset = () => { setShortId(null); setPlaylistId(null); setItemId(null); setTitle(""); setDescription(""); setPublished(true); setShortStatus("published"); };
-  const selectShort = (short: NonNullable<typeof shortsQuery.data>[number]) => { setShortId(short.id); setPlaylistId(null); setItemId(null); setTitle(short.title); setDescription(short.description ?? ""); setShortStatus(short.status); };
+  const selectShort = (short: NonNullable<typeof shortsQuery.data>[number]) => { setShortId(short.id); setPlaylistId(null); setItemId(null); setTitle(short.title); setDescription(short.description ?? ""); setShortStatus(short.status === "draft" || short.status === "published" || short.status === "archived" ? short.status : "draft"); };
   const selectPlaylist = (playlist: typeof playlists[number]) => { setShortId(null); setPlaylistId(playlist.id); setItemId(null); setTitle(playlist.title); setDescription(playlist.description ?? ""); setPublished(playlist.isPublished); };
   const selectItem = (item: typeof items[number]) => { setShortId(null); setPlaylistId(null); setItemId(item.id); setTitle(item.title); setDescription(item.description ?? ""); setPublished(item.isPublished); };
   const selectedItem = items.find((item) => item.id === itemId) ?? null;
