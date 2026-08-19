@@ -101,3 +101,5 @@
 - [x] Add validated YouTube and Instagram Short embeds for staff media while preserving managed-media authorization.
 - [x] Add Owner/Admin editing for existing course categories, including validated name and slug persistence.
 - [x] Extend supported native capture prevention to protected Shorts and document web and device limitations.
+- [x] Add a discreet Developer Portal entry on the public landing screen while preserving private passkey and role enforcement.
+- [x] Add shared pull-to-refresh or visible refresh controls across the primary learner and Operations panels.

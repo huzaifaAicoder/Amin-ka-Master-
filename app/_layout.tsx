@@ -84,8 +84,9 @@ export default function RootLayout() {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Disable automatic refetching on window focus for mobile
-            refetchOnWindowFocus: false,
+            // Refresh mounted live data when the app returns to the foreground.
+            // Individual screens retain bounded pull-to-refresh for immediate control.
+            refetchOnWindowFocus: true,
             // Retry failed requests once
             retry: 1,
           },

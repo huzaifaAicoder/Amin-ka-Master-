@@ -36,9 +36,13 @@ Staff Passkey rotation is an emergency or scheduled security action. Rotation re
 
 ### Developer Portal
 
-The hidden **`/dev-portal`** route is reserved for the one-time Developer identity. Its first setup and each Developer login require the server-only `DEVELOPER_PORTAL_PASSKEY`; no fallback credential is permitted. Configure this strong passkey through the secure environment settings and retain it outside normal business staff channels. The portal stores display-only branding and theme metadata and presents only a configured/not-configured status for Gemini and Razorpay. It never displays or stores a raw provider credential in the mobile client.
+The **Developer Portal** link appears discretely beneath the Student, Staff/Admin, and Owner cards on the public sign-in screen and opens the private **`/dev-portal`** route. Its first setup and each Developer login require the server-only `DEVELOPER_PORTAL_PASSKEY`; no fallback credential is permitted. Configure this strong passkey through the secure environment settings and retain it outside normal business staff channels. The portal stores display-only branding and theme metadata and presents only a configured/not-configured status for Gemini and Razorpay. It never displays or stores a raw provider credential in the mobile client.
 
 > Owner and staff accounts are intentionally denied the Developer Portal at both route and API layers. Developer accounts are also denied Student and Operations routes.
+
+### Refreshing live panels
+
+The primary **Home**, **Explore**, **My Learning**, **Shorts**, **Account**, and **Operations** panels support a native pull-down refresh gesture. Pull down from the top of the content to refetch the panel’s active server data. Mounted queries also refresh when the app returns to the foreground, which keeps secondary routed panels current without running a background polling loop. Existing retry controls remain available for a failed individual request.
 
 ### Content and learning operations
 
