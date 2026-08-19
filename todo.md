@@ -142,3 +142,7 @@
 - [x] Add authorized offline-video download controls to enrolled course lesson resources using server-issued access, private app storage, and the internal viewer.
 - [x] Upgrade the Developer Portal to a tabbed white-label controller with prefilled branding, validated feature toggles, safe integration status, and friendly toast feedback.
 - [x] Improve supported inline external embeds, add managed-media download controls with external-source feedback, and repair lesson-video fullscreen controls.
+- [x] Add Developer-managed validated logo upload and a live branding preview card.
+- [x] Add resumable offline download progress controls, storage usage, and safe deletion for private resources.
+- [ ] Add per-resource downloaded-state indicators beside course videos and PDFs after private file completion.
+- [ ] Prepare and push the latest stable upgrade to the approved GitHub repository when the connected credential receives write permission.

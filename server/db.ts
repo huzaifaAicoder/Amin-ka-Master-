@@ -1644,7 +1644,7 @@ export async function listPublishedAnnouncements() {
 }
 
 const MANAGED_SETTINGS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent", "brand.logo_url",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
   "feature.shorts", "feature.offline_downloads", "feature.ai_doubt_solver",
@@ -1652,7 +1652,7 @@ const MANAGED_SETTINGS = [
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent", "brand.logo_url",
   "feature.shorts", "feature.offline_downloads", "feature.ai_doubt_solver",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
