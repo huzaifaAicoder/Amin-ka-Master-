@@ -127,3 +127,7 @@
 - [x] Securely configure and validate the user-supplied Gemini API key for the optional server-side Doubt Solver integration; never expose it in client code or logs.
 - [x] Improve the Gemini Doubt Solver with an accessible typing indicator and a clear, automatically scrolling chat history.
 - [x] Add contextual suggested follow-up prompts beneath each Gemini response and connect them to the chat composer.
+- [x] Replace Developer Portal raw validation JSON errors with clean user-friendly toast notifications for password, email, passkey, and setup-code validation.
+- [x] Verify Developer Portal setup/sign-in submission redirects immediately to the protected Developer Dashboard after valid credentials.
+- [x] Audit the supplied native gallery upload, Shorts playback, AI context, and Expo Go Developer Portal requirements for compatible follow-up implementation.
+- [x] Prepare and commit the current project for GitHub export with message `V1 Stable: SaaS Architecture, AI & Security Enabled`; pause before pushing until the repository URL is supplied.
