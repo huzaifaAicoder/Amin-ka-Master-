@@ -94,3 +94,4 @@
 - [x] Repair Media Studio publish/draft submission payloads and server persistence for Shorts and Free Playlist media.
 - [x] Repair Owner/Admin course price updates and replace list quick-toggles with explicit status selection inside the course edit form.
 - [x] Add an authenticated Student AI Doubt Solver placeholder UI and protected server response boundary without external AI-provider credentials.
+- [x] Defer Google Gemini integration and retain a key-independent Student AI placeholder so missing provider credentials never block development or preview startup.
