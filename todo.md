@@ -134,3 +134,8 @@
 - [x] Stabilize the Shorts feed with viewport-aligned Reels-style paging and non-overlapping video overlays.
 - [x] Replace external-provider fallback copy with a clean native thumbnail and explicit external playback action.
 - [x] Strengthen supported student capture deterrence across protected app surfaces and document native platform limits.
+- [ ] Commit and push the latest validated Reels-style Shorts scrolling and supported capture-protection fixes to the approved GitHub repository.
+- [x] Keep supported YouTube/Instagram Shorts embeds in-app by default and limit external navigation to an unobtrusive student-controlled source action.
+- [x] Add a Student Downloads tab that lists protected app-private offline resources and opens them only in internal viewers.
+- [x] Reduce the AI Doubt Solver header footprint and reserve the majority of the screen for its scrollable conversation.
+- [x] Verify highest-level Student capture prevention and document the native-build `FLAG_SECURE` requirement and physical-device limitations.
