@@ -459,17 +459,6 @@ export const appRouter = router({
       razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID?.trim() && process.env.RAZORPAY_KEY_SECRET?.trim()),
       note: "Provider secrets are server-only and are never returned to this client.",
     })),
-    systemHealth: requireRoles(["developer"]).query(async () => {
-      const health = await db.getDeveloperSystemHealth();
-      return {
-        ...health,
-        apiReady: true,
-        remediationMode: "diagnostic_only" as const,
-        recommendations: health.databaseReady
-          ? ["Continue monitoring protected error logs through platform operations.", "Automated code changes are intentionally disabled."]
-          : ["Verify database availability and server environment configuration.", "Do not paste secrets or raw logs into client-facing tools."],
-      };
-    }),
     saveSettings: requireRoles(["developer"]).input(z.object({
       appName: z.string().trim().min(2).max(80).optional(),
       tagline: z.string().trim().max(160).optional(),
