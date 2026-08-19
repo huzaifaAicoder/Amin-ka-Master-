@@ -88,3 +88,14 @@ The migrations were reviewed before application and the live schema was restored
 1. Run the physical-device checklist in `QA_VERIFICATION_MATRIX.md`, beginning with student upload permission grant/revoke, pending moderation, inline external playback, and native capture behavior.
 2. Implement an internal PDF reader before enabling offline downloads for sensitive materials.
 3. Configure Razorpay and verified webhooks only after merchant credentials are supplied; then run payment reconciliation and duplicate-webhook tests.
+
+## Latest instruction-set continuation — 2026-08-19
+
+| Requirement | Status | Evidence and limitation |
+|---|---|---|
+| Optional Gemini Doubt Solver | **GREEN, server and client wiring** | `GEMINI_API_KEY` is stored as a server-only project secret; the protected student `askAi` procedure calls the official Google Generative AI SDK with an Amin Ka Master educational-tutor system instruction and returns a safe fallback on provider failure. The key is never bundled into Expo client code. |
+| Inline Shorts embeds and explicit external-open action | **GREEN, build** | Existing native WebView embeds remain in the vertical feed, and a clear `Open in YouTube` / `Open in Instagram` action now uses `Linking.openURL()` only after an explicit student tap. Provider login, policy, or embed restrictions remain outside application control. |
+| Automated certificates | **GREEN, server and UI build** | The existing `certificates` schema is reused. Completing every published lesson for an enrolled course triggers one unique certificate record, exposes protected student listing/detail procedures, and adds an in-app certificate surface with print/save-to-PDF support. A real completion walkthrough still requires an authenticated device account and seeded course. |
+| Secure internal offline PDF reader | **GREEN, boundary and UI build** | Authorized PDF access downloads only to `FileSystem.documentDirectory/protected-resources/` and opens through an in-app native WebView reader with capture deterrence; browser handoff is intentionally refused. Full offline reopen after app restart and physical-device PDF rendering remain pending device QA. |
+
+The existing four-tier RBAC, Shorts moderation, comments/likes/saves, assessments, course management, upload permissions, and preview refresh workflow were preserved. No duplicate certificate table or schema migration was created because the checkpointed baseline already contained the `certificates` table and the current database model remains aligned.

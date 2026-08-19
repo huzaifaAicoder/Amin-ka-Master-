@@ -21,6 +21,7 @@ import {
   authSessions,
   bookmarks,
   categories,
+  certificates,
   courseModules,
   courseReviews,
   courses,
@@ -826,6 +827,36 @@ export async function getAuthorizedLesson(userId: number, lessonId: number) {
   };
 }
 
+async function issueCourseCertificateIfComplete(database: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number, courseId: number) {
+  const publishedLessons = await database.select({ id: lessons.id }).from(lessons).innerJoin(courseModules, eq(lessons.moduleId, courseModules.id)).where(and(eq(courseModules.courseId, courseId), eq(courseModules.isPublished, true), eq(lessons.isPublished, true)));
+  if (!publishedLessons.length) return undefined;
+  const completedRows = await database.select({ id: lessonProgress.id }).from(lessonProgress).where(and(eq(lessonProgress.userId, userId), eq(lessonProgress.courseId, courseId), eq(lessonProgress.isCompleted, true)));
+  if (completedRows.length < publishedLessons.length) return undefined;
+  const existing = await database.select().from(certificates).where(and(eq(certificates.userId, userId), eq(certificates.courseId, courseId))).limit(1);
+  if (existing[0]) return existing[0];
+  const [course, user] = await Promise.all([
+    database.select({ title: courses.title }).from(courses).where(eq(courses.id, courseId)).limit(1),
+    database.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId)).limit(1),
+  ]);
+  if (!course[0] || !user[0]) return undefined;
+  await database.insert(certificates).values({ userId, courseId, certificateCode: `AKM-${new Date().getFullYear()}-${randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}` });
+  const issued = await database.select().from(certificates).where(and(eq(certificates.userId, userId), eq(certificates.courseId, courseId))).limit(1);
+  return issued[0];
+}
+
+export async function listMyCertificates(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ certificate: certificates, courseTitle: courses.title }).from(certificates).innerJoin(courses, eq(certificates.courseId, courses.id)).where(eq(certificates.userId, userId)).orderBy(desc(certificates.issuedAt));
+}
+
+export async function getMyCertificate(userId: number, certificateId: number) {
+  const database = await getDb();
+  if (!database) return undefined;
+  const rows = await database.select({ certificate: certificates, courseTitle: courses.title, recipientName: users.fullName }).from(certificates).innerJoin(courses, eq(certificates.courseId, courses.id)).innerJoin(users, eq(certificates.userId, users.id)).where(and(eq(certificates.id, certificateId), eq(certificates.userId, userId))).limit(1);
+  return rows[0];
+}
+
 export async function updateLessonProgress(userId: number, input: { courseId: number; lessonId: number; watchedSeconds: number; completed: boolean }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
@@ -843,6 +874,7 @@ export async function updateLessonProgress(userId: number, input: { courseId: nu
   } else {
     await database.insert(lessonProgress).values({ userId, courseId: input.courseId, lessonId: input.lessonId, watchedSeconds: input.watchedSeconds, isCompleted: input.completed, completedAt: input.completed ? now : null, lastViewedAt: now });
   }
+  return issueCourseCertificateIfComplete(database, userId, input.courseId);
 }
 
 export async function savePersonalNote(userId: number, lessonId: number, body: string) {

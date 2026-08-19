@@ -1,3 +1,4 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -339,6 +340,12 @@ export const appRouter = router({
   student: router({
     enrollFree: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
     learning: protectedProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
+    certificates: protectedProcedure.query(({ ctx }) => db.listMyCertificates(ctx.user.id)),
+    certificate: protectedProcedure.input(z.object({ certificateId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const certificate = await db.getMyCertificate(ctx.user.id, input.certificateId);
+      if (!certificate) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate was not found." });
+      return certificate;
+    }),
     courseLearning: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).query(({ ctx, input }) => db.getCourseLearning(ctx.user.id, input.courseId)),
     requestResourceDownload: protectedProcedure.input(z.object({ resourceId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
@@ -446,9 +453,21 @@ export const appRouter = router({
       requireStudentAccess(ctx.user.role);
       return db.getStudentShortUploadAccess(ctx.user.id);
     }),
-    askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(({ ctx, input }) => {
+    askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "The Doubt Solver is available in the student learning experience." });
-      return { answer: "AI is thinking... This is a secure placeholder response. Connect an approved AI provider to generate a subject-specific explanation.", mode: "placeholder" as const, question: input.question };
+      const apiKey = process.env.GEMINI_API_KEY?.trim();
+      if (!apiKey) return { answer: "AI is temporarily in study mode. Please review the lesson notes and try again shortly.", mode: "fallback" as const, question: input.question };
+      try {
+        const client = new GoogleGenerativeAI(apiKey);
+        const model = client.getGenerativeModel({ model: "gemini-1.5-flash", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests." });
+        const result = await model.generateContent(input.question);
+        const answer = result.response.text().trim();
+        if (!answer) throw new Error("Gemini returned an empty response");
+        return { answer, mode: "gemini" as const, question: input.question };
+      } catch (error) {
+        console.error("Gemini Doubt Solver request failed", error instanceof Error ? error.message : "unknown provider error");
+        return { answer: "I could not reach the AI tutor right now. Please check the relevant lesson notes and try again.", mode: "fallback" as const, question: input.question };
+      }
     }),
   }),
   developer: router({

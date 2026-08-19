@@ -116,11 +116,11 @@ describe("LMS security boundaries", () => {
     await expect(developerCaller.developer.integrationStatus()).resolves.toEqual(expect.objectContaining({ developerPortalPasskeyConfigured: expect.any(Boolean), geminiConfigured: expect.any(Boolean), razorpayConfigured: expect.any(Boolean) }));
   });
 
-  it("limits the AI placeholder to students and returns a provider-safe response", async () => {
+  it("limits the AI Doubt Solver to students and returns a provider-safe response", async () => {
     const staffCaller = appRouter.createCaller(createContext(admin));
     const studentCaller = appRouter.createCaller(createContext(student));
     await expect(staffCaller.student.askAi({ question: "Explain chain surveying" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(studentCaller.student.askAi({ question: "Explain chain surveying" })).resolves.toEqual(expect.objectContaining({ mode: "placeholder", answer: expect.stringContaining("AI is thinking") }));
+    await expect(studentCaller.student.askAi({ question: "Explain chain surveying" })).resolves.toEqual(expect.objectContaining({ mode: expect.stringMatching(/^(gemini|fallback)$/), answer: expect.any(String) }));
   });
 
   it("rejects initial Super Admin setup without the private owner code", async () => {

@@ -119,3 +119,9 @@
 - [x] Recover the last verified advanced release-candidate baseline after detecting shared-state schema/migration divergence.
 - [x] Complete the release-candidate GREEN/RED audit against the restored and updated baseline.
 - [x] Make the password-reset security regression resilient to the verified database cold-start latency without weakening its assertion.
+- [x] Review and apply the latest attached instruction set without rebuilding or regressing the checkpointed LMS, authentication, Developer, Shorts, moderation, assessments, permissions, and preview-refresh workflows.
+- [x] Implement optional server-side Gemini Doubt Solver integration with secure `GEMINI_API_KEY` configuration and a safe fallback when credentials are absent.
+- [x] Improve Shorts external playback with actual inline iframe/WebView embeds and an explicit user-controlled external-open action.
+- [x] Implement course-completion certificate issuance with protected download access and auditability.
+- [x] Implement a secure internal offline PDF reader using app-private storage and an in-app viewer fallback.
+- [x] Securely configure and validate the user-supplied Gemini API key for the optional server-side Doubt Solver integration; never expose it in client code or logs.
