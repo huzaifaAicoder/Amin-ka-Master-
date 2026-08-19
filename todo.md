@@ -105,3 +105,4 @@
 - [x] Add shared pull-to-refresh or visible refresh controls across the primary learner and Operations panels.
 - [x] Add secure student-facing timed MCQ attempt history with server-derived status, score, and timing metadata.
 - [x] Add detailed post-attempt per-question answer explanations without exposing active-test answers before submission.
+- [x] Add a staff-authorized edit workflow for existing MCQ prompts, options, correct answers, marks, and learner explanations.

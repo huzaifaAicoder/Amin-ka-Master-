@@ -50,6 +50,8 @@ Create catalog categories in **Teacher access → Manage course categories** bef
 
 Course and playlist uploads are limited to video files and PDFs and are limited to 150 MB by the server. Media Studio sends an authenticated multipart file request and confirms either **Save draft** or **Publish** after the server persists the corresponding Short or Free Playlist record. The application is tuned for older Android devices and slower networks; use compressed, mobile-friendly video encodes and concise PDFs. Published managed media is delivered as a short-lived signed URL only after the student has passed the relevant authorization check. Direct `learning-media/` storage-proxy access is denied.
 
+For a published or draft assessment, open **Operations → Manage tests → [test]** and choose **Edit** on a question card. Staff with the `assessments.manage` permission can update the prompt, all four options, correct option, marks, and the detailed learner explanation in one form. The correction and explanation remain hidden during a learner’s active attempt; they appear only in the secure post-submission review. The server also confirms that an edited question belongs to the selected test before saving.
+
 Media Studio can additionally use explicitly selected **YouTube** or **Instagram** links for a video or Short. The server accepts only `youtube.com`, `youtu.be`, or Instagram Reel/video URL shapes; arbitrary external domains are rejected. External playback opens through the browser/provider application rather than being copied into managed storage, so staff must own or have permission to share the external content and must follow the provider’s availability, licensing, age, and privacy rules.
 
 ### Student Shorts and moderation

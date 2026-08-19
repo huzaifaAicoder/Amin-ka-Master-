@@ -1141,6 +1141,8 @@ export async function saveManagedQuestion(input: { questionId?: number; testId: 
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   if (input.questionId) {
+    const existing = await database.select({ id: questions.id }).from(questions).where(and(eq(questions.id, input.questionId), eq(questions.testId, input.testId))).limit(1);
+    if (!existing[0]) throw new Error("Question was not found in this test");
     await database.update(questions).set({ prompt: input.prompt, options: input.options, correctOptionIndex: input.correctOptionIndex, marks: input.marks, explanation: input.explanation, displayOrder: input.displayOrder }).where(and(eq(questions.id, input.questionId), eq(questions.testId, input.testId)));
     return input.questionId;
   }

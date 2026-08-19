@@ -198,6 +198,7 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(teacherWithoutGrant));
     await expect(caller.operations.courses()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.freePlaylists()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.saveQuestion({ questionId: 1, testId: 1, prompt: "Which field note is required for a boundary survey?", options: ["A", "B", "C", "D"], correctOptionIndex: 0, marks: 1, explanation: "A detailed explanation should remain protected.", displayOrder: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("reserves owner controls for Super Admin and rejects an ordinary Admin", async () => {
