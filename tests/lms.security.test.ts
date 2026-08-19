@@ -111,9 +111,11 @@ describe("LMS security boundaries", () => {
     const adminCaller = appRouter.createCaller(createContext(admin));
     const developerCaller = appRouter.createCaller(createContext(developer));
     await expect(studentCaller.developer.integrationStatus()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(studentCaller.developer.systemHealth()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(adminCaller.developer.settings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(developerCaller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(developerCaller.developer.integrationStatus()).resolves.toEqual(expect.objectContaining({ developerPortalPasskeyConfigured: expect.any(Boolean), geminiConfigured: expect.any(Boolean), razorpayConfigured: expect.any(Boolean) }));
+    await expect(developerCaller.developer.systemHealth()).resolves.toEqual(expect.objectContaining({ apiReady: true, databaseReady: expect.any(Boolean), summary: expect.any(String), recommendations: expect.any(Array), remediationMode: "diagnostic_only" }));
   });
 
   it("limits the AI placeholder to students and returns a provider-safe response", async () => {

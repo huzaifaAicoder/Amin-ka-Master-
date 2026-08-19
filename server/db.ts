@@ -98,6 +98,33 @@ export async function getDb() {
   return _db;
 }
 
+/**
+ * A Developer-only read-only service signal. Raw error logs, stack traces,
+ * connection details, secrets, and automated remediation are intentionally
+ * excluded from this response.
+ */
+export async function getDeveloperSystemHealth() {
+  const checkedAt = new Date();
+  const database = await getDb();
+  if (!database) {
+    return {
+      databaseReady: false,
+      checkedAt,
+      summary: "Database connection is unavailable. Check protected server configuration and service status.",
+    };
+  }
+  try {
+    await database.select({ probe: sql<number>`1` }).from(appSettings).limit(1);
+    return { databaseReady: true, checkedAt, summary: "API process and database probe are responding." };
+  } catch {
+    return {
+      databaseReady: false,
+      checkedAt,
+      summary: "Database probe did not complete. Review protected server diagnostics and configuration.",
+    };
+  }
+}
+
 function tokenDigest(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
