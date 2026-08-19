@@ -88,8 +88,9 @@ async function startServer() {
       const authorization = req.headers.authorization;
       const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
       const session = token ? await getSessionUser(token) : undefined;
-      if (!session || !["teacher", "admin", "super_admin"].includes(session.user.role)) {
-        res.status(401).json({ error: "Staff authentication is required to upload learning media." });
+      const isStudentShortUpload = Boolean(session && session.user.role === "student" && req.body?.purpose === "student_short");
+      if (!session || (!isStudentShortUpload && !["teacher", "admin", "super_admin"].includes(session.user.role))) {
+        res.status(401).json({ error: "Staff access or an authenticated student Short submission is required to upload media." });
         return;
       }
       if (session.user.role === "teacher" && !(await hasAnyPermission(session.user, ["course_content.manage", "media.manage"]))) {
@@ -107,10 +108,15 @@ async function startServer() {
         res.status(415).json({ error: "Only PDF notes and video files can be uploaded." });
         return;
       }
+      if (isStudentShortUpload && !mimeType.startsWith("video/")) {
+        res.status(415).json({ error: "Student Short submissions must be video files." });
+        return;
+      }
       const rawName = uploadedFile.originalname || "learning-media";
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-160) || "learning-media";
       const kind = mimeType === "application/pdf" ? "pdf" : "video";
-      const stored = await storagePut(`learning-media/${session.user.id}/${kind}_${Date.now()}_${safeName}`, uploadedFile.buffer, mimeType);
+      const namespace = isStudentShortUpload ? "student-short-submissions" : "learning-media";
+      const stored = await storagePut(`${namespace}/${session.user.id}/${kind}_${Date.now()}_${safeName}`, uploadedFile.buffer, mimeType);
       res.status(201).json({ key: stored.key, url: stored.url, mimeType, sizeBytes: uploadedFile.buffer.length, provider: "managed_storage" });
     } catch (error) {
       console.error("[media-upload] Failed", error);

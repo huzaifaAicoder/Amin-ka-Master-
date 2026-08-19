@@ -96,3 +96,8 @@
 - [x] Add an authenticated Student AI Doubt Solver placeholder UI and protected server response boundary without external AI-provider credentials.
 - [x] Defer Google Gemini integration and retain a key-independent Student AI placeholder so missing provider credentials never block development or preview startup.
 - [x] Add in-button loading spinners and progress labels to Media Studio draft and publish actions during file processing.
+- [x] Add a Developer-only portal and four-tier server-enforced role boundary that removes branding and API configuration from Owner controls.
+- [x] Upgrade Shorts with protected comments, play/pause overlay controls, moderated student submissions, and Owner/Admin moderation actions.
+- [x] Add validated YouTube and Instagram Short embeds for staff media while preserving managed-media authorization.
+- [x] Add Owner/Admin editing for existing course categories, including validated name and slug persistence.
+- [x] Extend supported native capture prevention to protected Shorts and document web and device limitations.

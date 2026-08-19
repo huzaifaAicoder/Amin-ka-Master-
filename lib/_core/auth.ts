@@ -9,7 +9,7 @@ export type User = {
   email: string | null;
   mobile: string | null;
   loginMethod: string | null;
-  role: "student" | "teacher" | "admin" | "super_admin";
+  role: "developer" | "student" | "teacher" | "admin" | "super_admin";
   avatarUrl: string | null;
   createdAt?: Date | string;
 };

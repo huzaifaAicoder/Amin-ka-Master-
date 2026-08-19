@@ -36,6 +36,7 @@ import {
   personalNotes,
   educationalShorts,
   resourceDownloadEvents,
+  shortComments,
   shortLikes,
   shortSaves,
   freePlaylistItems,
@@ -245,6 +246,37 @@ export async function createStaffCredentialUser(input: {
   });
   const created = await database.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
   return created[0];
+}
+
+export async function isInitialDeveloperSetupAvailable() {
+  const database = await getDb();
+  if (!database) return false;
+  const existing = await database.select({ id: users.id }).from(users).where(eq(users.role, "developer")).limit(1);
+  return !existing[0];
+}
+
+export async function createInitialDeveloperCredentialUser(input: { fullName: string; email: string; password: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const email = normalizeIdentity(input.email);
+  return database.transaction(async (tx) => {
+    const existingDeveloper = await tx.select({ id: users.id }).from(users).where(eq(users.role, "developer")).limit(1);
+    if (existingDeveloper[0]) return { status: "already_claimed" as const };
+    const identityMatch = await tx.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    if (identityMatch[0]) return { status: "identity_exists" as const };
+    const result = await tx.insert(users).values({
+      openId: `local_${randomUUID()}`,
+      fullName: input.fullName.trim(),
+      email,
+      passwordHash: hashPassword(input.password),
+      loginMethod: "password",
+      role: "developer",
+      status: "active",
+      lastSignedIn: new Date(),
+    });
+    const [user] = await tx.select().from(users).where(eq(users.id, Number(result[0].insertId))).limit(1);
+    return { status: "claimed" as const, user };
+  });
 }
 
 const OWNER_SETUP_CLAIM_KEY = "security.owner_setup_claimed";
@@ -1237,10 +1269,10 @@ export async function listOperationsShorts() {
   return database.select().from(educationalShorts).orderBy(desc(educationalShorts.updatedAt));
 }
 
-export async function saveEducationalShort(input: { shortId?: number; title: string; description?: string; videoUrl: string; storageKey?: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string; status: "draft" | "published" | "archived"; displayOrder: number; createdByUserId: number }) {
+export async function saveEducationalShort(input: { shortId?: number; title: string; description?: string; videoUrl: string; storageKey?: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string; sourceType?: "managed" | "youtube" | "instagram"; status: "draft" | "pending" | "published" | "rejected" | "archived"; displayOrder: number; createdByUserId: number }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
-  const values = { title: input.title, description: input.description, videoUrl: input.videoUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, status: input.status, displayOrder: input.displayOrder };
+  const values = { title: input.title, description: input.description, videoUrl: input.videoUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, sourceType: input.sourceType ?? "managed", status: input.status, displayOrder: input.displayOrder };
   if (input.shortId) {
     await database.update(educationalShorts).set(values).where(eq(educationalShorts.id, input.shortId));
     return input.shortId;
@@ -1268,15 +1300,18 @@ export async function listPublishedShorts(userId: number) {
   if (!shorts.length) return [];
 
   const shortIds = shorts.map((short) => short.id);
-  const [likeRows, studentLikeRows, studentSaveRows] = await Promise.all([
+  const [likeRows, studentLikeRows, studentSaveRows, commentRows] = await Promise.all([
     database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(inArray(shortLikes.shortId, shortIds)),
     database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(and(eq(shortLikes.userId, userId), inArray(shortLikes.shortId, shortIds))),
     database.select({ shortId: shortSaves.shortId }).from(shortSaves).where(and(eq(shortSaves.userId, userId), inArray(shortSaves.shortId, shortIds))),
+    database.select({ shortId: shortComments.shortId }).from(shortComments).where(and(inArray(shortComments.shortId, shortIds), eq(shortComments.status, "published"))),
   ]);
   const likeCounts = new Map<number, number>();
   for (const row of likeRows) likeCounts.set(row.shortId, (likeCounts.get(row.shortId) ?? 0) + 1);
   const likedShortIds = new Set(studentLikeRows.map((row) => row.shortId));
   const savedShortIds = new Set(studentSaveRows.map((row) => row.shortId));
+  const commentCounts = new Map<number, number>();
+  for (const row of commentRows) commentCounts.set(row.shortId, (commentCounts.get(row.shortId) ?? 0) + 1);
 
   return Promise.all(shorts.map(async (short) => ({
     ...short,
@@ -1284,6 +1319,7 @@ export async function listPublishedShorts(userId: number) {
     likeCount: likeCounts.get(short.id) ?? 0,
     isLiked: likedShortIds.has(short.id),
     isSaved: savedShortIds.has(short.id),
+    commentCount: commentCounts.get(short.id) ?? 0,
   })));
 }
 
@@ -1351,6 +1387,95 @@ export async function toggleShortSave(userId: number, shortId: number) {
   return { saved };
 }
 
+export async function listShortComments(shortId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  if (!(await isPublishedShort(shortId))) return null;
+  return database
+    .select({
+      id: shortComments.id,
+      body: shortComments.body,
+      createdAt: shortComments.createdAt,
+      userId: users.id,
+      fullName: users.fullName,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(shortComments)
+    .innerJoin(users, eq(shortComments.userId, users.id))
+    .where(and(eq(shortComments.shortId, shortId), eq(shortComments.status, "published")))
+    .orderBy(desc(shortComments.createdAt))
+    .limit(100);
+}
+
+export async function addShortComment(userId: number, shortId: number, body: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  if (!(await isPublishedShort(shortId))) return null;
+  const result = await database.insert(shortComments).values({ userId, shortId, body });
+  const commentId = Number(result[0].insertId);
+  const [comment] = await database
+    .select({ id: shortComments.id, body: shortComments.body, createdAt: shortComments.createdAt, userId: users.id, fullName: users.fullName, avatarUrl: users.avatarUrl })
+    .from(shortComments)
+    .innerJoin(users, eq(shortComments.userId, users.id))
+    .where(eq(shortComments.id, commentId))
+    .limit(1);
+  return comment ?? null;
+}
+
+export async function submitStudentShort(input: { userId: number; title: string; description?: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(educationalShorts).values({
+    title: input.title,
+    description: input.description,
+    videoUrl: input.videoUrl,
+    storageKey: input.storageKey,
+    provider: input.provider,
+    mimeType: input.mimeType,
+    sizeBytes: input.sizeBytes,
+    durationSeconds: input.durationSeconds,
+    thumbnailUrl: input.thumbnailUrl,
+    sourceType: "managed",
+    status: "pending",
+    displayOrder: 0,
+    createdByUserId: input.userId,
+  });
+  return Number(result[0].insertId);
+}
+
+export async function listMyShortSubmissions(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database.select().from(educationalShorts).where(eq(educationalShorts.createdByUserId, userId)).orderBy(desc(educationalShorts.updatedAt));
+  return Promise.all(rows.map(async (short) => ({ ...short, videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl })));
+}
+
+export async function listPendingShortsForModeration() {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database
+    .select({ short: educationalShorts, authorName: users.fullName, authorEmail: users.email, authorMobile: users.mobile })
+    .from(educationalShorts)
+    .innerJoin(users, eq(educationalShorts.createdByUserId, users.id))
+    .where(eq(educationalShorts.status, "pending"))
+    .orderBy(asc(educationalShorts.createdAt));
+  return Promise.all(rows.map(async ({ short, ...author }) => ({ ...short, ...author, videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl })));
+}
+
+export async function moderateStudentShort(input: { shortId: number; moderatorUserId: number; status: "published" | "rejected"; moderationNote?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.update(educationalShorts).set({ status: input.status, moderatedByUserId: input.moderatorUserId, moderatedAt: new Date(), moderationNote: input.moderationNote }).where(and(eq(educationalShorts.id, input.shortId), eq(educationalShorts.status, "pending")));
+  if (!result[0].affectedRows) throw new Error("This submission is no longer pending moderation");
+}
+
+export async function updateCategory(input: { categoryId: number; name: string; slug: string; description?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.update(categories).set({ name: input.name, slug: input.slug, description: input.description }).where(eq(categories.id, input.categoryId));
+  if (!result[0].affectedRows) throw new Error("The category was not found");
+}
+
 export async function saveManagedModule(input: { moduleId?: number; courseId: number; title: string; description?: string; displayOrder: number; isPublished: boolean }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
@@ -1381,11 +1506,20 @@ export async function listPublishedAnnouncements() {
 }
 
 const MANAGED_SETTINGS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
+] as const;
+const DEVELOPER_SETTING_KEYS = [
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+  "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
+] as const;
+const OWNER_SETTING_KEYS = [
+  "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
+  "platform.registration_enabled", "platform.maintenance_enabled",
+  "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
 ] as const;
 
 export type ManagedSettingKey = typeof MANAGED_SETTINGS[number];
@@ -1397,6 +1531,21 @@ export async function getManagedSettings() {
   return Object.fromEntries(rows.map((row) => [row.settingKey, row.settingValue])) as Partial<Record<ManagedSettingKey, unknown>>;
 }
 
+async function getSettingsByKeys<T extends readonly ManagedSettingKey[]>(keys: T) {
+  const database = await getDb();
+  if (!database) return {} as Partial<Record<T[number], unknown>>;
+  const rows = await database.select().from(appSettings).where(inArray(appSettings.settingKey, [...keys]));
+  return Object.fromEntries(rows.map((row) => [row.settingKey, row.settingValue])) as Partial<Record<T[number], unknown>>;
+}
+
+export function getOwnerManagedSettings() {
+  return getSettingsByKeys(OWNER_SETTING_KEYS);
+}
+
+export function getDeveloperManagedSettings() {
+  return getSettingsByKeys(DEVELOPER_SETTING_KEYS);
+}
+
 export async function saveManagedSettings(actorUserId: number, values: Partial<Record<ManagedSettingKey, unknown>>) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
@@ -1404,6 +1553,16 @@ export async function saveManagedSettings(actorUserId: number, values: Partial<R
     if (!MANAGED_SETTINGS.includes(settingKey as ManagedSettingKey)) continue;
     await database.insert(appSettings).values({ settingKey, settingValue, updatedByUserId: actorUserId }).onDuplicateKeyUpdate({ set: { settingValue, updatedByUserId: actorUserId } });
   }
+}
+
+export async function saveDeveloperManagedSettings(actorUserId: number, values: Partial<Record<(typeof DEVELOPER_SETTING_KEYS)[number], unknown>>) {
+  const scoped = Object.fromEntries(Object.entries(values).filter(([key]) => DEVELOPER_SETTING_KEYS.includes(key as (typeof DEVELOPER_SETTING_KEYS)[number])));
+  await saveManagedSettings(actorUserId, scoped as Partial<Record<ManagedSettingKey, unknown>>);
+}
+
+export async function saveOwnerManagedSettings(actorUserId: number, values: Partial<Record<(typeof OWNER_SETTING_KEYS)[number], unknown>>) {
+  const scoped = Object.fromEntries(Object.entries(values).filter(([key]) => OWNER_SETTING_KEYS.includes(key as (typeof OWNER_SETTING_KEYS)[number])));
+  await saveManagedSettings(actorUserId, scoped as Partial<Record<ManagedSettingKey, unknown>>);
 }
 
 export async function listManagedUsers(search?: string) {

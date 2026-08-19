@@ -1,7 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as FileSystem from "expo-file-system/legacy";
+import * as ScreenCapture from "expo-screen-capture";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
+import { useEffect } from "react";
 import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -17,12 +19,19 @@ export default function CourseDetailScreen() {
   const learningQuery = trpc.student.courseLearning.useQuery({ courseId: courseQuery.data?.course.id ?? 0 }, { enabled: Boolean(user && courseQuery.data?.course.id), retry: false });
   const enrollMutation = trpc.student.enrollFree.useMutation({ onSuccess: () => void learningQuery.refetch() });
   const resourceDownloadMutation = trpc.student.requestResourceDownload.useMutation();
+  const enrolled = learningQuery.data?.enrolled === true;
+  const protectedCourseId = courseQuery.data?.course.id;
+  useEffect(() => {
+    if (!enrolled || !protectedCourseId || Platform.OS === "web") return;
+    const key = `authorized-course-${protectedCourseId}`;
+    void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined);
+    return () => { void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined); };
+  }, [enrolled, protectedCourseId]);
 
   if (courseQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
   if (courseQuery.isError) return <ScreenContainer className="items-center justify-center px-5"><Card style={styles.errorCard}><Text style={styles.notFound}>Course information could not load. Check your connection and try again.</Text><PrimaryButton label="Retry" icon="refresh" onPress={() => void courseQuery.refetch()} /></Card></ScreenContainer>;
   if (!courseQuery.data) return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.notFound}>This course is not available.</Text></ScreenContainer>;
   const { course, categoryName, instructorName } = courseQuery.data;
-  const enrolled = learningQuery.data?.enrolled === true;
   const benefits = Array.isArray(course.benefits) ? course.benefits.filter((item): item is string => typeof item === "string") : [];
   const startLearning = () => {
     const firstLesson = learningQuery.data?.modules[0]?.lessons[0]?.lesson;

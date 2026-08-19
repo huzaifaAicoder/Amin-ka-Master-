@@ -6,10 +6,11 @@
 
 | Role | Normal operating scope | Server-enforced boundary |
 |---|---|---|
+| Developer | Private platform branding, theme metadata, Developer details, and non-secret integration status | Cannot enter Student, Owner, Admin, Teacher, or Operations procedures; raw provider keys are never returned to the app |
 | Student | Enroll in free courses, consume authorized learning content, take tests, save notes/bookmarks/Shorts | Cannot call staff or owner procedures |
 | Teacher | Only responsibilities explicitly granted in **Teacher access** | No implicit course, media, test, or live-class authority |
 | Admin | Course, media, assessment, live-class, and operational management | Cannot modify Owner settings, staff credentials, passkeys, people, or audit history |
-| Super Admin | Full operational control, staff creation, Teacher grants, settings, enrollment/review moderation, audit review | Private Owner Setup Code and Staff Passkey remain server-validated |
+| Owner (Super Admin) | Full business control for students, staff, courses, revenue operations, moderation, and audit review | Cannot access Developer Portal branding, theme, API configuration status, or Developer credentials |
 
 > The client UI is not an authorization boundary. Every sensitive action is checked again by the tRPC server.
 
@@ -33,11 +34,25 @@ Super Admin should create Teacher and Admin credential accounts from **Control C
 
 Staff Passkey rotation is an emergency or scheduled security action. Rotation revokes active Teacher, Admin, and Super Admin sessions. Distribute a new passkey only through a confidential channel. Passwords, Owner codes, passkeys, payment secrets, database credentials, and provider API keys must never be placed in course text, announcements, audit metadata, or app settings.
 
+### Developer Portal
+
+The hidden **`/dev-portal`** route is reserved for the one-time Developer identity. Its first setup and each Developer login require the server-only `DEVELOPER_PORTAL_PASSKEY`; no fallback credential is permitted. Configure this strong passkey through the secure environment settings and retain it outside normal business staff channels. The portal stores display-only branding and theme metadata and presents only a configured/not-configured status for Gemini and Razorpay. It never displays or stores a raw provider credential in the mobile client.
+
+> Owner and staff accounts are intentionally denied the Developer Portal at both route and API layers. Developer accounts are also denied Student and Operations routes.
+
 ### Content and learning operations
 
 Create catalog categories in **Teacher access → Manage course categories** before creating courses. Course creation, pricing, modules, lessons, PDFs, Free Playlists, Shorts, tests, and live classes are managed from Operations. Course prices must be entered in INR and the selling price may not exceed the MRP. In **Manage courses → Edit**, choose **Course status** (Draft, Published, or Archived) and then select **Save course changes**; the course-list status label is display-only and cannot silently change a course.
 
 Course and playlist uploads are limited to video files and PDFs and are limited to 150 MB by the server. Media Studio sends an authenticated multipart file request and confirms either **Save draft** or **Publish** after the server persists the corresponding Short or Free Playlist record. The application is tuned for older Android devices and slower networks; use compressed, mobile-friendly video encodes and concise PDFs. Published managed media is delivered as a short-lived signed URL only after the student has passed the relevant authorization check. Direct `learning-media/` storage-proxy access is denied.
+
+Media Studio can additionally use explicitly selected **YouTube** or **Instagram** links for a video or Short. The server accepts only `youtube.com`, `youtu.be`, or Instagram Reel/video URL shapes; arbitrary external domains are rejected. External playback opens through the browser/provider application rather than being copied into managed storage, so staff must own or have permission to share the external content and must follow the provider’s availability, licensing, age, and privacy rules.
+
+### Student Shorts and moderation
+
+The student Shorts feed supports tap-to-play/pause feedback, Like, Save, Share, and read/write Comments. Comment creation is restricted to Student identities and applies only to published Shorts. Students may use **Upload** to submit a video Short, but the upload is stored under an isolated `student-short-submissions/` namespace and receives `pending` status. It is not delivered to the public feed until an Admin or Owner opens **Operations → Moderate student Shorts** and explicitly approves it. Rejection keeps the item out of the student feed and records the moderation decision plus optional staff-only note in audit history.
+
+Do not use moderation for emergency takedown alone: where a file needs removal from storage or external services, follow the organisation’s incident process and provider-specific removal controls. Existing staff-authored Shorts retain their normal Draft, Published, and Archived lifecycle in Media Studio and Media Maintenance.
 
 To permit a supplementary-note download, open **Operations → Course structure & lessons**, edit the relevant module resource, select **PDF note**, upload the PDF through protected storage, and enable **Allow enrolled students to download** before saving. Leave this control off unless the material is deliberately approved for offline distribution. Video resources cannot be made downloadable.
 
@@ -56,6 +71,7 @@ The following boundaries are deliberately **not faked**. The relevant user exper
 | Managed storage | Upload and signed-download paths are implemented through the runtime storage service | Ensure built-in Forge storage credentials are available in the deployment runtime; do not replace with public bucket URLs |
 | Browser CORS | Local and managed preview origins are accepted during development | Set `CORS_ALLOWED_ORIGINS` to the comma-separated production web origins before publishing a web build |
 | AI assistant or study generator | A student-only **Ask AI** placeholder screen and protected server mutation are available; no external model is called and the response is explicitly labelled as a placeholder | Select the required study workflow, prompts, safety review, rate limits, conversation-retention policy, and server-side model integration before enabling generated answers |
+| Developer Portal | Private Developer setup/login and safe integration-status UI are implemented | `DEVELOPER_PORTAL_PASSKEY` must remain configured in secure server environment settings; raw AI/payment keys stay in their own server-only variables |
 
 ## Security and data operations
 
@@ -73,7 +89,7 @@ The data model is migrated with Drizzle. Apply migrations through the project’
 
 ## Content capture and download controls
 
-Authorized lesson screens now enable the native `expo-screen-capture` protection while mounted on supported Android and iOS devices. This deters ordinary screenshots, recording, and Android app-switcher previews. It is intentionally not enabled on web, where browsers do not offer a reliable cross-browser equivalent.
+Authorized lesson screens, enrolled premium course screens, and the authenticated Shorts feed now enable native `expo-screen-capture` protection while mounted on supported Android and iOS devices. This deters ordinary screenshots, recording, and Android app-switcher previews. It is intentionally not enabled on web, where browsers do not offer a reliable cross-browser equivalent.
 
 > Screen-capture deterrence reduces casual copying; it does **not** guarantee piracy prevention. Another device can record a display, and platform capabilities vary by version and device.
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "../shared/const.js";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { isDeveloperPortalConfigured, verifyDeveloperPortalPasskey } from "./developer-portal";
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
 import { verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
@@ -47,6 +48,17 @@ const ownerLoginSchema = z.object({
   password: z.string().min(1, "Enter your password").max(128),
   ownerSetupCode: z.string().min(1, "The Private Owner Passkey/Code is required").max(256),
 });
+const developerSetupSchema = z.object({
+  fullName: z.string().trim().min(2).max(160),
+  email: z.string().trim().email().max(320),
+  password: z.string().min(12).max(128),
+  developerPasskey: z.string().min(12).max(256),
+});
+const developerLoginSchema = z.object({
+  email: z.string().trim().email().max(320),
+  password: z.string().min(1).max(128),
+  developerPasskey: z.string().min(1).max(256),
+});
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
 const moneySchema = z.union([
@@ -84,10 +96,22 @@ const freePlaylistSchema = z.object({
   playlistId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), thumbnailUrl: optionalUrl, isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
 });
 const freePlaylistItemSchema = mediaReferenceSchema.safeExtend({
-  itemId: z.number().int().positive().optional(), playlistId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), contentType: z.enum(["video", "pdf"]), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+  itemId: z.number().int().positive().optional(), playlistId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), contentType: z.enum(["video", "pdf"]), sourceType: z.enum(["managed", "youtube", "instagram"]).default("managed"), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+}).superRefine((value, ctx) => {
+  const url = value.contentUrl || "";
+  if (value.sourceType === "managed" && !value.storageKey && !url.startsWith("/manus-storage/")) ctx.addIssue({ code: "custom", message: "Managed playlist resources must use a protected uploaded file.", path: ["contentUrl"] });
+  if (value.sourceType !== "managed" && value.contentType !== "video") ctx.addIssue({ code: "custom", message: "External links are available only for video resources.", path: ["sourceType"] });
+  if (value.sourceType === "youtube" && !/^https:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url)) ctx.addIssue({ code: "custom", message: "Provide a valid YouTube video or Short URL.", path: ["contentUrl"] });
+  if (value.sourceType === "instagram" && !/^https:\/\/(?:www\.)?instagram\.com\/(?:reel|p|tv)\//i.test(url)) ctx.addIssue({ code: "custom", message: "Provide a valid Instagram Reel or video URL.", path: ["contentUrl"] });
 });
 const educationalShortSchema = mediaReferenceSchema.safeExtend({
-  shortId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional(), status: z.enum(["draft", "published", "archived"]), displayOrder: z.number().int().min(0).max(10000),
+  shortId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional(), sourceType: z.enum(["managed", "youtube", "instagram"]).default("managed"), status: z.enum(["draft", "published", "archived"]), displayOrder: z.number().int().min(0).max(10000),
+}).superRefine((value, ctx) => {
+  const url = value.contentUrl || "";
+  if (value.sourceType === "managed" && !value.storageKey && !url.startsWith("/manus-storage/")) ctx.addIssue({ code: "custom", message: "Managed Shorts must use a protected uploaded video.", path: ["contentUrl"] });
+  if (value.sourceType === "youtube" && !/^https:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url)) ctx.addIssue({ code: "custom", message: "Provide a valid YouTube video or Short URL.", path: ["contentUrl"] });
+  if (value.sourceType === "instagram" && !/^https:\/\/(?:www\.)?instagram\.com\/reel\//i.test(url)) ctx.addIssue({ code: "custom", message: "Provide a valid public Instagram Reel URL.", path: ["contentUrl"] });
+  if (value.sourceType !== "managed" && value.storageKey) ctx.addIssue({ code: "custom", message: "External Short links cannot include a managed storage key.", path: ["storageKey"] });
 });
 const testDetailsSchema = z.object({
   courseId: z.number().int().positive().nullable().optional(),
@@ -124,8 +148,12 @@ function safeUser(user: NonNullable<Awaited<ReturnType<typeof db.getUserByOpenId
   };
 }
 
-function requireStaffAccess(role: "student" | "teacher" | "admin" | "super_admin") {
-  if (role === "student") throw new Error("Staff access is required");
+function requireStaffAccess(role: "developer" | "student" | "teacher" | "admin" | "super_admin") {
+  if (role !== "teacher" && role !== "admin" && role !== "super_admin") throw new TRPCError({ code: "FORBIDDEN", message: "Staff access is required" });
+}
+
+function requireStudentAccess(role: "developer" | "student" | "teacher" | "admin" | "super_admin") {
+  if (role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "This action is available only in the student learning experience." });
 }
 
 async function requireDelegatedPermission(
@@ -192,6 +220,23 @@ export const appRouter = router({
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),
+    developerSetupStatus: publicProcedure.query(async () => ({ configured: isDeveloperPortalConfigured(), available: isDeveloperPortalConfigured() && await db.isInitialDeveloperSetupAvailable() })),
+    claimInitialDeveloper: publicProcedure.input(developerSetupSchema).mutation(async ({ input, ctx }) => {
+      if (!verifyDeveloperPortalPasskey(input.developerPasskey)) throw new TRPCError({ code: "FORBIDDEN", message: "Developer setup is unavailable or the Developer Passkey is incorrect." });
+      const result = await db.createInitialDeveloperCredentialUser({ fullName: input.fullName, email: input.email, password: input.password });
+      if (result.status === "identity_exists") throw new TRPCError({ code: "CONFLICT", message: "An account already exists for that email." });
+      if (result.status !== "claimed" || !result.user) throw new TRPCError({ code: "FORBIDDEN", message: "Developer setup has already been completed." });
+      await db.writeAudit({ actorUserId: result.user.id, action: "developer_setup.claimed", entityType: "user", entityId: result.user.id, metadata: { role: "developer" } });
+      const session = await db.createSession(result.user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(result.user), session };
+    }),
+    developerLogin: publicProcedure.input(developerLoginSchema).mutation(async ({ input, ctx }) => {
+      if (!verifyDeveloperPortalPasskey(input.developerPasskey)) throw new TRPCError({ code: "UNAUTHORIZED", message: "The Developer Passkey is incorrect." });
+      const user = await db.authenticateCredentialUser(input.email, input.password);
+      if (!user || user.role !== "developer") throw new TRPCError({ code: "UNAUTHORIZED", message: "The developer email or password is incorrect." });
+      const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
+      return { user: safeUser(user), session };
+    }),
     register: publicProcedure.input(credentialSchema).mutation(async ({ input, ctx }) => {
       const user = await db.registerCredentialUser({
         fullName: input.fullName,
@@ -211,6 +256,9 @@ export const appRouter = router({
       }
       if (input.portal === "staff" && user.role === "student") {
         throw new TRPCError({ code: "FORBIDDEN", message: "This account is not authorized for the Staff / Admin portal." });
+      }
+      if (user.role === "developer") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Developer accounts must use the private Developer Portal." });
       }
       if (input.portal === "staff") {
         if (!input.staffPasskey) throw new TRPCError({ code: "UNAUTHORIZED", message: "A valid Staff Passkey is required for Staff / Admin Login." });
@@ -334,18 +382,89 @@ export const appRouter = router({
     shorts: protectedProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
     savedShorts: protectedProcedure.query(({ ctx }) => db.listSavedShorts(ctx.user.id)),
     toggleShortLike: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
       const result = await db.toggleShortLike(ctx.user.id, input.shortId);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
       return result;
     }),
     toggleShortSave: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
       const result = await db.toggleShortSave(ctx.user.id, input.shortId);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
       return result;
     }),
+    shortComments: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      const comments = await db.listShortComments(input.shortId);
+      if (!comments) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
+      return comments;
+    }),
+    addShortComment: protectedProcedure.input(z.object({ shortId: z.number().int().positive(), body: z.string().trim().min(1).max(1000) })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      const comment = await db.addShortComment(ctx.user.id, input.shortId, input.body);
+      if (!comment) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
+      return comment;
+    }),
+    submitShort: protectedProcedure.input(mediaReferenceSchema.safeExtend({ title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional() }).superRefine((value, ctx) => {
+      if (!value.storageKey || !(value.contentUrl ?? "").startsWith("/manus-storage/")) ctx.addIssue({ code: "custom", message: "Upload a managed video before submitting a Short.", path: ["contentUrl"] });
+      if (value.mimeType && !value.mimeType.startsWith("video/")) ctx.addIssue({ code: "custom", message: "Student submissions must be video files.", path: ["mimeType"] });
+    })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      const videoUrl = input.contentUrl ?? "";
+      const storageKey = input.storageKey ?? "";
+      if (!storageKey || !videoUrl.startsWith("/manus-storage/")) throw new TRPCError({ code: "BAD_REQUEST", message: "Upload a managed video before submitting a Short." });
+      const shortId = await db.submitStudentShort({ userId: ctx.user.id, title: input.title, description: input.description, videoUrl, storageKey, provider: input.provider || undefined, mimeType: input.mimeType || undefined, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "student_short.submitted", entityType: "educational_short", entityId: shortId, metadata: { status: "pending" } });
+      return { shortId, status: "pending" as const };
+    }),
+    myShortSubmissions: protectedProcedure.query(async ({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      return db.listMyShortSubmissions(ctx.user.id);
+    }),
     askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "The Doubt Solver is available in the student learning experience." });
       return { answer: "AI is thinking... This is a secure placeholder response. Connect an approved AI provider to generate a subject-specific explanation.", mode: "placeholder" as const, question: input.question };
+    }),
+  }),
+  developer: router({
+    settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
+    integrationStatus: requireRoles(["developer"]).query(() => ({
+      developerPortalPasskeyConfigured: isDeveloperPortalConfigured(),
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+      razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID?.trim() && process.env.RAZORPAY_KEY_SECRET?.trim()),
+      note: "Provider secrets are server-only and are never returned to this client.",
+    })),
+    saveSettings: requireRoles(["developer"]).input(z.object({
+      appName: z.string().trim().min(2).max(80).optional(),
+      tagline: z.string().trim().max(160).optional(),
+      contactEmail: z.string().trim().email().max(320).optional().or(z.literal("")),
+      contactPhone: z.string().trim().max(40).optional(),
+      whatsapp: z.string().trim().max(40).optional(),
+      themePrimary: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      themeAccent: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+      developerName: z.string().trim().max(160).optional(),
+      developerRole: z.string().trim().max(160).optional(),
+      developerProjectInfo: z.string().trim().max(600).optional(),
+      developerContact: z.string().trim().max(320).optional(),
+      developerCopyright: z.string().trim().max(240).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const values = {
+        ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}),
+        ...(input.tagline !== undefined ? { "brand.tagline": input.tagline } : {}),
+        ...(input.contactEmail !== undefined ? { "brand.contact_email": input.contactEmail } : {}),
+        ...(input.contactPhone !== undefined ? { "brand.contact_phone": input.contactPhone } : {}),
+        ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}),
+        ...(input.themePrimary !== undefined ? { "brand.theme_primary": input.themePrimary } : {}),
+        ...(input.themeAccent !== undefined ? { "brand.theme_accent": input.themeAccent } : {}),
+        ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
+        ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),
+        ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}),
+        ...(input.developerContact !== undefined ? { "developer.contact": input.developerContact } : {}),
+        ...(input.developerCopyright !== undefined ? { "developer.copyright": input.developerCopyright } : {}),
+      };
+      await db.saveDeveloperManagedSettings(ctx.user.id, values);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });
+      return { success: true as const };
     }),
   }),
   operations: router({
@@ -441,7 +560,7 @@ export const appRouter = router({
     }),
     saveFreePlaylistItem: requireRoles(["teacher", "admin", "super_admin"]).input(freePlaylistItemSchema).mutation(async ({ ctx, input }) => {
       await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
-      const itemId = await db.saveFreePlaylistItem({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      const itemId = await db.saveFreePlaylistItem({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.sourceType === "managed" ? input.provider || undefined : input.sourceType, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.itemId ? "free_playlist_item.updated" : "free_playlist_item.created", entityType: "free_playlist_item", entityId: itemId, metadata: { playlistId: input.playlistId, contentType: input.contentType } });
       return { itemId };
     }),
@@ -451,9 +570,16 @@ export const appRouter = router({
     }),
     saveShort: requireRoles(["teacher", "admin", "super_admin"]).input(educationalShortSchema).mutation(async ({ ctx, input }) => {
       await requireAnyDelegatedPermission(ctx.user, ["media.manage"]);
-      const shortId = await db.saveEducationalShort({ ...input, videoUrl: input.contentUrl || "", storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
+      const shortId = await db.saveEducationalShort({ ...input, videoUrl: input.contentUrl || "", storageKey: input.storageKey || undefined, provider: input.sourceType === "managed" ? input.provider || undefined : input.sourceType, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.shortId ? "short.updated" : "short.created", entityType: "educational_short", entityId: shortId, metadata: { status: input.status } });
       return { shortId };
+    }),
+    pendingShorts: requireRoles(["admin", "super_admin"]).query(() => db.listPendingShortsForModeration()),
+    moderateShort: requireRoles(["admin", "super_admin"]).input(z.object({ shortId: z.number().int().positive(), decision: z.enum(["approved", "rejected"]), moderationNote: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
+      const status = input.decision === "approved" ? "published" : "rejected";
+      await db.moderateStudentShort({ shortId: input.shortId, moderatorUserId: ctx.user.id, status, moderationNote: input.moderationNote });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: `student_short.${input.decision}`, entityType: "educational_short", entityId: input.shortId, metadata: { status } });
+      return { success: true as const, status };
     }),
     tests: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
       await requireDelegatedPermission(ctx.user, "assessments.manage");
@@ -520,14 +646,14 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.status_changed", entityType: "live_class", entityId: input.liveClassId, metadata: { status: input.status } });
       return { success: true } as const;
     }),
-    masterSettings: requireRoles(["super_admin"]).query(() => db.getManagedSettings()),
+    masterSettings: requireRoles(["super_admin"]).query(() => db.getOwnerManagedSettings()),
     saveMasterSettings: requireRoles(["super_admin"]).input(z.object({
       appName: z.string().trim().min(2).max(80).optional(), tagline: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(320).optional(), contactPhone: z.string().trim().max(40).optional(), whatsapp: z.string().trim().max(40).optional(), heroTitle: z.string().trim().max(220).optional(), heroSubtitle: z.string().trim().max(500).optional(), heroCta: z.string().trim().max(80).optional(), showLive: z.boolean().optional(), registrationEnabled: z.boolean().optional(), maintenanceEnabled: z.boolean().optional(), supportEmail: z.string().trim().email().max(320).optional().or(z.literal("")), supportPhone: z.string().trim().max(40).optional(), officeInfo: z.string().trim().max(500).optional(), helpIntro: z.string().trim().max(500).optional(), developerName: z.string().trim().max(160).optional(), developerRole: z.string().trim().max(160).optional(), developerProjectInfo: z.string().trim().max(600).optional(), developerContact: z.string().trim().max(320).optional(), developerCopyright: z.string().trim().max(240).optional(),
     })).mutation(async ({ ctx, input }) => {
       const values = {
         ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}), ...(input.tagline !== undefined ? { "brand.tagline": input.tagline } : {}), ...(input.contactEmail !== undefined ? { "brand.contact_email": input.contactEmail } : {}), ...(input.contactPhone !== undefined ? { "brand.contact_phone": input.contactPhone } : {}), ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}), ...(input.heroTitle !== undefined ? { "homepage.hero_title": input.heroTitle } : {}), ...(input.heroSubtitle !== undefined ? { "homepage.hero_subtitle": input.heroSubtitle } : {}), ...(input.heroCta !== undefined ? { "homepage.hero_cta": input.heroCta } : {}), ...(input.showLive !== undefined ? { "homepage.show_live": input.showLive } : {}), ...(input.registrationEnabled !== undefined ? { "platform.registration_enabled": input.registrationEnabled } : {}), ...(input.maintenanceEnabled !== undefined ? { "platform.maintenance_enabled": input.maintenanceEnabled } : {}), ...(input.supportEmail !== undefined ? { "support.support_email": input.supportEmail } : {}), ...(input.supportPhone !== undefined ? { "support.support_phone": input.supportPhone } : {}), ...(input.officeInfo !== undefined ? { "support.office_info": input.officeInfo } : {}), ...(input.helpIntro !== undefined ? { "support.help_intro": input.helpIntro } : {}), ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}), ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}), ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}), ...(input.developerContact !== undefined ? { "developer.contact": input.developerContact } : {}), ...(input.developerCopyright !== undefined ? { "developer.copyright": input.developerCopyright } : {}),
       };
-      await db.saveManagedSettings(ctx.user.id, values);
+      await db.saveOwnerManagedSettings(ctx.user.id, values);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });
       return { success: true } as const;
     }),
@@ -582,6 +708,11 @@ export const appRouter = router({
       const categoryId = await db.createCategory(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "category.created", entityType: "category", entityId: categoryId, metadata: { name: input.name } });
       return { categoryId };
+    }),
+    updateCategory: requireRoles(["admin", "super_admin"]).input(z.object({ categoryId: z.number().int().positive(), name: z.string().trim().min(3).max(120), slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(140), description: z.string().trim().max(1000).optional() })).mutation(async ({ ctx, input }) => {
+      await db.updateCategory(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "category.updated", entityType: "category", entityId: input.categoryId, metadata: { name: input.name, slug: input.slug } });
+      return { success: true as const };
     }),
   }),
 });
