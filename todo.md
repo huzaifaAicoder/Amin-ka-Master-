@@ -98,3 +98,6 @@
 - [x] Add in-button loading spinners and progress labels to Media Studio draft and publish actions during file processing.
 - [x] Add subtle visual progress feedback during the seven-tap Developer Portal discovery sequence without revealing or bypassing protected access.
 - [x] Add subtle visual progress feedback during the seven-tap Developer Portal discovery sequence without revealing or bypassing protected access.
+- [x] Clear Expo/Metro cache and force-restart the live preview; keep preview refresh mandatory after every future coding change.
+
+- [x] Verify the refreshed preview is serving the latest project version.
