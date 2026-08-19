@@ -459,7 +459,7 @@ export const appRouter = router({
       if (!apiKey) return { answer: "AI is temporarily in study mode. Please review the lesson notes and try again shortly.", mode: "fallback" as const, question: input.question };
       try {
         const client = new GoogleGenerativeAI(apiKey);
-        const model = client.getGenerativeModel({ model: "gemini-1.5-flash", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests." });
+        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests.", generationConfig: { maxOutputTokens: 900, temperature: 0.3 } });
         const result = await model.generateContent(input.question);
         const answer = result.response.text().trim();
         if (!answer) throw new Error("Gemini returned an empty response");

@@ -125,3 +125,4 @@
 - [x] Implement course-completion certificate issuance with protected download access and auditability.
 - [x] Implement a secure internal offline PDF reader using app-private storage and an in-app viewer fallback.
 - [x] Securely configure and validate the user-supplied Gemini API key for the optional server-side Doubt Solver integration; never expose it in client code or logs.
+- [x] Improve the Gemini Doubt Solver with an accessible typing indicator and a clear, automatically scrolling chat history.
