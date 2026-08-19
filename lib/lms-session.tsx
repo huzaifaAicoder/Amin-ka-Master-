@@ -48,6 +48,12 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
     })();
   }, []);
 
+  useEffect(() => Auth.subscribeToSessionInvalidation(() => {
+    utils.auth.me.setData(undefined, null);
+    setLocalUser(null);
+    setHasToken(false);
+  }), [utils.auth.me]);
+
   useEffect(() => {
     if (meQuery.data) {
       setLocalUser(meQuery.data);
@@ -56,7 +62,7 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
     if (meQuery.isError) {
       setLocalUser(null);
       setHasToken(false);
-      void Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
+      void Auth.invalidateLocalSession();
     }
   }, [meQuery.data, meQuery.isError]);
 
@@ -74,7 +80,7 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
       // prevents the best-effort server revocation request from completing.
       console.warn("[Session] Server logout request did not complete", error);
     } finally {
-      await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
+      await Auth.invalidateLocalSession();
       utils.auth.me.setData(undefined, null);
       setLocalUser(null);
       setHasToken(false);

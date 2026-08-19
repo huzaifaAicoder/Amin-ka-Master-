@@ -36,7 +36,7 @@ export function createTRPCClient() {
             credentials: "include",
           });
           if (response.status === 401) {
-            await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
+            await Auth.invalidateLocalSession();
             if (typeof window !== "undefined" && window.location.pathname !== "/auth") window.location.replace("/auth");
           }
           return response;

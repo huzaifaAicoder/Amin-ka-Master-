@@ -14,6 +14,18 @@ export type User = {
   createdAt?: Date | string;
 };
 
+const sessionInvalidationListeners = new Set<() => void>();
+
+export function subscribeToSessionInvalidation(listener: () => void) {
+  sessionInvalidationListeners.add(listener);
+  return () => { sessionInvalidationListeners.delete(listener); };
+}
+
+export async function invalidateLocalSession(): Promise<void> {
+  await Promise.all([removeSessionToken(), clearUserInfo()]);
+  for (const listener of sessionInvalidationListeners) listener();
+}
+
 export async function getSessionToken(): Promise<string | null> {
   try {
     if (Platform.OS === "web") {
