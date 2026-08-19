@@ -6,9 +6,13 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
 
 import { COLORS } from "@/components/lms-ui";
+import { trpc } from "@/lib/trpc";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const settingsQuery = trpc.catalog.uiSettings.useQuery();
+  const flags = settingsQuery.data as Record<string, unknown> | undefined;
+  const isEnabled = (key: string) => flags?.[key] !== "false";
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 
@@ -50,20 +54,20 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="book.closed.fill" color={color} />,
         }}
       />
-      <Tabs.Screen
+      {isEnabled("feature.shorts") ? <Tabs.Screen
         name="shorts"
         options={{
           title: "Shorts",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="bolt.circle.fill" color={color} />,
         }}
-      />
-      <Tabs.Screen
+      /> : null}
+      {isEnabled("feature.offline_downloads") ? <Tabs.Screen
         name="downloads"
         options={{
           title: "Downloads",
           tabBarIcon: ({ color }) => <IconSymbol size={26} name="arrow.down.circle.fill" color={color} />,
         }}
-      />
+      /> : null}
       <Tabs.Screen
         name="account"
         options={{

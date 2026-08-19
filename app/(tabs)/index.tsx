@@ -25,6 +25,7 @@ export default function HomeScreen() {
   const heroSubtitle = typeof publicSettings["homepage.hero_subtitle"] === "string" ? publicSettings["homepage.hero_subtitle"] : "Practical surveying and Amin exam preparation, organised around your next step.";
   const heroCta = typeof publicSettings["homepage.hero_cta"] === "string" ? publicSettings["homepage.hero_cta"] : user ? "Explore courses" : "Start learning";
   const showLive = typeof publicSettings["homepage.show_live"] === "boolean" ? publicSettings["homepage.show_live"] : true;
+  const showAi = (publicSettings as Record<string, unknown>)["feature.ai_doubt_solver"] !== "false";
 
   return (
     <ScreenContainer containerClassName="bg-background" className="px-5" edges={["top", "left", "right"]}>
@@ -62,7 +63,7 @@ export default function HomeScreen() {
             <MaterialIcons name="chevron-right" size={24} color={COLORS.muted} />
           </Pressable>
         ) : null}
-        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>NEW STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Type a question and prepare for the upcoming AI assistant.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
+        {user?.role === "student" && showAi ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>NEW STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Type a question and prepare for the upcoming AI assistant.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
         <SectionHeading title="Study by topic" action="Explore" onPress={() => router.push("/explore")} />
         {categoriesQuery.isLoading ? <ActivityIndicator color={COLORS.indigo} /> : <FlatList horizontal showsHorizontalScrollIndicator={false} data={categoriesQuery.data ?? []} contentContainerStyle={styles.categories} keyExtractor={(item) => item.id.toString()} renderItem={({ item, index }) => <Pressable onPress={() => router.push(`/explore?category=${item.slug}`)} style={({ pressed }) => [styles.categoryCard, index % 2 === 1 && styles.categoryCardWarm, pressed && styles.pressed]}><MaterialIcons name={index % 2 === 0 ? "straighten" : "account-balance"} size={23} color={COLORS.indigo} /><Text style={styles.categoryText}>{item.name}</Text></Pressable>} />}
 

@@ -140,3 +140,4 @@
 - [x] Reduce the AI Doubt Solver header footprint and reserve the majority of the screen for its scrollable conversation.
 - [x] Verify highest-level Student capture prevention and document the native-build `FLAG_SECURE` requirement and physical-device limitations.
 - [x] Add authorized offline-video download controls to enrolled course lesson resources using server-issued access, private app storage, and the internal viewer.
+- [x] Upgrade the Developer Portal to a tabbed white-label controller with prefilled branding, validated feature toggles, safe integration status, and friendly toast feedback.

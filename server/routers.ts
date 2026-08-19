@@ -491,6 +491,9 @@ export const appRouter = router({
       developerProjectInfo: z.string().trim().max(600).optional(),
       developerContact: z.string().trim().max(320).optional(),
       developerCopyright: z.string().trim().max(240).optional(),
+      featureShorts: z.boolean().optional(),
+      featureOfflineDownloads: z.boolean().optional(),
+      featureAiDoubtSolver: z.boolean().optional(),
     })).mutation(async ({ ctx, input }) => {
       const values = {
         ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}),
@@ -505,6 +508,9 @@ export const appRouter = router({
         ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}),
         ...(input.developerContact !== undefined ? { "developer.contact": input.developerContact } : {}),
         ...(input.developerCopyright !== undefined ? { "developer.copyright": input.developerCopyright } : {}),
+        ...(input.featureShorts !== undefined ? { "feature.shorts": input.featureShorts ? "true" : "false" } : {}),
+        ...(input.featureOfflineDownloads !== undefined ? { "feature.offline_downloads": input.featureOfflineDownloads ? "true" : "false" } : {}),
+        ...(input.featureAiDoubtSolver !== undefined ? { "feature.ai_doubt_solver": input.featureAiDoubtSolver ? "true" : "false" } : {}),
       };
       await db.saveDeveloperManagedSettings(ctx.user.id, values);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });
