@@ -7,6 +7,7 @@ import {
   gte,
   inArray,
   like,
+  lt,
   or,
   sql,
 } from "drizzle-orm";
@@ -938,19 +939,29 @@ export async function listMyLiveClasses(userId: number) {
 export async function getOperationsSummary() {
   const database = await getDb();
   if (!database) return { students: 0, courses: 0, enrollments: 0, upcomingLiveClasses: 0 };
-  const [studentCount, courseCount, enrollmentCount, liveCount] = await Promise.all([
-    database.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, "student")),
-    database.select({ count: sql<number>`count(*)` }).from(courses),
-    database.select({ count: sql<number>`count(*)` }).from(enrollments),
-    database.select({ count: sql<number>`count(*)` }).from(liveClasses).where(and(eq(liveClasses.status, "upcoming"), gt(liveClasses.startsAt, new Date()))),
-  ]);
-  return { students: Number(studentCount[0]?.count ?? 0), courses: Number(courseCount[0]?.count ?? 0), enrollments: Number(enrollmentCount[0]?.count ?? 0), upcomingLiveClasses: Number(liveCount[0]?.count ?? 0) };
+  try {
+    const [studentCount, courseCount, enrollmentCount, liveCount] = await Promise.all([
+      database.select({ count: sql<number>`count(*)` }).from(users).where(eq(users.role, "student")),
+      database.select({ count: sql<number>`count(*)` }).from(courses),
+      database.select({ count: sql<number>`count(*)` }).from(enrollments),
+      database.select({ count: sql<number>`count(*)` }).from(liveClasses).where(and(eq(liveClasses.status, "upcoming"), gt(liveClasses.startsAt, new Date()))),
+    ]);
+    return { students: Number(studentCount[0]?.count ?? 0), courses: Number(courseCount[0]?.count ?? 0), enrollments: Number(enrollmentCount[0]?.count ?? 0), upcomingLiveClasses: Number(liveCount[0]?.count ?? 0) };
+  } catch (error) {
+    console.error("[Operations] Summary aggregation failed; returning safe zero totals", error);
+    return { students: 0, courses: 0, enrollments: 0, upcomingLiveClasses: 0 };
+  }
 }
 
 export async function listOperationsCourses() {
   const database = await getDb();
   if (!database) return [];
-  return database.select({ course: courses, categoryName: categories.name, instructorName: users.fullName }).from(courses).innerJoin(categories, eq(courses.categoryId, categories.id)).leftJoin(users, eq(courses.instructorId, users.id)).orderBy(desc(courses.updatedAt));
+  try {
+    return await database.select({ course: courses, categoryName: categories.name, instructorName: users.fullName }).from(courses).innerJoin(categories, eq(courses.categoryId, categories.id)).leftJoin(users, eq(courses.instructorId, users.id)).orderBy(desc(courses.updatedAt));
+  } catch (error) {
+    console.error("[Operations] Course list query failed; returning an empty operational list", error);
+    return [];
+  }
 }
 
 export async function listOperationsTests() {
@@ -1470,4 +1481,29 @@ export async function listManagedAuditLogs() {
   const database = await getDb();
   if (!database) return [];
   return database.select({ audit: auditLogs, actorName: users.fullName, actorEmail: users.email }).from(auditLogs).leftJoin(users, eq(auditLogs.actorUserId, users.id)).orderBy(desc(auditLogs.createdAt)).limit(300);
+}
+
+export async function listManagedResourceDownloadEvents(input: { cursor?: number; limit: number }) {
+  const database = await getDb();
+  if (!database) return { events: [], nextCursor: null };
+  const query = database
+    .select({
+      event: resourceDownloadEvents,
+      studentName: users.fullName,
+      studentEmail: users.email,
+      resourceTitle: moduleResources.title,
+      moduleTitle: courseModules.title,
+      courseTitle: courses.title,
+    })
+    .from(resourceDownloadEvents)
+    .innerJoin(users, eq(resourceDownloadEvents.userId, users.id))
+    .innerJoin(moduleResources, eq(resourceDownloadEvents.resourceId, moduleResources.id))
+    .innerJoin(courseModules, eq(moduleResources.moduleId, courseModules.id))
+    .innerJoin(courses, eq(courseModules.courseId, courses.id));
+  const rows = input.cursor
+    ? await query.where(lt(resourceDownloadEvents.id, input.cursor)).orderBy(desc(resourceDownloadEvents.id)).limit(input.limit + 1)
+    : await query.orderBy(desc(resourceDownloadEvents.id)).limit(input.limit + 1);
+  const hasMore = rows.length > input.limit;
+  const events = hasMore ? rows.slice(0, input.limit) : rows;
+  return { events, nextCursor: hasMore ? events.at(-1)?.event.id ?? null : null };
 }

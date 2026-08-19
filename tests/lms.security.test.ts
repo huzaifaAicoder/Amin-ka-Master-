@@ -97,6 +97,27 @@ describe("LMS security boundaries", () => {
     await expect(caller.operations.summary()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("returns a complete numeric Operations summary for an authorized Admin", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.operations.summary()).resolves.toEqual(expect.objectContaining({
+      students: expect.any(Number),
+      courses: expect.any(Number),
+      enrollments: expect.any(Number),
+      upcomingLiveClasses: expect.any(Number),
+    }));
+  });
+
+  it("reserves PDF download-event monitoring for Admin and Super Admin roles", async () => {
+    const studentCaller = appRouter.createCaller(createContext(student));
+    const teacherCaller = appRouter.createCaller(createContext(teacherWithoutGrant));
+    const adminCaller = appRouter.createCaller(createContext(admin));
+    await expect(studentCaller.operations.resourceDownloadEvents()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(teacherCaller.operations.resourceDownloadEvents()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const result = await adminCaller.operations.resourceDownloadEvents();
+    expect(result.events).toEqual(expect.any(Array));
+    expect(result.nextCursor === null || typeof result.nextCursor === "number").toBe(true);
+  });
+
   it("rejects a student attempting to manage assessments or live classes", async () => {
     const caller = appRouter.createCaller(createContext(student));
     await expect(caller.operations.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });

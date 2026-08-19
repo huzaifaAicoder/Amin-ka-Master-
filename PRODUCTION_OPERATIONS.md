@@ -81,6 +81,8 @@ Course media and resources are delivered through authorization-gated, short-live
 
 On Android and iOS, the app downloads the authorized PDF into its temporary cache and opens the operating-system share sheet so the learner can save or open it in a compatible application. On web, it opens the newly issued signed URL in the browser. This is intentionally a per-resource action; there is no generic “download all” or download control for video. Signed-link expiry and device file retention remain platform/storage responsibilities, so staff should share only materials appropriate for offline learner access.
 
+Admin and Super Admin accounts can review these records from **Operations → PDF download audit**. The read-only monitor shows the resource, course and module, learner identity, and Indian-formatted issuance time, with bounded loading of older records. Teachers are intentionally excluded because the list contains learner activity data. Use it to investigate approved-resource distribution; it does not expose file URLs or permit a record to be edited or deleted.
+
 ## Performance and capacity evidence
 
 The application is designed to avoid obvious catalogue hot paths: course discovery has a status/category index; module and lesson ordering has composite indexes; sessions, enrollments, progress, and Shorts engagement have user- and resource-oriented indexes. Public catalogue requests no longer invoke managed cookie authentication when no bearer token or cookie exists, preventing avoidable runtime work and missing-session log noise for anonymous discovery traffic.

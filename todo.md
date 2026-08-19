@@ -89,3 +89,5 @@
 - [ ] Enforce the final evidence-based release gate with regression, security, integrity, responsive, Android, and strongest available stress validation.
 - [x] Add policy-controlled, audited student downloads for eligible supplementary course resources while keeping video and non-approved resources non-downloadable by default.
 - [x] Repair the mobile Operations dashboard request failure so authenticated Owner/Admin/Teacher users receive real server summary data and actionable session recovery.
+- [x] Add an authorized Operations dashboard view for staff to monitor PDF resource-download audit events.
+- [x] Restore a reliable Operations dashboard API response and zero-value fallback after the reported loading regression.

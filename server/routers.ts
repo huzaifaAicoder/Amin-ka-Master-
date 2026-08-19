@@ -554,6 +554,7 @@ export const appRouter = router({
       return { success: true } as const;
     }),
     announcements: requireRoles(["admin", "super_admin"]).query(() => db.listManagedAnnouncements()),
+    resourceDownloadEvents: requireRoles(["admin", "super_admin"]).input(z.object({ cursor: z.number().int().positive().optional(), limit: z.number().int().min(10).max(100).default(50) }).optional()).query(({ input }) => db.listManagedResourceDownloadEvents({ cursor: input?.cursor, limit: input?.limit ?? 50 })),
     createAnnouncement: requireRoles(["admin", "super_admin"]).input(z.object({ title: z.string().trim().min(3).max(220), body: z.string().trim().min(3).max(10000), targetType: z.enum(["all_students", "course", "group", "student"]), targetId: z.number().int().positive().nullable().optional(), isPublished: z.boolean() })).mutation(async ({ ctx, input }) => {
       if (input.targetType !== "all_students" && !input.targetId) throw new Error("Choose a target for this announcement");
       const announcementId = await db.createManagedAnnouncement({ ...input, createdByUserId: ctx.user.id });
