@@ -69,6 +69,12 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.savedShorts()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.toggleShortLike({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.toggleShortSave({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("does not let staff use the student PDF-download endpoint", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("rejects initial Super Admin setup without the private owner code", async () => {

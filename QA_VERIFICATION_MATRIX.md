@@ -35,7 +35,7 @@
 | Data integrity | User, permission, session, course and media consistency | Needs QA | Initial read-only relational checks passed; extend to CRUD lifecycle and duplicate/integrity cases. |
 | Performance | Query efficiency, payloads, caching, rendering | Verified | Operations stale-cache defect was repaired; core catalogue, ordering, enrollment, progress, session, and Shorts tables have reviewed lookup indexes. Anonymous catalogue traffic now skips unnecessary managed-auth lookup. |
 | Performance | Load and stress behavior | Verified, bounded | 100 local catalogue requests at 20-way concurrency returned 100 HTTP 200 responses in 3.823 seconds; this sandbox smoke test is not a 10,000-user capacity claim. |
-| Download/security | Authorized configurable lecture download | Needs repair | Not implemented; evaluate a controlled permission model before exposing downloads. |
+| Download/security | Authorized configurable PDF resource download | Needs QA | Implemented with a default-off PDF-only staff toggle, active-enrollment and student-role enforcement, managed-storage signed URL issuance, per-attempt audit events, web fallback, and native cache/share handling. Automated tests reject unauthenticated and staff callers; complete a real uploaded-PDF device walkthrough and inspect the audit record. |
 | Download/security | Screenshot and recording deterrence | Verified, platform-limited | Native authorized lesson screens activate supported screen-capture prevention on Android/iOS; web and out-of-band recording remain outside application control. |
 | External services | Razorpay UPI payments | Credential-dependent | Boundary exists; merchant keys and webhook configuration are still required. |
 | External services | OTP email/SMS delivery | Credential-dependent | Provider boundary exists; real provider configuration required for delivery. |
@@ -52,6 +52,6 @@ The current recovery fixed four coupled issues: the demo student/teacher account
 
 ## Final Automated and Integrity Evidence
 
-The release-gate run completed with Expo SDK dependency compatibility verification, TypeScript checking, linting, and five automated test files containing eighteen assertions. The Android static export completed successfully and emitted the Android bundle plus export metadata. The API health route returned a successful response after validation.
+The release-gate run completed with Expo SDK dependency compatibility verification, TypeScript checking, linting, and five automated test files containing nineteen assertions. The Android static export completed successfully and emitted the Android bundle plus export metadata. The API health route returned a successful response after validation. The current download-policy migration added the default-off `downloadAllowed` column, immutable resource-download events, and their lookup indexes without altering existing resource content.
 
 The final read-only database-integrity query found zero orphaned sessions, enrollments, learning-progress records, Short likes, or Short saves, and zero duplicate enrollment, like, or save relationships. These checks validate current relational consistency; they do not replace production backup, observability, or provider-level monitoring.

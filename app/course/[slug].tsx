@@ -1,6 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as Sharing from "expo-sharing";
+import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, IconCircle, OutlineButton, PrimaryButton, Tag, formatPrice } from "@/components/lms-ui";
@@ -14,6 +16,7 @@ export default function CourseDetailScreen() {
   const courseQuery = trpc.catalog.course.useQuery({ slug: slug ?? "" }, { enabled: Boolean(slug) });
   const learningQuery = trpc.student.courseLearning.useQuery({ courseId: courseQuery.data?.course.id ?? 0 }, { enabled: Boolean(user && courseQuery.data?.course.id), retry: false });
   const enrollMutation = trpc.student.enrollFree.useMutation({ onSuccess: () => void learningQuery.refetch() });
+  const resourceDownloadMutation = trpc.student.requestResourceDownload.useMutation();
 
   if (courseQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
   if (courseQuery.isError) return <ScreenContainer className="items-center justify-center px-5"><Card style={styles.errorCard}><Text style={styles.notFound}>Course information could not load. Check your connection and try again.</Text><PrimaryButton label="Retry" icon="refresh" onPress={() => void courseQuery.refetch()} /></Card></ScreenContainer>;
@@ -37,6 +40,27 @@ export default function CourseDetailScreen() {
       Alert.alert("Enrollment unavailable", cause instanceof Error ? cause.message : "Please try again.");
     }
   };
+  const downloadResource = async (resourceId: number, title: string) => {
+    try {
+      const issued = await resourceDownloadMutation.mutateAsync({ resourceId });
+      if (Platform.OS === "web") {
+        await Linking.openURL(issued.signedUrl);
+        return;
+      }
+      const cacheDirectory = FileSystem.cacheDirectory;
+      if (!cacheDirectory) throw new Error("Your device does not provide a temporary download folder.");
+      const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-note"}.pdf`;
+      const targetUri = `${cacheDirectory}${Date.now()}-${safeFileName}`;
+      const result = await FileSystem.downloadAsync(issued.signedUrl, targetUri);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(result.uri, { mimeType: issued.resource.mimeType, dialogTitle: `Save or share ${issued.resource.title}` });
+        return;
+      }
+      Alert.alert("PDF downloaded", "The file is ready in this app’s temporary download area.");
+    } catch (error) {
+      Alert.alert("Download unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
+    }
+  };
 
   return (
     <ScreenContainer edges={["top", "bottom", "left", "right"]} className="px-5">
@@ -48,7 +72,7 @@ export default function CourseDetailScreen() {
         {course.fullDescription ? <><Text style={styles.sectionTitle}>About this course</Text><Text style={styles.description}>{course.fullDescription}</Text></> : null}
         {benefits.length ? <><Text style={styles.sectionTitle}>What you will learn</Text><Card style={styles.benefitCard}>{benefits.map((benefit, index) => <View key={`${benefit}-${index}`} style={styles.benefitRow}><IconCircle icon="check" size={26} color={COLORS.green} background={COLORS.greenSoft} /><Text style={styles.benefitText}>{benefit}</Text></View>)}</Card></> : null}
         <Text style={styles.sectionTitle}>Course content</Text>
-        {enrolled ? <View style={styles.moduleList}>{learningQuery.data?.modules.map((module, index) => <Card key={module.id} style={styles.moduleCard}><View style={styles.moduleHeader}><View style={styles.moduleNumber}><Text style={styles.moduleNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.moduleTitle}>{module.title}</Text><Text style={styles.moduleCount}>{module.lessons.length} lesson{module.lessons.length === 1 ? "" : "s"}{module.resources.length ? ` · ${module.resources.length} resources` : ""}</Text></View></View>{module.resources.map((resource) => <Pressable key={`resource-${resource.id}`} onPress={() => resource.contentUrl ? void Linking.openURL(resource.contentUrl) : undefined} style={({ pressed }) => [styles.resourceRow, pressed && styles.pressed]}><MaterialIcons name={resource.resourceType === "video" ? "video-library" : "picture-as-pdf"} size={20} color={resource.resourceType === "video" ? COLORS.indigo : COLORS.red} /><Text style={styles.lessonTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></Pressable>)}{module.lessons.map((row) => <Pressable key={row.lesson.id} onPress={() => router.push(`/lesson/${row.lesson.id}`)} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><MaterialIcons name={row.progress?.isCompleted ? "check-circle" : "play-circle-outline"} size={20} color={row.progress?.isCompleted ? COLORS.green : COLORS.indigo} /><Text style={styles.lessonTitle}>{row.lesson.title}</Text><Text style={styles.lessonDuration}>{Math.ceil(row.lesson.durationSeconds / 60)}m</Text></Pressable>)}</Card>)}</View> : <Card style={styles.lockedCard}><IconCircle icon="lock" size={40} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={{ flex: 1 }}><Text style={styles.lockedTitle}>Enroll to unlock the full course</Text><Text style={styles.lockedBody}>Your course sequence, resources and progress become available after server-authorized enrollment.</Text></View></Card>}
+        {enrolled ? <View style={styles.moduleList}>{learningQuery.data?.modules.map((module, index) => <Card key={module.id} style={styles.moduleCard}><View style={styles.moduleHeader}><View style={styles.moduleNumber}><Text style={styles.moduleNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.moduleTitle}>{module.title}</Text><Text style={styles.moduleCount}>{module.lessons.length} lesson{module.lessons.length === 1 ? "" : "s"}{module.resources.length ? ` · ${module.resources.length} resources` : ""}</Text></View></View>{module.resources.map((resource) => <View key={`resource-${resource.id}`} style={styles.resourceRow}><Pressable onPress={() => resource.contentUrl ? void Linking.openURL(resource.contentUrl) : undefined} style={({ pressed }) => [styles.resourceOpen, pressed && styles.pressed]}><MaterialIcons name={resource.resourceType === "video" ? "video-library" : "picture-as-pdf"} size={20} color={resource.resourceType === "video" ? COLORS.indigo : COLORS.red} /><Text style={styles.lessonTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></Pressable>{resource.resourceType === "pdf" && resource.downloadAllowed ? <Pressable accessibilityRole="button" accessibilityLabel={`Download ${resource.title}`} onPress={() => void downloadResource(resource.id, resource.title)} disabled={resourceDownloadMutation.isPending} style={({ pressed }) => [styles.downloadButton, (pressed || resourceDownloadMutation.isPending) && styles.pressed]}><MaterialIcons name={resourceDownloadMutation.isPending ? "hourglass-top" : "download"} size={17} color={COLORS.indigo} /><Text style={styles.downloadText}>{resourceDownloadMutation.isPending ? "Preparing" : "Download"}</Text></Pressable> : null}</View>)}{module.lessons.map((row) => <Pressable key={row.lesson.id} onPress={() => router.push(`/lesson/${row.lesson.id}`)} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><MaterialIcons name={row.progress?.isCompleted ? "check-circle" : "play-circle-outline"} size={20} color={row.progress?.isCompleted ? COLORS.green : COLORS.indigo} /><Text style={styles.lessonTitle}>{row.lesson.title}</Text><Text style={styles.lessonDuration}>{Math.ceil(row.lesson.durationSeconds / 60)}m</Text></Pressable>)}</Card>)}</View> : <Card style={styles.lockedCard}><IconCircle icon="lock" size={40} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={{ flex: 1 }}><Text style={styles.lockedTitle}>Enroll to unlock the full course</Text><Text style={styles.lockedBody}>Your course sequence, resources and progress become available after server-authorized enrollment.</Text></View></Card>}
         <View style={styles.reviewHint}><Text style={styles.reviewTitle}>Course reviews</Text><Text style={styles.reviewBody}>Reviews can be submitted by eligible enrolled learners and moderated by the operations team.</Text><OutlineButton label="Browse more courses" icon="explore" onPress={() => router.push("/explore")} /></View>
       </ScrollView>
     </ScreenContainer>
@@ -83,7 +107,10 @@ const styles = StyleSheet.create({
   moduleTitle: { color: COLORS.ink, fontWeight: "800", fontSize: 15 },
   moduleCount: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
   lessonRow: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 9, borderTopColor: COLORS.line, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
-  resourceRow: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 9, borderTopColor: COLORS.line, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, backgroundColor: "#FAFBFF", borderRadius: 9, paddingHorizontal: 7 },
+  resourceRow: { minHeight: 43, flexDirection: "row", alignItems: "center", gap: 7, borderTopColor: COLORS.line, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, backgroundColor: "#FAFBFF", borderRadius: 9, paddingHorizontal: 7 },
+  resourceOpen: { flex: 1, minHeight: 34, flexDirection: "row", alignItems: "center", gap: 9 },
+  downloadButton: { minHeight: 34, borderRadius: 9, backgroundColor: COLORS.indigoSoft, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 4 },
+  downloadText: { color: COLORS.indigo, fontSize: 11, fontWeight: "900" },
   lessonTitle: { flex: 1, color: COLORS.ink, fontSize: 13, fontWeight: "600" },
   lessonDuration: { color: COLORS.muted, fontSize: 11 },
   resourceType: { color: COLORS.indigo, fontSize: 10, fontWeight: "900" },

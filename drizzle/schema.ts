@@ -213,12 +213,28 @@ export const moduleResources = mysqlTable(
     durationSeconds: int("durationSeconds").default(0).notNull(),
     thumbnailUrl: varchar("thumbnailUrl", { length: 1024 }),
     isPublished: boolean("isPublished").default(false).notNull(),
+    downloadAllowed: boolean("downloadAllowed").default(false).notNull(),
     displayOrder: int("displayOrder").default(0).notNull(),
     createdByUserId: int("createdByUserId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   (table) => [index("module_resources_module_order_idx").on(table.moduleId, table.displayOrder)],
+);
+
+export const resourceDownloadEvents = mysqlTable(
+  "resource_download_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    resourceId: int("resourceId").notNull(),
+    resourceType: mysqlEnum("resourceDownloadType", ["pdf"]).notNull(),
+    downloadedAt: timestamp("downloadedAt").defaultNow().notNull(),
+  },
+  (table) => [
+    index("resource_download_events_user_time_idx").on(table.userId, table.downloadedAt),
+    index("resource_download_events_resource_time_idx").on(table.resourceId, table.downloadedAt),
+  ],
 );
 
 export const freePlaylists = mysqlTable(

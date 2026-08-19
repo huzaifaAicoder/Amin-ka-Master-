@@ -70,7 +70,11 @@ const mediaReferenceSchema = z.object({
   if (!value.contentUrl && !value.storageKey) ctx.addIssue({ code: "custom", message: "Upload a file or provide a media URL", path: ["contentUrl"] });
 });
 const moduleResourceSchema = mediaReferenceSchema.safeExtend({
-  resourceId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), resourceType: z.enum(["video", "pdf"]), isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
+  resourceId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), resourceType: z.enum(["video", "pdf"]), isPublished: z.boolean(), downloadAllowed: z.boolean().default(false), displayOrder: z.number().int().min(0).max(10000),
+}).superRefine((value, ctx) => {
+  if (value.downloadAllowed && value.resourceType !== "pdf") {
+    ctx.addIssue({ code: "custom", message: "Only PDF module resources can be made downloadable", path: ["downloadAllowed"] });
+  }
 });
 const freePlaylistSchema = z.object({
   playlistId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), thumbnailUrl: optionalUrl, isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
@@ -284,6 +288,13 @@ export const appRouter = router({
     enrollFree: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
     learning: protectedProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
     courseLearning: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).query(({ ctx, input }) => db.getCourseLearning(ctx.user.id, input.courseId)),
+    requestResourceDownload: protectedProcedure.input(z.object({ resourceId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
+      const result = await db.getAuthorizedResourceDownload(ctx.user.id, input.resourceId);
+      if (result.status === "not_enrolled") throw new TRPCError({ code: "FORBIDDEN", message: "An active course enrollment is required to download this material." });
+      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This PDF is unavailable for download." });
+      return result;
+    }),
     lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson) throw new Error("Lesson was not found");
@@ -405,7 +416,7 @@ export const appRouter = router({
     saveModuleResource: requireRoles(["teacher", "admin", "super_admin"]).input(moduleResourceSchema).mutation(async ({ ctx, input }) => {
       await requireContentManagementPermission(ctx.user);
       const resourceId = await db.saveModuleResource({ ...input, contentUrl: input.contentUrl || undefined, storageKey: input.storageKey || undefined, provider: input.provider || undefined, mimeType: input.mimeType || undefined, thumbnailUrl: input.thumbnailUrl || undefined, createdByUserId: ctx.user.id });
-      await db.writeAudit({ actorUserId: ctx.user.id, action: input.resourceId ? "module_resource.updated" : "module_resource.created", entityType: "module_resource", entityId: resourceId, metadata: { moduleId: input.moduleId, resourceType: input.resourceType } });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: input.resourceId ? "module_resource.updated" : "module_resource.created", entityType: "module_resource", entityId: resourceId, metadata: { moduleId: input.moduleId, resourceType: input.resourceType, downloadAllowed: input.downloadAllowed } });
       return { resourceId };
     }),
     freePlaylists: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {

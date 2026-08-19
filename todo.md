@@ -87,5 +87,5 @@
 - [x] Review query efficiency, indexing, payloads, caching, pagination, rate-limiting, and realistic load-test capacity without overstating concurrency results.
 - [x] Verify payment and AI architecture boundaries remain server-secure with no fake provider success, and document credential-dependent work.
 - [ ] Enforce the final evidence-based release gate with regression, security, integrity, responsive, Android, and strongest available stress validation.
-- [ ] Add policy-controlled, audited student downloads for eligible supplementary course resources while keeping video and non-approved resources non-downloadable by default.
+- [x] Add policy-controlled, audited student downloads for eligible supplementary course resources while keeping video and non-approved resources non-downloadable by default.
 - [x] Repair the mobile Operations dashboard request failure so authenticated Owner/Admin/Teacher users receive real server summary data and actionable session recovery.

@@ -34,6 +34,7 @@ import {
   orders,
   personalNotes,
   educationalShorts,
+  resourceDownloadEvents,
   shortLikes,
   shortSaves,
   freePlaylistItems,
@@ -723,6 +724,40 @@ export async function getCourseLearning(userId: number, courseId: number) {
   };
 }
 
+export async function getAuthorizedResourceDownload(userId: number, resourceId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const rows = await database
+    .select({ resource: moduleResources, module: courseModules, course: courses })
+    .from(moduleResources)
+    .innerJoin(courseModules, eq(moduleResources.moduleId, courseModules.id))
+    .innerJoin(courses, eq(courseModules.courseId, courses.id))
+    .where(and(
+      eq(moduleResources.id, resourceId),
+      eq(moduleResources.resourceType, "pdf"),
+      eq(moduleResources.isPublished, true),
+      eq(moduleResources.downloadAllowed, true),
+      eq(courseModules.isPublished, true),
+    ))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return { status: "unavailable" as const };
+
+  const enrollment = await getEnrollment(userId, row.course.id);
+  if (!enrollmentIsActive(enrollment)) return { status: "not_enrolled" as const };
+
+  const storageKey = managedStorageKey(row.resource.contentUrl, row.resource.storageKey);
+  if (!storageKey) return { status: "unavailable" as const };
+
+  const signedUrl = await storageGetSignedUrl(storageKey);
+  await database.insert(resourceDownloadEvents).values({ userId, resourceId, resourceType: "pdf" });
+  return {
+    status: "authorized" as const,
+    signedUrl,
+    resource: { id: row.resource.id, title: row.resource.title, mimeType: row.resource.mimeType ?? "application/pdf" },
+  };
+}
+
 export async function getAuthorizedLesson(userId: number, lessonId: number) {
   const database = await getDb();
   if (!database) return undefined;
@@ -1103,12 +1138,13 @@ export async function saveModuleResource(input: {
   durationSeconds: number;
   thumbnailUrl?: string;
   isPublished: boolean;
+  downloadAllowed: boolean;
   displayOrder: number;
   createdByUserId: number;
 }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
-  const values = { moduleId: input.moduleId, title: input.title, description: input.description, resourceType: input.resourceType, contentUrl: input.contentUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, isPublished: input.isPublished, displayOrder: input.displayOrder };
+  const values = { moduleId: input.moduleId, title: input.title, description: input.description, resourceType: input.resourceType, contentUrl: input.contentUrl, storageKey: input.storageKey, provider: input.provider, mimeType: input.mimeType, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl, isPublished: input.isPublished, downloadAllowed: input.downloadAllowed, displayOrder: input.displayOrder };
   if (input.resourceId) {
     await database.update(moduleResources).set(values).where(and(eq(moduleResources.id, input.resourceId), eq(moduleResources.moduleId, input.moduleId)));
     return input.resourceId;

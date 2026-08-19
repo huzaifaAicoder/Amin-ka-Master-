@@ -39,6 +39,8 @@ Create catalog categories in **Teacher access → Manage course categories** bef
 
 Course and playlist uploads are limited to video files and PDFs and are limited to 150 MB by the server. The application is tuned for older Android devices and slower networks; use compressed, mobile-friendly video encodes and concise PDFs. Published managed media is delivered as a short-lived signed URL only after the student has passed the relevant authorization check. Direct `learning-media/` storage-proxy access is denied.
 
+To permit a supplementary-note download, open **Operations → Course structure & lessons**, edit the relevant module resource, select **PDF note**, upload the PDF through protected storage, and enable **Allow enrolled students to download** before saving. Leave this control off unless the material is deliberately approved for offline distribution. Video resources cannot be made downloadable.
+
 Student tests are scored server-side. On submission, the student receives the configured passing threshold, answer review, and any authored explanations. The client timer triggers submission at zero, while the server independently rejects attempts submitted after the permitted time.
 
 ## Credential-dependent integrations
@@ -75,7 +77,9 @@ Authorized lesson screens now enable the native `expo-screen-capture` protection
 
 > Screen-capture deterrence reduces casual copying; it does **not** guarantee piracy prevention. Another device can record a display, and platform capabilities vary by version and device.
 
-Course media and resources are delivered through authorization-gated, short-lived signed URLs. The current product does **not** expose a configurable “download lecture” control, because there is no approved per-resource download policy, audit model, or offline-file lifecycle yet. Do not add a generic Share action for protected course media. If downloads are approved, add an explicit per-resource permission, a server-authorized download action, activity logging, expiry behavior, and device-side file handling before enabling it.
+Course media and resources are delivered through authorization-gated, short-lived signed URLs. A configurable download action exists only for a published **module PDF** for which staff explicitly enabled the per-resource download policy. The server rejects videos, unpublished resources, disabled policies, non-managed external URLs, inactive or expired enrollments, and non-student callers. Each successful download authorization creates a `resource_download_events` record containing the student, resource, PDF type, and timestamp before a fresh managed-storage signed URL is returned.
+
+On Android and iOS, the app downloads the authorized PDF into its temporary cache and opens the operating-system share sheet so the learner can save or open it in a compatible application. On web, it opens the newly issued signed URL in the browser. This is intentionally a per-resource action; there is no generic “download all” or download control for video. Signed-link expiry and device file retention remain platform/storage responsibilities, so staff should share only materials appropriate for offline learner access.
 
 ## Performance and capacity evidence
 
@@ -91,6 +95,6 @@ These results do **not** prove 10,000 concurrent users. Before that target can b
 
 ## Release checklist
 
-Before publishing, verify that Owner Setup Code, Staff Passkey, database connectivity, storage, and any required OTP/payment provider variables are configured. Run TypeScript checking, the automated security suite, and an Android export. Confirm that an Owner can create a Teacher, grant only selected permissions, publish a free course resource, and that a Student can consume that resource only after enrollment. Save a checkpoint, then use the platform **Publish** action to create the release build.
+Before publishing, verify that Owner Setup Code, Staff Passkey, database connectivity, storage, and any required OTP/payment provider variables are configured. Run TypeScript checking, the automated security suite, and an Android export. Confirm that an Owner can create a Teacher, grant only selected permissions, publish a free course resource, and that a Student can consume that resource only after enrollment. For the download policy, verify a protected uploaded PDF with the switch both off and on, verify the resulting audit event for an actively enrolled student, and confirm that the generated file can be saved on a real Android or iOS device. Save a checkpoint, then use the platform **Publish** action to create the release build.
 
 > Razorpay/UPI credentials are the only remaining blocker for accepting live paid-course purchases. Until verified server-side payment handling is configured, paid-course access remains intentionally unavailable.
