@@ -9,7 +9,7 @@
 | Authentication | Owner/Super Admin sign-in and setup code | Verified | Owner code checks and first-owner test coverage are present. |
 | Authentication | Logout, session invalidation, expired session | Verified | Logout regression tests and server session revocation are present; a revoked browser session was verified to clear local identity and redirect to sign-in on HTTP 401. |
 | Authentication | Invalid credentials and unauthorized route access | Verified | Login feedback and protected-route/security regression coverage are present. |
-| Student | Home, discovery, search, category filtering | Needs QA | Requires authenticated student UI and persistence-path walkthrough in this QA cycle. |
+| Student | Home, discovery, search, category filtering | Needs QA | Requires authenticated student UI and persistence-path walkthrough in this QA cycle. The Home screen now also links an authenticated Student to the explicitly labelled Ask AI placeholder. |
 | Student | Course details, free enrollment, access checks | Needs QA | Server entitlement logic exists; exercise published/free and unauthorized paths. |
 | Student | Lesson navigation, video, progress, bookmarks, notes | Needs QA | Authorized delivery has been implemented; test on student UI and verify refresh persistence. |
 | Student | Tests, timeout, scoring, review | Needs QA | Server-authoritative scoring and review exist; run student attempt and invalid/duplicate checks. |
@@ -18,10 +18,10 @@
 | Student | Saved Shorts library | Verified | Protected per-student saved-only API and Account entry point return only currently published items with fresh signed playback URLs; removal invalidates both saved and feed caches. |
 | Student | Certificates | Needs repair | No completed certificate issuance flow is verified. |
 | Teacher/Admin | Operations dashboard metrics and course summary | Verified | Authenticated API smoke test returns HTTP 200 with database-backed 3 students, 2 courses, 2 enrollments, and 1 upcoming session. Server emits a complete numeric zero fallback if aggregation fails; the client keeps live totals visible when only the course list cannot load. |
-| Teacher/Admin | Course listing and course create/update/status | Verified | Authenticated live API smoke check plus Super Admin Course Manager preview verified real seeded records; run final CRUD persistence check. |
+| Teacher/Admin | Course listing and course create/update/status | Verified | The Course Manager accepts parsed numeric price values through the server validation contract, persists the explicitly selected edit-form status, and renders the list status as display-only. Automated Admin update coverage uses a seeded record; run final mobile CRUD persistence check. |
 | Teacher/Admin | Categories | Needs QA | Super Admin category workspace exists; test create/update/archive and course usage. |
 | Teacher/Admin | Modules, lessons, resources | Needs QA | Server authorization and signed-media delivery exist; test staff create/update/publish and student authorization. |
-| Teacher/Admin | Media upload and Short creation | Verified | Managed-media URL validation regression test and authenticated API smoke passed after upload and save procedure repair. |
+| Teacher/Admin | Media upload and Short creation | Verified | Media Studio now submits authenticated `multipart/form-data`; an isolated live Super Admin multipart smoke upload returned HTTP 201. Explicit draft/publish actions surface completion or server error messages. Run a real gallery-upload and persisted media walkthrough on-device. |
 | Teacher/Admin | Existing-media edit/unpublish | Verified | Protected Media Maintenance workspace is discoverable from Operations and uses existing server-enforced save/status procedures. |
 | Teacher/Admin | Tests, questions, live classes | Needs QA | Existing management screens require full CRUD and invalid-input walkthrough. |
 | Teacher/Admin | Student management, notifications, CMS | Needs QA | Owner controls exist; verify role boundaries and persistence. |
@@ -39,7 +39,7 @@
 | Download/security | Screenshot and recording deterrence | Verified, platform-limited | Native authorized lesson screens activate supported screen-capture prevention on Android/iOS; web and out-of-band recording remain outside application control. |
 | External services | Razorpay UPI payments | Credential-dependent | Boundary exists; merchant keys and webhook configuration are still required. |
 | External services | OTP email/SMS delivery | Credential-dependent | Provider boundary exists; real provider configuration required for delivery. |
-| External services | AI tutor/Q&A | Needs QA | Do not fabricate responses; assess server architecture and credential/configuration boundary. |
+| External services | AI tutor/Q&A | Needs QA | A student-only chat-like UI and protected placeholder mutation return a transparent non-provider response. Tests reject unauthenticated and staff callers; select a provider and complete safety, retention, and quality QA before generated answers are enabled. |
 | Responsive QA | Mobile, tablet, desktop | Needs QA | Desktop authenticated flows were observed; perform targeted phone/tablet layout and native feature checks. |
 
 ## Verification Procedure
@@ -52,6 +52,6 @@ The current recovery fixed four coupled issues: the demo student/teacher account
 
 ## Final Automated and Integrity Evidence
 
-The release-gate run completed with Expo SDK dependency compatibility verification, TypeScript checking, linting, and five automated test files containing twenty-one assertions. The Android static export completed successfully and emitted the Android bundle plus export metadata. The API health route returned a successful response after validation. The current download-policy migration added the default-off `downloadAllowed` column, immutable resource-download events, and their lookup indexes without altering existing resource content.
+The release-gate run completed with Expo SDK dependency compatibility verification, TypeScript checking, linting, and five automated test files containing twenty-three assertions. The Android static export completed successfully and emitted the Android bundle plus export metadata. The API health route returned a successful response after validation. The current download-policy migration added the default-off `downloadAllowed` column, immutable resource-download events, and their lookup indexes without altering existing resource content.
 
 The final read-only database-integrity query found zero orphaned sessions, enrollments, learning-progress records, Short likes, or Short saves, and zero duplicate enrollment, like, or save relationships. These checks validate current relational consistency; they do not replace production backup, observability, or provider-level monitoring.

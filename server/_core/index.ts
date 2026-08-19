@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import multer from "multer";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -75,7 +76,14 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  app.post("/api/media-upload", express.raw({ type: "*/*", limit: "150mb" }), async (req, res) => {
+  const mediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024, files: 1 } });
+  app.post("/api/media-upload", (req, res, next) => mediaUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+    const message = error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? "Choose a file smaller than 150 MB for a reliable mobile-data upload."
+      : "The selected media file could not be read. Please choose it again and retry.";
+    res.status(400).json({ error: message });
+  }), async (req, res) => {
     try {
       const authorization = req.headers.authorization;
       const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
@@ -88,20 +96,22 @@ async function startServer() {
         res.status(403).json({ error: "Your Teacher account is not permitted to upload learning media." });
         return;
       }
-      const mimeType = (req.headers["content-type"] ?? "application/octet-stream").split(";")[0].toLowerCase();
+      const uploadedFile = req.file;
+      if (!uploadedFile || !Buffer.isBuffer(uploadedFile.buffer) || uploadedFile.buffer.length === 0) {
+        res.status(400).json({ error: "Choose a non-empty video or PDF file to upload." });
+        return;
+      }
+      const declaredMimeType = typeof req.body?.mimeType === "string" ? req.body.mimeType : "";
+      const mimeType = (uploadedFile.mimetype || declaredMimeType || "application/octet-stream").split(";")[0].toLowerCase();
       if (!(mimeType === "application/pdf" || mimeType.startsWith("video/"))) {
         res.status(415).json({ error: "Only PDF notes and video files can be uploaded." });
         return;
       }
-      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-        res.status(400).json({ error: "Choose a non-empty video or PDF file to upload." });
-        return;
-      }
-      const rawName = typeof req.headers["x-file-name"] === "string" ? req.headers["x-file-name"] : "learning-media";
+      const rawName = uploadedFile.originalname || "learning-media";
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-160) || "learning-media";
       const kind = mimeType === "application/pdf" ? "pdf" : "video";
-      const stored = await storagePut(`learning-media/${session.user.id}/${kind}_${Date.now()}_${safeName}`, req.body, mimeType);
-      res.status(201).json({ key: stored.key, url: stored.url, mimeType, sizeBytes: req.body.length, provider: "managed_storage" });
+      const stored = await storagePut(`learning-media/${session.user.id}/${kind}_${Date.now()}_${safeName}`, uploadedFile.buffer, mimeType);
+      res.status(201).json({ key: stored.key, url: stored.url, mimeType, sizeBytes: uploadedFile.buffer.length, provider: "managed_storage" });
     } catch (error) {
       console.error("[media-upload] Failed", error);
       res.status(500).json({ error: "The media upload could not be completed. Please try again on a stable connection." });

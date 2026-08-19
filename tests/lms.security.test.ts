@@ -70,11 +70,19 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.toggleShortLike({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.toggleShortSave({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.askAi({ question: "How do I calculate a field area?" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("does not let staff use the student PDF-download endpoint", async () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("limits the AI placeholder to students and returns a provider-safe response", async () => {
+    const staffCaller = appRouter.createCaller(createContext(admin));
+    const studentCaller = appRouter.createCaller(createContext(student));
+    await expect(staffCaller.student.askAi({ question: "Explain chain surveying" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(studentCaller.student.askAi({ question: "Explain chain surveying" })).resolves.toEqual(expect.objectContaining({ mode: "placeholder", answer: expect.stringContaining("AI is thinking") }));
   });
 
   it("rejects initial Super Admin setup without the private owner code", async () => {
@@ -105,6 +113,25 @@ describe("LMS security boundaries", () => {
       enrollments: expect.any(Number),
       upcomingLiveClasses: expect.any(Number),
     }));
+  });
+
+  it("accepts numeric course prices and persists an explicitly selected course status", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    const managedCourses = await caller.operations.courses();
+    expect(managedCourses.length).toBeGreaterThan(0);
+    const course = managedCourses[0].course;
+    await expect(caller.operations.updateCourse({
+      courseId: course.id,
+      categoryId: course.categoryId,
+      title: course.title,
+      slug: course.slug,
+      shortDescription: course.shortDescription,
+      mrp: Number(course.mrp),
+      sellingPrice: Number(course.sellingPrice),
+      accessType: course.accessType,
+      accessDurationDays: course.accessDurationDays,
+      status: course.status,
+    })).resolves.toEqual({ success: true });
   });
 
   it("reserves PDF download-event monitoring for Admin and Super Admin roles", async () => {

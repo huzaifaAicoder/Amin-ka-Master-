@@ -49,6 +49,10 @@ const ownerLoginSchema = z.object({
 });
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
+const moneySchema = z.union([
+  z.number().finite().nonnegative(),
+  z.string().trim().regex(/^\d+(\.\d{1,2})?$/),
+]).transform((value) => typeof value === "number" ? value.toFixed(2) : value);
 export const optionalMediaUrl = z.string().trim().max(2048).refine((value) => {
   if (value === "" || value.startsWith("/manus-storage/")) return true;
   try {
@@ -339,6 +343,10 @@ export const appRouter = router({
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
       return result;
     }),
+    askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "The Doubt Solver is available in the student learning experience." });
+      return { answer: "AI is thinking... This is a secure placeholder response. Connect an approved AI provider to generate a subject-specific explanation.", mode: "placeholder" as const, question: input.question };
+    }),
   }),
   operations: router({
     summary: requireRoles(["teacher", "admin", "super_admin"]).query(({ ctx }) => {
@@ -384,17 +392,19 @@ export const appRouter = router({
         slug: z.string().trim().regex(/^[a-z0-9-]+$/).max(240),
         shortDescription: z.string().trim().min(10).max(500),
         fullDescription: z.string().trim().max(20000).optional(),
-        mrp: z.string().regex(/^\d+(\.\d{1,2})?$/),
-        sellingPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+        mrp: moneySchema,
+        sellingPrice: moneySchema,
         accessType: z.enum(["free", "lifetime", "time_limited"]),
         accessDurationDays: z.number().int().positive().max(3650).nullable().optional(),
+        status: z.enum(["draft", "published", "archived"]).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         await requireContentManagementPermission(ctx.user);
+        if (input.status) await requireDelegatedPermission(ctx.user, "courses.publish");
         if (Number(input.sellingPrice) > Number(input.mrp)) throw new Error("Selling price cannot exceed MRP");
         if (input.accessType === "time_limited" && !input.accessDurationDays) throw new Error("Time-limited courses need an access duration");
         await db.updateCourse(input);
-        await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title } });
+        await db.writeAudit({ actorUserId: ctx.user.id, action: "course.updated", entityType: "course", entityId: input.courseId, metadata: { title: input.title, status: input.status } });
         return { success: true } as const;
       }),
     courseStructure: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ courseId: z.number().int().positive() })).query(async ({ ctx, input }) => {

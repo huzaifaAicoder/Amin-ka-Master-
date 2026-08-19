@@ -1075,10 +1075,11 @@ export async function updateCourse(input: {
   sellingPrice: string;
   accessType: "free" | "lifetime" | "time_limited";
   accessDurationDays?: number | null;
+  status?: "draft" | "published" | "archived";
 }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
-  await database
+  const result = await database
     .update(courses)
     .set({
       categoryId: input.categoryId,
@@ -1090,8 +1091,10 @@ export async function updateCourse(input: {
       sellingPrice: input.sellingPrice,
       accessType: input.accessType,
       accessDurationDays: input.accessDurationDays,
+      ...(input.status ? { status: input.status } : {}),
     })
     .where(eq(courses.id, input.courseId));
+  if (result[0].affectedRows !== 1) throw new Error("Course was not found or could not be updated");
 }
 
 export async function createCategory(input: { name: string; slug: string; description?: string }) {

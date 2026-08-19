@@ -35,9 +35,9 @@ Staff Passkey rotation is an emergency or scheduled security action. Rotation re
 
 ### Content and learning operations
 
-Create catalog categories in **Teacher access → Manage course categories** before creating courses. Course creation, pricing, modules, lessons, PDFs, Free Playlists, Shorts, tests, and live classes are managed from Operations. Course prices must be entered in INR and the selling price may not exceed the MRP.
+Create catalog categories in **Teacher access → Manage course categories** before creating courses. Course creation, pricing, modules, lessons, PDFs, Free Playlists, Shorts, tests, and live classes are managed from Operations. Course prices must be entered in INR and the selling price may not exceed the MRP. In **Manage courses → Edit**, choose **Course status** (Draft, Published, or Archived) and then select **Save course changes**; the course-list status label is display-only and cannot silently change a course.
 
-Course and playlist uploads are limited to video files and PDFs and are limited to 150 MB by the server. The application is tuned for older Android devices and slower networks; use compressed, mobile-friendly video encodes and concise PDFs. Published managed media is delivered as a short-lived signed URL only after the student has passed the relevant authorization check. Direct `learning-media/` storage-proxy access is denied.
+Course and playlist uploads are limited to video files and PDFs and are limited to 150 MB by the server. Media Studio sends an authenticated multipart file request and confirms either **Save draft** or **Publish** after the server persists the corresponding Short or Free Playlist record. The application is tuned for older Android devices and slower networks; use compressed, mobile-friendly video encodes and concise PDFs. Published managed media is delivered as a short-lived signed URL only after the student has passed the relevant authorization check. Direct `learning-media/` storage-proxy access is denied.
 
 To permit a supplementary-note download, open **Operations → Course structure & lessons**, edit the relevant module resource, select **PDF note**, upload the PDF through protected storage, and enable **Allow enrolled students to download** before saving. Leave this control off unless the material is deliberately approved for offline distribution. Video resources cannot be made downloadable.
 
@@ -55,7 +55,7 @@ The following boundaries are deliberately **not faked**. The relevant user exper
 | Development-only OTP | Logs an OTP only outside production | Never set `OTP_DELIVERY_PROVIDER=development` in production |
 | Managed storage | Upload and signed-download paths are implemented through the runtime storage service | Ensure built-in Forge storage credentials are available in the deployment runtime; do not replace with public bucket URLs |
 | Browser CORS | Local and managed preview origins are accepted during development | Set `CORS_ALLOWED_ORIGINS` to the comma-separated production web origins before publishing a web build |
-| AI assistant or study generator | No learner-facing AI feature is exposed | Select the required study workflow, prompts, safety review, and server-side model integration before enabling an AI feature |
+| AI assistant or study generator | A student-only **Ask AI** placeholder screen and protected server mutation are available; no external model is called and the response is explicitly labelled as a placeholder | Select the required study workflow, prompts, safety review, rate limits, conversation-retention policy, and server-side model integration before enabling generated answers |
 
 ## Security and data operations
 

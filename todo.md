@@ -91,3 +91,6 @@
 - [x] Repair the mobile Operations dashboard request failure so authenticated Owner/Admin/Teacher users receive real server summary data and actionable session recovery.
 - [x] Add an authorized Operations dashboard view for staff to monitor PDF resource-download audit events.
 - [x] Restore a reliable Operations dashboard API response and zero-value fallback after the reported loading regression.
+- [x] Repair Media Studio publish/draft submission payloads and server persistence for Shorts and Free Playlist media.
+- [x] Repair Owner/Admin course price updates and replace list quick-toggles with explicit status selection inside the course edit form.
+- [x] Add an authenticated Student AI Doubt Solver placeholder UI and protected server response boundary without external AI-provider credentials.

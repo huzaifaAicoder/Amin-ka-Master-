@@ -60,6 +60,7 @@ export default function HomeScreen() {
             <MaterialIcons name="chevron-right" size={24} color={COLORS.muted} />
           </Pressable>
         ) : null}
+        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>NEW STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Type a question and prepare for the upcoming AI assistant.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
         <SectionHeading title="Study by topic" action="Explore" onPress={() => router.push("/explore")} />
         {categoriesQuery.isLoading ? <ActivityIndicator color={COLORS.indigo} /> : <FlatList horizontal showsHorizontalScrollIndicator={false} data={categoriesQuery.data ?? []} contentContainerStyle={styles.categories} keyExtractor={(item) => item.id.toString()} renderItem={({ item, index }) => <Pressable onPress={() => router.push(`/explore?category=${item.slug}`)} style={({ pressed }) => [styles.categoryCard, index % 2 === 1 && styles.categoryCardWarm, pressed && styles.pressed]}><MaterialIcons name={index % 2 === 0 ? "straighten" : "account-balance"} size={23} color={COLORS.indigo} /><Text style={styles.categoryText}>{item.name}</Text></Pressable>} />}
 
@@ -90,6 +91,11 @@ const styles = StyleSheet.create({
   liveLabel: { color: COLORS.green, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   liveTitle: { color: COLORS.ink, fontWeight: "800", fontSize: 14 },
   liveMeta: { color: COLORS.muted, fontSize: 12 },
+  askAi: { marginTop: 16, padding: 13, borderRadius: 19, backgroundColor: COLORS.indigo, flexDirection: "row", alignItems: "center", gap: 10 },
+  askAiCopy: { flex: 1, gap: 2 },
+  askAiLabel: { color: COLORS.saffron, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  askAiTitle: { color: COLORS.white, fontSize: 15, fontWeight: "900" },
+  askAiBody: { color: "#D6DFF2", fontSize: 11, lineHeight: 16 },
   previewAdmin: { marginTop: 16, padding: 13, borderRadius: 19, backgroundColor: COLORS.indigo, flexDirection: "row", gap: 10, alignItems: "center" },
   previewCopy: { flex: 1, gap: 2 },
   previewLabel: { color: COLORS.saffron, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },

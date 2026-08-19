@@ -28,7 +28,7 @@ These are **non-production seed accounts** included solely to make feature revie
 
 ## Admin entry path
 
-An account with the **Teacher**, **Admin**, or **Super Admin** role is now sent directly to **Operations** after sign-in. From there, select **Manage courses** to create a draft course, edit the title, summary, category, access type and pricing for any existing course, and cycle its publication state between draft, published and archived. The same **Manage courses** shortcut is also shown prominently at the top of the Account tab for every staff role.
+An account with the **Teacher**, **Admin**, or **Super Admin** role is now sent directly to **Operations** after sign-in. From there, select **Manage courses** to create a draft course or edit the title, summary, category, access type and pricing for any existing course. Admin and Super Admin accounts set Draft, Published, or Archived through the explicit **Course status** selector inside the edit form; the list status is display-only until **Save course changes** is selected. The same **Manage courses** shortcut is also shown prominently at the top of the Account tab for every staff role.
 
 ## Security controls
 

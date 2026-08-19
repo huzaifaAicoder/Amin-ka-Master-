@@ -29,15 +29,19 @@ export async function uploadLearningMedia(asset: PickedLearningMedia): Promise<U
   }
   const token = await Auth.getSessionToken();
   if (!token) throw new Error("Your staff session has expired. Sign in again before uploading media.");
-  const body = asset.file ?? await (await fetch(asset.uri)).blob();
+  const form = new FormData();
+  if (asset.file) {
+    form.append("file", asset.file, asset.name);
+  } else {
+    form.append("file", { uri: asset.uri, name: asset.name, type: mimeType } as unknown as Blob);
+  }
+  form.append("mimeType", mimeType);
   const response = await fetch(`${getApiBaseUrl()}/api/media-upload`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": mimeType,
-      "X-File-Name": asset.name,
     },
-    body,
+    body: form,
   });
   const payload = await response.json().catch(() => null) as (UploadedLearningMedia & { error?: string }) | null;
   if (!response.ok || !payload?.url || !payload.key) {
