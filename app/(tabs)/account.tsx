@@ -1,13 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useState } from "react";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
-import { trpc } from "@/lib/trpc";
-import { usePanelRefresh } from "@/hooks/use-panel-refresh";
 
 type AccountRowProps = { icon: React.ComponentProps<typeof MaterialIcons>["name"]; label: string; detail?: string; onPress: () => void; tone?: "default" | "danger" };
 function AccountRow({ icon, label, detail, onPress, tone = "default" }: AccountRowProps) {
@@ -17,9 +15,7 @@ function AccountRow({ icon, label, detail, onPress, tone = "default" }: AccountR
 export default function AccountScreen() {
   const router = useRouter();
   const { user, logout } = useLmsSession();
-  const utils = trpc.useUtils();
   const [signingOut, setSigningOut] = useState(false);
-  const { refreshing, onRefresh } = usePanelRefresh([() => utils.invalidate()]);
   const staff = user && user.role !== "student";
 
   if (!user) {
@@ -34,7 +30,7 @@ export default function AccountScreen() {
   };
   return (
     <ScreenContainer className="px-5" edges={["top", "left", "right"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.indigo]} tintColor={COLORS.indigo} />}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Account</Text>
         <View style={styles.profileCard}><View style={styles.avatar}><Text style={styles.avatarText}>{(user.fullName ?? "A").slice(0, 1).toUpperCase()}</Text></View><View style={styles.profileText}><Text style={styles.name}>{user.fullName ?? "Learner"}</Text><Text style={styles.identity}>{user.email ?? user.mobile ?? "Amin Ka Master learner"}</Text><Tag label={user.role.replace("_", " ").toUpperCase()} tone={staff ? "saffron" : "indigo"} /></View></View>
         <Text style={styles.sectionTitle}>Learning</Text>

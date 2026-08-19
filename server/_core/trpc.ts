@@ -27,7 +27,7 @@ const requireUser = t.middleware(async (opts) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
-export const requireRoles = (roles: Array<"developer" | "teacher" | "admin" | "super_admin">) =>
+export const requireRoles = (roles: Array<"teacher" | "admin" | "super_admin">) =>
   protectedProcedure.use(
     t.middleware(({ ctx, next }) => {
       if (!ctx.user || !roles.includes(ctx.user.role as (typeof roles)[number])) {

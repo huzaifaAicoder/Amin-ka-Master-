@@ -23,7 +23,6 @@ function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] }
     loginMethod: "manus",
     role: "student",
     status: "active",
-    canUploadShorts: false,
     avatarUrl: null,
     createdAt: new Date(),
     updatedAt: new Date(),

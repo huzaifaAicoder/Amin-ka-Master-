@@ -8,7 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { getSessionUser, getStudentShortUploadAccess, hasAnyPermission } from "../db";
+import { getSessionUser, hasAnyPermission } from "../db";
 import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -88,17 +88,12 @@ async function startServer() {
       const authorization = req.headers.authorization;
       const token = authorization?.startsWith("Bearer ") ? authorization.slice(7).trim() : undefined;
       const session = token ? await getSessionUser(token) : undefined;
-      const isStudentShortUpload = Boolean(session && session.user.role === "student" && req.body?.purpose === "student_short");
-      if (!session || (!isStudentShortUpload && !["teacher", "admin", "super_admin"].includes(session.user.role))) {
-        res.status(401).json({ error: "Staff access or an authenticated student Short submission is required to upload media." });
+      if (!session || !["teacher", "admin", "super_admin"].includes(session.user.role)) {
+        res.status(401).json({ error: "Staff authentication is required to upload learning media." });
         return;
       }
       if (session.user.role === "teacher" && !(await hasAnyPermission(session.user, ["course_content.manage", "media.manage"]))) {
         res.status(403).json({ error: "Your Teacher account is not permitted to upload learning media." });
-        return;
-      }
-      if (isStudentShortUpload && !(await getStudentShortUploadAccess(session.user.id)).canUploadShorts) {
-        res.status(403).json({ error: "Short uploads are not enabled for this student account." });
         return;
       }
       const uploadedFile = req.file;
@@ -112,15 +107,10 @@ async function startServer() {
         res.status(415).json({ error: "Only PDF notes and video files can be uploaded." });
         return;
       }
-      if (isStudentShortUpload && !mimeType.startsWith("video/")) {
-        res.status(415).json({ error: "Student Short submissions must be video files." });
-        return;
-      }
       const rawName = uploadedFile.originalname || "learning-media";
       const safeName = rawName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-160) || "learning-media";
       const kind = mimeType === "application/pdf" ? "pdf" : "video";
-      const namespace = isStudentShortUpload ? "student-short-submissions" : "learning-media";
-      const stored = await storagePut(`${namespace}/${session.user.id}/${kind}_${Date.now()}_${safeName}`, uploadedFile.buffer, mimeType);
+      const stored = await storagePut(`learning-media/${session.user.id}/${kind}_${Date.now()}_${safeName}`, uploadedFile.buffer, mimeType);
       res.status(201).json({ key: stored.key, url: stored.url, mimeType, sizeBytes: uploadedFile.buffer.length, provider: "managed_storage" });
     } catch (error) {
       console.error("[media-upload] Failed", error);

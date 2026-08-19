@@ -1,8 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as FileSystem from "expo-file-system/legacy";
-import * as ScreenCapture from "expo-screen-capture";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
+import * as Sharing from "expo-sharing";
 import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -18,19 +17,12 @@ export default function CourseDetailScreen() {
   const learningQuery = trpc.student.courseLearning.useQuery({ courseId: courseQuery.data?.course.id ?? 0 }, { enabled: Boolean(user && courseQuery.data?.course.id), retry: false });
   const enrollMutation = trpc.student.enrollFree.useMutation({ onSuccess: () => void learningQuery.refetch() });
   const resourceDownloadMutation = trpc.student.requestResourceDownload.useMutation();
-  const enrolled = learningQuery.data?.enrolled === true;
-  const protectedCourseId = courseQuery.data?.course.id;
-  useEffect(() => {
-    if (!enrolled || !protectedCourseId || Platform.OS === "web") return;
-    const key = `authorized-course-${protectedCourseId}`;
-    void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined);
-    return () => { void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined); };
-  }, [enrolled, protectedCourseId]);
 
   if (courseQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
   if (courseQuery.isError) return <ScreenContainer className="items-center justify-center px-5"><Card style={styles.errorCard}><Text style={styles.notFound}>Course information could not load. Check your connection and try again.</Text><PrimaryButton label="Retry" icon="refresh" onPress={() => void courseQuery.refetch()} /></Card></ScreenContainer>;
   if (!courseQuery.data) return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.notFound}>This course is not available.</Text></ScreenContainer>;
   const { course, categoryName, instructorName } = courseQuery.data;
+  const enrolled = learningQuery.data?.enrolled === true;
   const benefits = Array.isArray(course.benefits) ? course.benefits.filter((item): item is string => typeof item === "string") : [];
   const startLearning = () => {
     const firstLesson = learningQuery.data?.modules[0]?.lessons[0]?.lesson;
@@ -52,17 +44,19 @@ export default function CourseDetailScreen() {
     try {
       const issued = await resourceDownloadMutation.mutateAsync({ resourceId });
       if (Platform.OS === "web") {
-        Alert.alert("Native app required", "Secure offline PDF storage is available only in the Android or iOS app. Web downloads are intentionally not opened in an external browser.");
+        await Linking.openURL(issued.signedUrl);
         return;
       }
-      const documentDirectory = FileSystem.documentDirectory;
-      if (!documentDirectory) throw new Error("Your device does not provide private app storage.");
+      const cacheDirectory = FileSystem.cacheDirectory;
+      if (!cacheDirectory) throw new Error("Your device does not provide a temporary download folder.");
       const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-note"}.pdf`;
-      const privateFolder = `${documentDirectory}protected-resources/`;
-      await FileSystem.makeDirectoryAsync(privateFolder, { intermediates: true });
-      const targetUri = `${privateFolder}${Date.now()}-${safeFileName}`;
-      await FileSystem.downloadAsync(issued.signedUrl, targetUri);
-      Alert.alert("Stored securely", "This PDF was saved to the app’s private storage. Sharing to other applications and public download locations is disabled.");
+      const targetUri = `${cacheDirectory}${Date.now()}-${safeFileName}`;
+      const result = await FileSystem.downloadAsync(issued.signedUrl, targetUri);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(result.uri, { mimeType: issued.resource.mimeType, dialogTitle: `Save or share ${issued.resource.title}` });
+        return;
+      }
+      Alert.alert("PDF downloaded", "The file is ready in this app’s temporary download area.");
     } catch (error) {
       Alert.alert("Download unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
     }

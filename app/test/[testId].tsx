@@ -8,15 +8,13 @@ import { COLORS, EmptyState, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
 
-type AttemptReview = { attemptId: number; testId: number; testTitle: string; status: "submitted" | "expired"; score: number; totalMarks: number; passingMarks: number; durationMinutes: number; elapsedSeconds: number; review: { questionId: number; prompt: string; options: unknown; selectedOptionIndex: number | null; correctOptionIndex: number; isCorrect: boolean; marksAwarded: number; explanation: string | null }[] };
-
 function useAttemptState() {
   const [attempt, setAttempt] = useState<{ attemptId: number; durationMinutes: number; title: string; questions: { id: number; prompt: string; options: unknown; marks: number }[] } | null>(null);
   return [attempt, setAttempt] as const;
 }
 
 export default function TestAttemptScreen() {
-  const { testId, attemptId: reviewAttemptId } = useLocalSearchParams<{ testId: string; attemptId?: string }>();
+  const { testId } = useLocalSearchParams<{ testId: string }>();
   const router = useRouter();
   const { user } = useLmsSession();
   const startMutation = trpc.student.startTest.useMutation();
@@ -25,9 +23,7 @@ export default function TestAttemptScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [remainingSeconds, setRemainingSeconds] = useState(0);
-  const [result, setResult] = useState<AttemptReview | null>(null);
-  const requestedReviewId = Number(reviewAttemptId);
-  const historicalReviewQuery = trpc.student.testAttemptReview.useQuery({ attemptId: requestedReviewId }, { enabled: Boolean(user && Number.isInteger(requestedReviewId) && requestedReviewId > 0), retry: false });
+  const [result, setResult] = useState<{ score: number; totalMarks: number; passingMarks: number; review: { questionId: number; prompt: string; options: unknown; selectedOptionIndex: number | null; correctOptionIndex: number; isCorrect: boolean; marksAwarded: number; explanation: string | null }[] } | null>(null);
   const autoSubmitting = useRef(false);
 
   useEffect(() => {
@@ -40,7 +36,7 @@ export default function TestAttemptScreen() {
     try {
       const data = await startMutation.mutateAsync({ testId: Number(testId) });
       setAttempt({ attemptId: data.attemptId, durationMinutes: data.test.durationMinutes, title: data.test.title, questions: data.questions });
-      setRemainingSeconds(data.remainingSeconds);
+      setRemainingSeconds(data.test.durationMinutes * 60);
     } catch (cause) {
       Alert.alert("Test unavailable", cause instanceof Error ? cause.message : "Please return to the test list.");
     }
@@ -49,8 +45,7 @@ export default function TestAttemptScreen() {
     if (!attempt) return;
     try {
       const data = await submitMutation.mutateAsync({ attemptId: attempt.attemptId, answers: attempt.questions.map((question) => ({ questionId: question.id, selectedOptionIndex: answers[question.id] ?? null })) });
-      if (data.status === "in_progress") throw new Error("This assessment is still in progress.");
-      setResult({ ...data, status: data.status === "expired" ? "expired" : "submitted" });
+      setResult({ score: data.score, totalMarks: data.totalMarks, passingMarks: data.passingMarks, review: data.review });
     } catch (cause) {
       Alert.alert("Unable to submit", cause instanceof Error ? cause.message : "Your attempt was not submitted. Please try again.");
     }
@@ -66,14 +61,9 @@ export default function TestAttemptScreen() {
   const seconds = (remainingSeconds % 60).toString().padStart(2, "0");
 
   if (!user) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="lock-person" title="Sign in to take a test" body="Secure assessment attempts belong to an authenticated learning profile." /></View></ScreenContainer>;
-  if (requestedReviewId > 0 && historicalReviewQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
-  if (requestedReviewId > 0 && historicalReviewQuery.isError) return <ScreenContainer className="px-5"><View style={styles.center}><EmptyState icon="assignment-late" title="Review unavailable" body="This attempt may no longer be available. Return to your protected attempt history and try again." action={<PrimaryButton label="Attempt history" icon="history" onPress={() => router.replace("/test-history" as never)} />} /></View></ScreenContainer>;
-  const historicalResult = historicalReviewQuery.data && historicalReviewQuery.data.status !== "in_progress" ? historicalReviewQuery.data : null;
-  const displayedResult = result ?? historicalResult;
-  if (displayedResult) {
-    const passed = displayedResult.status === "submitted" && displayedResult.passingMarks > 0 && displayedResult.score >= displayedResult.passingMarks;
-    const timeUsed = `${Math.floor(displayedResult.elapsedSeconds / 60)}m ${(displayedResult.elapsedSeconds % 60).toString().padStart(2, "0")}s`;
-    return <ScreenContainer className="px-5" edges={["top", "bottom", "left", "right"]}><ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}><View style={styles.resultWrap}><View style={styles.scoreRing}><Text style={styles.score}>{displayedResult.score}</Text><Text style={styles.outOf}>of {displayedResult.totalMarks}</Text></View><Tag label={displayedResult.status === "expired" ? "TIME EXPIRED" : displayedResult.passingMarks > 0 ? passed ? "PASSED" : "KEEP PRACTISING" : "ATTEMPT COMPLETE"} tone={displayedResult.status === "expired" ? "saffron" : passed || displayedResult.passingMarks === 0 ? "green" : "saffron"} /><Text style={styles.resultTitle}>{displayedResult.status === "expired" ? "Time expired" : passed || displayedResult.passingMarks === 0 ? "Attempt recorded" : "Keep practising"}</Text><Text style={styles.resultBody}>Your score, timing, and answer review were calculated on the server. {displayedResult.status === "expired" ? "Answers submitted after the deadline are not accepted." : `You used ${timeUsed} of ${displayedResult.durationMinutes} minutes.`} Passing mark: {displayedResult.passingMarks || "not configured"}.</Text></View><Text style={styles.reviewTitle}>Detailed answer review</Text>{displayedResult.review.map((item, index) => { const options = Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === "string") : []; return <View key={item.questionId} style={[styles.reviewCard, item.isCorrect ? styles.reviewCorrect : styles.reviewIncorrect]}><View style={styles.reviewHeader}><Text style={styles.reviewQuestion}>Question {index + 1} · {item.marksAwarded} mark{item.marksAwarded === 1 ? "" : "s"}</Text><Tag label={item.isCorrect ? "CORRECT" : "REVIEW"} tone={item.isCorrect ? "green" : "saffron"} /></View><Text style={styles.reviewPrompt}>{item.prompt}</Text>{options.map((option, optionIndex) => { const selected = item.selectedOptionIndex === optionIndex; const correct = item.correctOptionIndex === optionIndex; return <View key={`${option}-${optionIndex}`} style={[styles.reviewOption, selected && styles.reviewOptionSelected, correct && styles.reviewOptionCorrect]}><Text style={[styles.reviewOptionLetter, correct && styles.reviewOptionCorrectText]}>{String.fromCharCode(65 + optionIndex)}</Text><Text style={[styles.reviewOptionText, correct && styles.reviewOptionCorrectText]}>{option}</Text>{correct ? <MaterialIcons name="check-circle" size={18} color={COLORS.green} /> : selected ? <MaterialIcons name="cancel" size={18} color={COLORS.red} /> : null}</View>; })}<Text style={styles.reviewAnswer}>Your answer: {item.selectedOptionIndex === null ? "Not answered" : options[item.selectedOptionIndex] ?? "Selected answer"}</Text>{item.explanation ? <View style={styles.explanationBox}><MaterialIcons name="lightbulb-outline" size={18} color={COLORS.earth} /><View style={styles.explanationCopy}><Text style={styles.explanationLabel}>WHY THIS IS CORRECT</Text><Text style={styles.explanation}>{item.explanation}</Text></View></View> : <Text style={styles.explanationMissing}>No additional explanation was authored for this question.</Text>}</View>; })}<PrimaryButton label="Back to tests" onPress={() => router.replace("/tests")} icon="assignment" /></ScrollView></ScreenContainer>;
+  if (result) {
+    const passed = result.passingMarks > 0 && result.score >= result.passingMarks;
+    return <ScreenContainer className="px-5" edges={["top", "bottom", "left", "right"]}><ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}><View style={styles.resultWrap}><View style={styles.scoreRing}><Text style={styles.score}>{result.score}</Text><Text style={styles.outOf}>of {result.totalMarks}</Text></View><Tag label={result.passingMarks > 0 ? passed ? "PASSED" : "KEEP PRACTISING" : "ATTEMPT COMPLETE"} tone={passed || result.passingMarks === 0 ? "green" : "saffron"} /><Text style={styles.resultTitle}>{passed || result.passingMarks === 0 ? "Attempt recorded" : "Keep practising"}</Text><Text style={styles.resultBody}>Your score and review were calculated on the server from the stored answer key. Passing mark: {result.passingMarks || "not configured"}.</Text></View><Text style={styles.reviewTitle}>Answer review</Text>{result.review.map((item, index) => { const options = Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === "string") : []; const selected = item.selectedOptionIndex === null ? "Not answered" : options[item.selectedOptionIndex] ?? "Selected answer"; const correct = options[item.correctOptionIndex] ?? "Correct answer"; return <View key={item.questionId} style={[styles.reviewCard, item.isCorrect ? styles.reviewCorrect : styles.reviewIncorrect]}><View style={styles.reviewHeader}><Text style={styles.reviewQuestion}>Question {index + 1}</Text><Tag label={item.isCorrect ? "CORRECT" : "REVIEW"} tone={item.isCorrect ? "green" : "saffron"} /></View><Text style={styles.reviewPrompt}>{item.prompt}</Text><Text style={styles.reviewAnswer}>Your answer: {selected}</Text>{!item.isCorrect ? <Text style={styles.correctAnswer}>Correct answer: {correct}</Text> : null}{item.explanation ? <Text style={styles.explanation}>{item.explanation}</Text> : null}</View>; })}<PrimaryButton label="Back to tests" onPress={() => router.replace("/tests")} icon="assignment" /></ScrollView></ScreenContainer>;
   }
   if (!attempt) return <ScreenContainer className="px-5"><View style={styles.center}><Text style={styles.preTitle}>TIMED MCQ ASSESSMENT</Text><Text style={styles.readyTitle}>Ready to begin?</Text><Text style={styles.readyBody}>The timer starts when the server creates your attempt. Your score is calculated only when you submit.</Text><PrimaryButton label={startMutation.isPending ? "Starting test…" : "Start test"} onPress={begin} icon="play-arrow" disabled={startMutation.isPending} /></View></ScreenContainer>;
   if (!currentQuestion) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
@@ -93,7 +83,7 @@ const styles = StyleSheet.create({
   resultTitle: { color: COLORS.ink, fontSize: 28, fontWeight: "800", marginTop: 4 },
   resultBody: { color: COLORS.muted, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: 7 },
   reviewTitle: { color: COLORS.ink, fontSize: 19, fontWeight: "900", marginTop: 12 },
-  reviewCard: { borderRadius: 18, padding: 13, borderWidth: 1, gap: 8, backgroundColor: COLORS.white }, reviewCorrect: { borderColor: "#B5E0C6" }, reviewIncorrect: { borderColor: "#F3D0A7" }, reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, reviewQuestion: { color: COLORS.ink, fontSize: 12, fontWeight: "900" }, reviewPrompt: { color: COLORS.ink, fontSize: 14, lineHeight: 20, fontWeight: "800" }, reviewOption: { minHeight: 43, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8 }, reviewOptionSelected: { borderColor: "#F5B6B6", backgroundColor: "#FFF5F5" }, reviewOptionCorrect: { borderColor: "#B5E0C6", backgroundColor: "#F0FAF4" }, reviewOptionLetter: { color: COLORS.muted, width: 18, fontSize: 12, fontWeight: "900" }, reviewOptionText: { color: COLORS.ink, flex: 1, fontSize: 12, lineHeight: 17 }, reviewOptionCorrectText: { color: COLORS.green, fontWeight: "800" }, reviewAnswer: { color: COLORS.muted, fontSize: 12, lineHeight: 18 }, explanationBox: { borderRadius: 12, padding: 11, gap: 8, backgroundColor: "#FFF5E8", flexDirection: "row", alignItems: "flex-start" }, explanationCopy: { flex: 1, gap: 4 }, explanationLabel: { color: COLORS.earth, fontSize: 10, letterSpacing: 0.8, fontWeight: "900" }, explanation: { color: COLORS.earth, fontSize: 12, lineHeight: 18 }, explanationMissing: { color: COLORS.muted, fontSize: 12, lineHeight: 18, fontStyle: "italic" },
+  reviewCard: { borderRadius: 18, padding: 13, borderWidth: 1, gap: 7, backgroundColor: COLORS.white }, reviewCorrect: { borderColor: "#B5E0C6" }, reviewIncorrect: { borderColor: "#F3D0A7" }, reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, reviewQuestion: { color: COLORS.ink, fontSize: 12, fontWeight: "900" }, reviewPrompt: { color: COLORS.ink, fontSize: 14, lineHeight: 20, fontWeight: "800" }, reviewAnswer: { color: COLORS.muted, fontSize: 12, lineHeight: 18 }, correctAnswer: { color: COLORS.green, fontSize: 12, lineHeight: 18, fontWeight: "800" }, explanation: { color: COLORS.earth, backgroundColor: "#FFF5E8", borderRadius: 10, padding: 10, fontSize: 12, lineHeight: 18 },
   attemptHeader: { paddingTop: 10, minHeight: 61, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   timer: { minHeight: 39, backgroundColor: COLORS.indigoSoft, paddingHorizontal: 12, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 6 },
   timerText: { color: COLORS.indigo, fontWeight: "900", fontVariant: ["tabular-nums"] },

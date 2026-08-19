@@ -6,7 +6,7 @@
 - [x] Create database migrations and managed LMS seed data.
 - [x] Implement public catalog discovery, course search, free enrollment, and entitlement checks.
 - [x] Implement lesson hierarchy, protected learning access, persisted progress, bookmarks, and personal notes.
-- [x] Implement timed MCQ tests, server-derived scoring, explanations, and attempt history.
+- [ ] Implement timed MCQ tests, server-derived scoring, explanations, and attempt history.
 - [x] Implement authorized live-class and in-app notification workflows.
 - [ ] Implement role-aware operations screens and server procedures for course, assessment, live class, and CMS management.
 - [x] Create payment-provider and email-delivery boundaries without exposing credentials or granting unverified paid access.
@@ -96,25 +96,5 @@
 - [x] Add an authenticated Student AI Doubt Solver placeholder UI and protected server response boundary without external AI-provider credentials.
 - [x] Defer Google Gemini integration and retain a key-independent Student AI placeholder so missing provider credentials never block development or preview startup.
 - [x] Add in-button loading spinners and progress labels to Media Studio draft and publish actions during file processing.
-- [x] Add a Developer-only portal and four-tier server-enforced role boundary that removes branding and API configuration from Owner controls.
-- [x] Upgrade Shorts with protected comments, play/pause overlay controls, moderated student submissions, and Owner/Admin moderation actions.
-- [x] Add validated YouTube and Instagram Short embeds for staff media while preserving managed-media authorization.
-- [x] Add Owner/Admin editing for existing course categories, including validated name and slug persistence.
-- [x] Extend supported native capture prevention to protected Shorts and document web and device limitations.
-- [x] Add a discreet Developer Portal entry on the public landing screen while preserving private passkey and role enforcement.
-- [x] Add shared pull-to-refresh or visible refresh controls across the primary learner and Operations panels.
-- [x] Add secure student-facing timed MCQ attempt history with server-derived status, score, and timing metadata.
-- [x] Add detailed post-attempt per-question answer explanations without exposing active-test answers before submission.
-- [x] Add a staff-authorized edit workflow for existing MCQ prompts, options, correct answers, marks, and learner explanations.
-- [x] Audit and apply the uploaded master instruction set in ordered phases without rebuilding or regressing existing LMS, security, and Shorts features.
-- [x] Stabilize Shorts FlatList viewability callbacks and verify empty Operations course lists remain successful responses.
-- [x] Strengthen supported student-session capture protection and in-app media handling without weakening authorized resource access.
-- [x] Add controlled per-student Shorts upload permission with Owner/Admin management and pending moderation preservation.
-- [x] Improve media upload feedback with measurable progress, cancellation, and completion/error notifications.
-- [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.
-- [x] Build a dedicated Admin/Owner Shorts moderation dashboard with review context, preview, decision notes, approval, rejection, and pending-queue refresh.
-- [x] Add upload-date sorting and subject-category filters to the Admin/Owner Shorts moderation dashboard.
-- [x] Add Today and Last 7 Days quick date-range presets to the Admin/Owner Shorts moderation dashboard.
-- [x] Audit and apply the newly uploaded instruction set without rebuilding or regressing the existing LMS, Shorts, moderation, and security workflows.
-- [x] Add a seven-tap Developer Portal discovery gesture to the authenticated landing logo while preserving the existing secure Developer route and passkey controls.
-- [x] Audit and strengthen the Developer Portal’s safe system-health diagnostics without exposing secrets, executing self-generated fixes, or requiring unavailable CAPTCHA/AI-provider credentials.
+- [x] Add subtle visual progress feedback during the seven-tap Developer Portal discovery sequence without revealing or bypassing protected access.
+- [x] Add subtle visual progress feedback during the seven-tap Developer Portal discovery sequence without revealing or bypassing protected access.

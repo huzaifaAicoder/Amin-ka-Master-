@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { ActivityIndicator, Platform, View } from "react-native";
-import { usePreventScreenCapture } from "expo-screen-capture";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import {
@@ -31,36 +30,22 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
   const rootSegment = segments[0];
-  const isAuthRoute = rootSegment === "auth" || rootSegment === "oauth";
-  const isDeveloperRoute = rootSegment === "dev-portal";
+  const isPublicRoute = rootSegment === "auth" || rootSegment === "oauth";
   const isStaffRoute = rootSegment === "operations";
-  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
+  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
 
   useEffect(() => {
     if (loading) return;
-    if (!user && !isAuthRoute && !isDeveloperRoute) router.replace("/auth");
-    if (user && isAuthRoute) router.replace(user.role === "developer" ? "/dev-portal" : user.role === "student" ? "/" : "/operations");
-    if (user?.role === "developer" && !isDeveloperRoute) router.replace("/dev-portal");
-    if (user && user.role !== "developer" && isDeveloperRoute) router.replace(user.role === "student" ? "/" : "/operations");
+    if (!user && !isPublicRoute) router.replace("/auth");
+    if (user && isPublicRoute) router.replace("/");
     if (user?.role === "student" && isStaffRoute) router.replace("/");
-    if (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute) router.replace("/operations");
-  }, [isAuthRoute, isDeveloperRoute, isStaffRoute, isStudentPortalRoute, loading, router, user]);
+    if (user && user.role !== "student" && isStudentPortalRoute) router.replace("/operations");
+  }, [isPublicRoute, isStaffRoute, isStudentPortalRoute, loading, router, user]);
 
-  if (loading || (!user && !isAuthRoute && !isDeveloperRoute) || (user && isAuthRoute) || (user?.role === "developer" && !isDeveloperRoute) || (user && user.role !== "developer" && isDeveloperRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute)) {
+  if (loading || (!user && !isPublicRoute) || (user && isPublicRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && isStudentPortalRoute)) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
   }
   return <>{children}</>;
-}
-
-function NativeStudentCaptureGuard() {
-  usePreventScreenCapture("student-session");
-  return null;
-}
-
-function StudentSessionCaptureGuard() {
-  const { user } = useLmsSession();
-  if (Platform.OS === "web" || user?.role !== "student") return null;
-  return <NativeStudentCaptureGuard />;
 }
 
 export const unstable_settings = {
@@ -96,9 +81,8 @@ export default function RootLayout() {
       new QueryClient({
         defaultOptions: {
           queries: {
-            // Refresh mounted live data when the app returns to the foreground.
-            // Individual screens retain bounded pull-to-refresh for immediate control.
-            refetchOnWindowFocus: true,
+            // Disable automatic refetching on window focus for mobile
+            refetchOnWindowFocus: false,
             // Retry failed requests once
             retry: 1,
           },
@@ -125,12 +109,10 @@ export default function RootLayout() {
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <LmsSessionProvider>
-            <StudentSessionCaptureGuard />
             <AuthenticationGate>
               <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="(tabs)" />
                 <Stack.Screen name="auth" />
-                <Stack.Screen name="dev-portal" />
                 <Stack.Screen name="oauth/callback" />
               </Stack>
               <MediaMaintenanceShortcut />

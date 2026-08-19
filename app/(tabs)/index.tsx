@@ -1,12 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, IconCircle, PrimaryButton, ProgressBar, SectionHeading, Tag, formatPrice } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
-import { usePanelRefresh } from "@/hooks/use-panel-refresh";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -16,7 +15,6 @@ export default function HomeScreen() {
   const coursesQuery = trpc.catalog.courses.useQuery();
   const learningQuery = trpc.student.learning.useQuery(undefined, { enabled: Boolean(user), retry: false });
   const liveQuery = trpc.student.liveClasses.useQuery(undefined, { enabled: Boolean(user), retry: false });
-  const { refreshing, onRefresh } = usePanelRefresh([categoriesQuery.refetch, settingsQuery.refetch, coursesQuery.refetch, learningQuery.refetch, liveQuery.refetch]);
   const activeLearning = learningQuery.data?.[0];
   const upcomingClass = liveQuery.data?.[0];
   const publicSettings = settingsQuery.data ?? {};
@@ -28,7 +26,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer containerClassName="bg-background" className="px-5" edges={["top", "left", "right"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.indigo]} tintColor={COLORS.indigo} />}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>{user ? "YOUR LEARNING SPACE" : "LEARN. MEASURE. MASTER."}</Text>

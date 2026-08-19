@@ -9,7 +9,7 @@ type LmsUser = {
   email: string | null;
   mobile: string | null;
   loginMethod: string | null;
-  role: "developer" | "student" | "teacher" | "admin" | "super_admin";
+  role: "student" | "teacher" | "admin" | "super_admin";
   avatarUrl: string | null;
   createdAt: Date | string;
 };
