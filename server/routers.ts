@@ -49,8 +49,17 @@ const ownerLoginSchema = z.object({
 });
 
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
+export const optionalMediaUrl = z.string().trim().max(2048).refine((value) => {
+  if (value === "" || value.startsWith("/manus-storage/")) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}, "Provide an HTTPS/HTTP media URL or a managed upload path").optional().or(z.literal(""));
 const mediaReferenceSchema = z.object({
-  contentUrl: z.string().trim().url().max(2048).optional().or(z.literal("")),
+  contentUrl: optionalMediaUrl,
   storageKey: z.string().trim().max(1024).optional().or(z.literal("")),
   provider: z.string().trim().max(64).optional().or(z.literal("")),
   mimeType: z.string().trim().max(160).optional().or(z.literal("")),
@@ -308,6 +317,7 @@ export const appRouter = router({
     liveClasses: protectedProcedure.query(({ ctx }) => db.listMyLiveClasses(ctx.user.id)),
     freePlaylists: protectedProcedure.query(() => db.listPublishedFreePlaylists()),
     shorts: protectedProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
+    savedShorts: protectedProcedure.query(({ ctx }) => db.listSavedShorts(ctx.user.id)),
     toggleShortLike: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const result = await db.toggleShortLike(ctx.user.id, input.shortId);
       if (!result) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });

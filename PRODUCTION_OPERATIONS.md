@@ -69,6 +69,26 @@ The data model is migrated with Drizzle. Apply migrations through the project’
 | Payment dispute | Review the provider’s verified payment event and order state; do not manually mark an order paid from the client |
 | Production web origin changes | Update `CORS_ALLOWED_ORIGINS`, restart services, and validate authentication plus protected media |
 
+## Content capture and download controls
+
+Authorized lesson screens now enable the native `expo-screen-capture` protection while mounted on supported Android and iOS devices. This deters ordinary screenshots, recording, and Android app-switcher previews. It is intentionally not enabled on web, where browsers do not offer a reliable cross-browser equivalent.
+
+> Screen-capture deterrence reduces casual copying; it does **not** guarantee piracy prevention. Another device can record a display, and platform capabilities vary by version and device.
+
+Course media and resources are delivered through authorization-gated, short-lived signed URLs. The current product does **not** expose a configurable “download lecture” control, because there is no approved per-resource download policy, audit model, or offline-file lifecycle yet. Do not add a generic Share action for protected course media. If downloads are approved, add an explicit per-resource permission, a server-authorized download action, activity logging, expiry behavior, and device-side file handling before enabling it.
+
+## Performance and capacity evidence
+
+The application is designed to avoid obvious catalogue hot paths: course discovery has a status/category index; module and lesson ordering has composite indexes; sessions, enrollments, progress, and Shorts engagement have user- and resource-oriented indexes. Public catalogue requests no longer invoke managed cookie authentication when no bearer token or cookie exists, preventing avoidable runtime work and missing-session log noise for anonymous discovery traffic.
+
+| Validation | Result | Interpretation |
+|---|---:|---|
+| Local public-catalog burst | 100/100 HTTP 200 responses at 20-way concurrency in 3.823 seconds | A bounded sandbox smoke test; not a production capacity claim. |
+| Local health burst | 100/100 HTTP 200 responses at 20-way concurrency in 0.149 seconds | Confirms the lightweight service health route remains responsive in the sandbox. |
+| Anonymous runtime-auth log delta | 0 new “Missing session cookie” entries across a 20-request catalogue burst | Confirms anonymous public traffic skips unnecessary managed-auth lookup. |
+
+These results do **not** prove 10,000 concurrent users. Before that target can be claimed, run environment-representative load tests against production-like MySQL, storage/CDN, authentication, and video delivery infrastructure with observed latency, error rate, CPU, memory, database connections, and network throughput.
+
 ## Release checklist
 
 Before publishing, verify that Owner Setup Code, Staff Passkey, database connectivity, storage, and any required OTP/payment provider variables are configured. Run TypeScript checking, the automated security suite, and an Android export. Confirm that an Owner can create a Teacher, grant only selected permissions, publish a free course resource, and that a Student can consume that resource only after enrollment. Save a checkpoint, then use the platform **Publish** action to create the release build.

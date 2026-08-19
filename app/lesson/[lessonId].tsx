@@ -1,8 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as ScreenCapture from "expo-screen-capture";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
@@ -23,6 +24,12 @@ export default function LessonScreen() {
   const [note, setNote] = useState("");
 
   useEffect(() => setNote(authorizedData?.note?.body ?? ""), [authorizedData?.note?.body]);
+  useEffect(() => {
+    if (!authorizedData || Platform.OS === "web") return;
+    const key = `authorized-lesson-${authorizedData.lesson.id}`;
+    void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined);
+    return () => { void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined); };
+  }, [authorizedData?.lesson.id]);
   const sequence = useMemo(() => courseQuery.data?.modules.flatMap((module) => module.lessons.map((row) => row.lesson)) ?? [], [courseQuery.data]);
   const currentIndex = sequence.findIndex((lesson) => lesson.id === id);
   const previous = currentIndex > 0 ? sequence[currentIndex - 1] : undefined;
@@ -61,6 +68,7 @@ export default function LessonScreen() {
         <Text style={styles.courseName}>{course.title.toUpperCase()}</Text>
         <Text style={styles.title}>{lesson.title}</Text>
         <View style={styles.meta}><Tag label={lesson.contentType.toUpperCase()} tone="indigo" /><Text style={styles.metaText}>{Math.ceil(lesson.durationSeconds / 60)} min lesson</Text>{completed ? <Tag label="COMPLETE" tone="green" /> : null}</View>
+        {Platform.OS !== "web" ? <Text style={styles.captureNotice}>Screen capture deterrence is active for authorized lesson content on supported devices.</Text> : null}
         {lesson.contentType === "video" && lesson.contentUrl ? <LessonVideoPlayer source={lesson.contentUrl} /> : <View style={styles.player}><View style={styles.playerGrid}><MaterialIcons name={lesson.contentType === "video" ? "play-circle-filled" : "menu-book"} size={55} color={COLORS.saffron} /></View><Text style={styles.playerLabel}>{lesson.contentType === "video" ? "This video has not been published with a playback URL yet." : "Lesson reading"}</Text></View>}
         <Text style={styles.description}>{lesson.description ?? "Study the lesson and record your key takeaways below."}</Text>
         {lesson.contentType !== "video" ? <Card style={styles.readingCard}><Text style={styles.readingTitle}>Lesson material</Text><Text style={styles.readingText}>{lesson.contentUrl ? "Open the published lesson material, then record your own field notes below." : "The teacher has not added a reading or document link for this lesson yet."}</Text>{lesson.contentUrl ? <Pressable accessibilityRole="link" onPress={() => void openResource(lesson.contentUrl)} style={({ pressed }) => [styles.openMaterial, pressed && styles.pressed]}><MaterialIcons name="open-in-new" size={17} color={COLORS.indigo} /><Text style={styles.openMaterialText}>Open lesson material</Text></Pressable> : null}</Card> : null}
@@ -93,6 +101,7 @@ const styles = StyleSheet.create({
   title: { color: COLORS.ink, fontSize: 27, lineHeight: 34, fontWeight: "800", marginTop: 7 },
   meta: { marginTop: 12, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   metaText: { color: COLORS.muted, fontSize: 12 },
+  captureNotice: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 8 },
   player: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20, justifyContent: "center", alignItems: "center" },
   videoShell: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20 },
   video: { width: "100%", height: "100%" },

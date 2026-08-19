@@ -1237,6 +1237,34 @@ export async function listPublishedShorts(userId: number) {
   })));
 }
 
+export async function listSavedShorts(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const savedRows = await database
+    .select({ short: educationalShorts })
+    .from(shortSaves)
+    .innerJoin(educationalShorts, eq(shortSaves.shortId, educationalShorts.id))
+    .where(and(eq(shortSaves.userId, userId), eq(educationalShorts.status, "published")))
+    .orderBy(desc(shortSaves.createdAt));
+  const shorts = savedRows.map((row) => row.short);
+  if (!shorts.length) return [];
+  const shortIds = shorts.map((short) => short.id);
+  const [likeRows, studentLikeRows] = await Promise.all([
+    database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(inArray(shortLikes.shortId, shortIds)),
+    database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(and(eq(shortLikes.userId, userId), inArray(shortLikes.shortId, shortIds))),
+  ]);
+  const likeCounts = new Map<number, number>();
+  for (const row of likeRows) likeCounts.set(row.shortId, (likeCounts.get(row.shortId) ?? 0) + 1);
+  const likedShortIds = new Set(studentLikeRows.map((row) => row.shortId));
+  return Promise.all(shorts.map(async (short) => ({
+    ...short,
+    videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl,
+    likeCount: likeCounts.get(short.id) ?? 0,
+    isLiked: likedShortIds.has(short.id),
+    isSaved: true,
+  })));
+}
+
 async function isPublishedShort(shortId: number) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");

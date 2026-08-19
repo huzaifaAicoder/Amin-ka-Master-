@@ -66,6 +66,7 @@ describe("LMS security boundaries", () => {
   it("rejects protected learning requests without an authenticated server session", async () => {
     const caller = appRouter.createCaller(createContext(null));
     await expect(caller.student.learning()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.student.savedShorts()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.toggleShortLike({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.student.toggleShortSave({ shortId: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });

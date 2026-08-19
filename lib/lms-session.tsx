@@ -29,21 +29,19 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
   const [hasToken, setHasToken] = useState(false);
   const [localUser, setLocalUser] = useState<LmsUser | null>(null);
   const utils = trpc.useUtils();
-  const meQuery = trpc.auth.me.useQuery(undefined, { enabled: tokenReady && hasToken, retry: false });
+  const meQuery = trpc.auth.me.useQuery(undefined, {
+    enabled: tokenReady && hasToken,
+    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60 * 1000,
+  });
   const logoutMutation = trpc.auth.logout.useMutation();
 
   useEffect(() => {
     void (async () => {
       const [token, cachedUser] = await Promise.all([Auth.getSessionToken(), Auth.getUserInfo()]);
-      // A previous development build created this session without individual staff authentication.
-      // It is explicitly retired so phone previews must use the secure portal login flow.
-      if ((cachedUser as LmsUser | null)?.openId === "local_demo_super_admin") {
-        await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
-        setHasToken(false);
-        setLocalUser(null);
-        setTokenReady(true);
-        return;
-      }
       setHasToken(Boolean(token));
       setLocalUser((cachedUser as LmsUser | null) ?? null);
       setTokenReady(true);

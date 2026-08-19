@@ -27,8 +27,8 @@
 - [x] Make logout visibly clear the current profile and learning state before returning to public preview mode.
 - [ ] Build the Super Admin control center with database-driven branding, homepage, CMS, operational settings, and audit visibility.
 - [ ] Add Super Admin workflows for students, teachers, admins, permissions, enrollments, reviews, notifications, and operational reporting.
-- [ ] Expand course administration to modules, lessons, resources, ordering, visibility, pricing, and safe archive workflows.
-- [ ] Document provider-dependent boundaries for uploads, protected video, payments, email, push, certificates, and live delivery without exposing secrets.
+- [x] Expand course administration to modules, lessons, resources, ordering, visibility, pricing, and safe archive workflows.
+- [x] Document provider-dependent boundaries for uploads, protected video, payments, email, push, certificates, and live delivery without exposing secrets.
 - [x] Implement the Super Admin Control Center foundation for safe settings, homepage content, people/status controls, enrollments, read-only order review, review moderation, announcements, and audit activity.
 - [x] Make safe brand and homepage settings database-driven and reflect them in the learner home experience.
 - [x] Add persisted course-structure management for modules and lessons with order, publication, preview, provider, and content URL controls.
@@ -76,4 +76,14 @@
 - [x] Enforce granular server-side Teacher permissions and give Super Admin a safe grant/revoke workflow.
 - [x] Replace lesson placeholders with functional authorized media/resource delivery while preventing direct access to protected managed files.
 - [x] Complete student MCQ timeout, configured pass/fail, answer-explanation, and attempt-review workflows.
-- [ ] Complete owner-operable category and existing-media management paths with resilient loading, errors, and editing controls.
+- [x] Complete owner-operable category and existing-media management paths with resilient loading, errors, and editing controls.
+- [x] Restore real authenticated course listing and safe demo seed content for preview verification without bypassing server-side roles.
+- [x] Repair course creation and Short upload request lifecycles, including validation, media upload completion, and post-save refresh behavior.
+- [x] Eliminate preview/API sluggishness caused by fetch, authentication, or render regressions and validate the synchronized preview.
+- [x] Add an authorized Saved Shorts library for students and edit/unpublish maintenance controls for existing Shorts and Free Playlist content.
+- [x] Build and maintain an evidence-based functionality verification matrix covering every critical role, action, API, and persistence path.
+- [ ] Complete full CRUD, authorization, protected-media, navigation, loading/error, data-integrity, mobile, and desktop QA; repair only verified defects.
+- [x] Assess controlled authorized resource-download rules and platform-supported screen-capture deterrence, documenting unavoidable limitations.
+- [x] Review query efficiency, indexing, payloads, caching, pagination, rate-limiting, and realistic load-test capacity without overstating concurrency results.
+- [x] Verify payment and AI architecture boundaries remain server-secure with no fake provider success, and document credential-dependent work.
+- [ ] Enforce the final evidence-based release gate with regression, security, integrity, responsive, Android, and strongest available stress validation.

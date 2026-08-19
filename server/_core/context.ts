@@ -22,7 +22,10 @@ export async function createContext(opts: CreateExpressContextOptions): Promise<
       user = session?.user ?? null;
       sessionId = session?.sessionId;
     }
-    if (!user) user = await sdk.authenticateRequest(opts.req);
+    // Skip the managed runtime lookup for fully anonymous requests. Protected
+    // procedures still reject the resulting null user, while public catalog
+    // traffic avoids an unnecessary cookie-auth attempt and warning per call.
+    if (!user && opts.req.headers.cookie) user = await sdk.authenticateRequest(opts.req);
   } catch (error) {
     // Authentication is optional for public procedures.
     user = null;

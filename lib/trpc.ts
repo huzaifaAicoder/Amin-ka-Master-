@@ -30,11 +30,16 @@ export function createTRPCClient() {
           return token ? { Authorization: `Bearer ${token}` } : {};
         },
         // Custom fetch to include credentials for cookie-based auth
-        fetch(url, options) {
-          return fetch(url, {
+        async fetch(url, options) {
+          const response = await fetch(url, {
             ...options,
             credentials: "include",
           });
+          if (response.status === 401) {
+            await Promise.all([Auth.removeSessionToken(), Auth.clearUserInfo()]);
+            if (typeof window !== "undefined" && window.location.pathname !== "/auth") window.location.replace("/auth");
+          }
+          return response;
         },
       }),
     ],

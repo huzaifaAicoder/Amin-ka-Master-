@@ -9,7 +9,7 @@ import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
 
 function useAttemptState() {
-  const [attempt, setAttempt] = useState<{ attemptId: number; durationMinutes: number; title: string; questions: Array<{ id: number; prompt: string; options: unknown; marks: number }> } | null>(null);
+  const [attempt, setAttempt] = useState<{ attemptId: number; durationMinutes: number; title: string; questions: { id: number; prompt: string; options: unknown; marks: number }[] } | null>(null);
   return [attempt, setAttempt] as const;
 }
 

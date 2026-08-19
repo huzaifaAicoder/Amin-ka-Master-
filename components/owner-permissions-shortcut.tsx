@@ -16,7 +16,7 @@ export function OwnerPermissionsShortcut() {
 }
 
 const styles = StyleSheet.create({
-  button: { position: "absolute", right: 18, bottom: 22, zIndex: 20, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: "#15234C", flexDirection: "row", alignItems: "center", gap: 7, elevation: 4, shadowColor: "#15234C", shadowOpacity: 0.22, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+  button: { position: "absolute", right: 18, bottom: 22, zIndex: 20, minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: "#15234C", flexDirection: "row", alignItems: "center", gap: 7, elevation: 4 },
   label: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
   pressed: { opacity: 0.84, transform: [{ scale: 0.985 }] },
 });
