@@ -28,6 +28,9 @@
 | Provider links redirected learners outside the app. | **GREEN, platform-limited** | Native inline provider embeds replace external-app/browser redirects; provider-blocked behavior remains inside the feed. |
 | Authorized PDF flow exposed a share/browser handoff. | **GREEN, partial workflow** | Removed sharing and public handoff, using private app storage. A fully app-owned offline reader remains outstanding. |
 | Full regression suite hit a 5-second timeout during the first invalid-token password-reset call while the database connection warmed. | **GREEN** | Confirmed the assertion passes in isolation and raised only that test’s deadline to 15 seconds; the security assertion and behavior were unchanged. |
+| Shorts pages could use stale window dimensions and share flexible layout space with video overlays. | **GREEN** | Replaced the static screen-height calculation with safe-area-aware live dimensions; each managed/external Short now receives the same measured page height, and `FlatList` uses `pagingEnabled`, `snapToAlignment="start"`, `decelerationRate="fast"`, `getItemLayout`, a three-item window, and one initial item. |
+| External-provider fallback surfaced explanatory error prose in the learner feed. | **GREEN, provider-limited** | Retained in-app WebView embedding where supported and replaced the fallback with a clean native External Short card and explicit **Play externally** action. Provider sign-in, embed, and CORS policies remain provider-controlled. |
+| Sensitive Student screens lacked iOS app-switcher privacy protection at the root capture boundary. | **GREEN, platform-limited** | Preserved Android/iOS `preventScreenCapture` guards; added iOS app-switcher privacy protection while a Student session is active. `expo-screen-capture` requests native prevention, but no app can prevent a device owner from filming the display with another physical device. |
 
 ## 3. Database and schema changes
 

@@ -131,3 +131,6 @@
 - [x] Verify Developer Portal setup/sign-in submission redirects immediately to the protected Developer Dashboard after valid credentials.
 - [x] Audit the supplied native gallery upload, Shorts playback, AI context, and Expo Go Developer Portal requirements for compatible follow-up implementation.
 - [x] Prepare and commit the current project for GitHub export with message `V1 Stable: SaaS Architecture, AI & Security Enabled`; pause before pushing until the repository URL is supplied.
+- [x] Stabilize the Shorts feed with viewport-aligned Reels-style paging and non-overlapping video overlays.
+- [x] Replace external-provider fallback copy with a clean native thumbnail and explicit external playback action.
+- [x] Strengthen supported student capture deterrence across protected app surfaces and document native platform limits.
