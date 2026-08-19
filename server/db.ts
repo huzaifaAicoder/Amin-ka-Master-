@@ -768,7 +768,7 @@ export async function getAuthorizedResourceDownload(userId: number, resourceId: 
     .innerJoin(courses, eq(courseModules.courseId, courses.id))
     .where(and(
       eq(moduleResources.id, resourceId),
-      eq(moduleResources.resourceType, "pdf"),
+      inArray(moduleResources.resourceType, ["pdf", "video"]),
       eq(moduleResources.isPublished, true),
       eq(moduleResources.downloadAllowed, true),
       eq(courseModules.isPublished, true),
@@ -784,11 +784,11 @@ export async function getAuthorizedResourceDownload(userId: number, resourceId: 
   if (!storageKey) return { status: "unavailable" as const };
 
   const signedUrl = await storageGetSignedUrl(storageKey);
-  await database.insert(resourceDownloadEvents).values({ userId, resourceId, resourceType: "pdf" });
+  await database.insert(resourceDownloadEvents).values({ userId, resourceId, resourceType: row.resource.resourceType });
   return {
     status: "authorized" as const,
     signedUrl,
-    resource: { id: row.resource.id, title: row.resource.title, mimeType: row.resource.mimeType ?? "application/pdf" },
+    resource: { id: row.resource.id, title: row.resource.title, resourceType: row.resource.resourceType, mimeType: row.resource.mimeType ?? (row.resource.resourceType === "video" ? "video/mp4" : "application/pdf") },
   };
 }
 

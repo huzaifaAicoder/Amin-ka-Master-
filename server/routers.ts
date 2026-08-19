@@ -351,7 +351,7 @@ export const appRouter = router({
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
       const result = await db.getAuthorizedResourceDownload(ctx.user.id, input.resourceId);
       if (result.status === "not_enrolled") throw new TRPCError({ code: "FORBIDDEN", message: "An active course enrollment is required to download this material." });
-      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This PDF is unavailable for download." });
+      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This approved course resource is unavailable for offline download." });
       return result;
     }),
     lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {

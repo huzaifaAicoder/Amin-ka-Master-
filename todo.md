@@ -139,3 +139,4 @@
 - [x] Add a Student Downloads tab that lists protected app-private offline resources and opens them only in internal viewers.
 - [x] Reduce the AI Doubt Solver header footprint and reserve the majority of the screen for its scrollable conversation.
 - [x] Verify highest-level Student capture prevention and document the native-build `FLAG_SECURE` requirement and physical-device limitations.
+- [x] Add authorized offline-video download controls to enrolled course lesson resources using server-issued access, private app storage, and the internal viewer.
