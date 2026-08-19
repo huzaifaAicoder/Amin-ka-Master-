@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ScreenCapture from "expo-screen-capture";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -85,11 +85,12 @@ export default function LessonScreen() {
 }
 
 function LessonVideoPlayer({ source }: { source: string }) {
+  const videoRef = useRef<VideoView>(null);
   const player = useVideoPlayer(source, (instance) => {
     instance.loop = false;
     instance.staysActiveInBackground = false;
   });
-  return <View style={styles.videoShell}><VideoView style={styles.video} player={player} nativeControls allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" /></View>;
+  return <View style={styles.videoShell}><VideoView ref={videoRef} style={styles.video} player={player} nativeControls allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" /><Pressable accessibilityRole="button" accessibilityLabel="Enter fullscreen video" onPress={() => void videoRef.current?.enterFullscreen()} style={styles.fullscreenButton}><MaterialIcons name="fullscreen" size={21} color={COLORS.white} /></Pressable></View>;
 }
 
 const styles = StyleSheet.create({
@@ -105,6 +106,7 @@ const styles = StyleSheet.create({
   player: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20, justifyContent: "center", alignItems: "center" },
   videoShell: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20 },
   video: { width: "100%", height: "100%" },
+  fullscreenButton: { position: "absolute", right: 11, top: 11, width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 11, backgroundColor: "rgba(15,23,42,0.72)" },
   playerGrid: { width: 92, height: 92, borderRadius: 46, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.1)", borderWidth: 1, borderColor: "rgba(255,255,255,0.16)" },
   playerLabel: { color: "#D6DFF2", fontSize: 12, position: "absolute", bottom: 17, textAlign: "center", paddingHorizontal: 24 },
   description: { color: COLORS.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },

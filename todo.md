@@ -141,3 +141,4 @@
 - [x] Verify highest-level Student capture prevention and document the native-build `FLAG_SECURE` requirement and physical-device limitations.
 - [x] Add authorized offline-video download controls to enrolled course lesson resources using server-issued access, private app storage, and the internal viewer.
 - [x] Upgrade the Developer Portal to a tabbed white-label controller with prefilled branding, validated feature toggles, safe integration status, and friendly toast feedback.
+- [x] Improve supported inline external embeds, add managed-media download controls with external-source feedback, and repair lesson-video fullscreen controls.
