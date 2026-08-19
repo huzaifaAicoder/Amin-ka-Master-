@@ -78,6 +78,13 @@
       "when": 1787131272646,
       "tag": "0010_black_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1787132787180,
+      "tag": "0011_yellow_vulture",
+      "breakpoints": true
     }
   ]
 }

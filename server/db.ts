@@ -98,6 +98,33 @@ export async function getDb() {
   return _db;
 }
 
+/**
+ * A Developer-only read-only service signal. Raw error logs, stack traces,
+ * connection details, secrets, and automated remediation are intentionally
+ * excluded from this response.
+ */
+export async function getDeveloperSystemHealth() {
+  const checkedAt = new Date();
+  const database = await getDb();
+  if (!database) {
+    return {
+      databaseReady: false,
+      checkedAt,
+      summary: "Database connection is unavailable. Check protected server configuration and service status.",
+    };
+  }
+  try {
+    await database.select({ probe: sql<number>`1` }).from(appSettings).limit(1);
+    return { databaseReady: true, checkedAt, summary: "API process and database probe are responding." };
+  } catch {
+    return {
+      databaseReady: false,
+      checkedAt,
+      summary: "Database probe did not complete. Review protected server diagnostics and configuration.",
+    };
+  }
+}
+
 function tokenDigest(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -1525,7 +1552,7 @@ export async function addShortComment(userId: number, shortId: number, body: str
   return comment ?? null;
 }
 
-export async function submitStudentShort(input: { userId: number; title: string; description?: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
+export async function submitStudentShort(input: { userId: number; title: string; description?: string; subjectCategory: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   const [student] = await database.select({ role: users.role, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, input.userId)).limit(1);
@@ -1533,6 +1560,7 @@ export async function submitStudentShort(input: { userId: number; title: string;
   const result = await database.insert(educationalShorts).values({
     title: input.title,
     description: input.description,
+    subjectCategory: input.subjectCategory,
     videoUrl: input.videoUrl,
     storageKey: input.storageKey,
     provider: input.provider,
