@@ -112,3 +112,4 @@
 - [x] Add controlled per-student Shorts upload permission with Owner/Admin management and pending moderation preservation.
 - [x] Improve media upload feedback with measurable progress, cancellation, and completion/error notifications.
 - [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.
+- [x] Build a dedicated Admin/Owner Shorts moderation dashboard with review context, preview, decision notes, approval, rejection, and pending-queue refresh.
