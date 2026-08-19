@@ -126,3 +126,4 @@
 - [x] Implement a secure internal offline PDF reader using app-private storage and an in-app viewer fallback.
 - [x] Securely configure and validate the user-supplied Gemini API key for the optional server-side Doubt Solver integration; never expose it in client code or logs.
 - [x] Improve the Gemini Doubt Solver with an accessible typing indicator and a clear, automatically scrolling chat history.
+- [x] Add contextual suggested follow-up prompts beneath each Gemini response and connect them to the chat composer.
