@@ -424,7 +424,7 @@ export const appRouter = router({
       if (!comment) throw new TRPCError({ code: "NOT_FOUND", message: "This Short is no longer available." });
       return comment;
     }),
-    submitShort: protectedProcedure.input(mediaReferenceSchema.safeExtend({ title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional() }).superRefine((value, ctx) => {
+    submitShort: protectedProcedure.input(mediaReferenceSchema.safeExtend({ title: z.string().trim().min(3).max(220), description: z.string().trim().max(1000).optional(), subjectCategory: z.string().trim().min(2).max(80).default("General") }).superRefine((value, ctx) => {
       if (!value.storageKey || !(value.contentUrl ?? "").startsWith("/manus-storage/")) ctx.addIssue({ code: "custom", message: "Upload a managed video before submitting a Short.", path: ["contentUrl"] });
       if (value.mimeType && !value.mimeType.startsWith("video/")) ctx.addIssue({ code: "custom", message: "Student submissions must be video files.", path: ["mimeType"] });
     })).mutation(async ({ ctx, input }) => {
@@ -434,8 +434,8 @@ export const appRouter = router({
       const videoUrl = input.contentUrl ?? "";
       const storageKey = input.storageKey ?? "";
       if (!storageKey || !videoUrl.startsWith("/manus-storage/")) throw new TRPCError({ code: "BAD_REQUEST", message: "Upload a managed video before submitting a Short." });
-      const shortId = await db.submitStudentShort({ userId: ctx.user.id, title: input.title, description: input.description, videoUrl, storageKey, provider: input.provider || undefined, mimeType: input.mimeType || undefined, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl || undefined });
-      await db.writeAudit({ actorUserId: ctx.user.id, action: "student_short.submitted", entityType: "educational_short", entityId: shortId, metadata: { status: "pending" } });
+      const shortId = await db.submitStudentShort({ userId: ctx.user.id, title: input.title, description: input.description, subjectCategory: input.subjectCategory, videoUrl, storageKey, provider: input.provider || undefined, mimeType: input.mimeType || undefined, sizeBytes: input.sizeBytes, durationSeconds: input.durationSeconds, thumbnailUrl: input.thumbnailUrl || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "student_short.submitted", entityType: "educational_short", entityId: shortId, metadata: { status: "pending", subjectCategory: input.subjectCategory } });
       return { shortId, status: "pending" as const };
     }),
     myShortSubmissions: protectedProcedure.query(async ({ ctx }) => {

@@ -1,0 +1,1 @@
+ALTER TABLE `educational_shorts` ADD `subjectCategory` varchar(80) DEFAULT 'General' NOT NULL;

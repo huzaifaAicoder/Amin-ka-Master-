@@ -113,3 +113,4 @@
 - [x] Improve media upload feedback with measurable progress, cancellation, and completion/error notifications.
 - [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.
 - [x] Build a dedicated Admin/Owner Shorts moderation dashboard with review context, preview, decision notes, approval, rejection, and pending-queue refresh.
+- [x] Add upload-date sorting and subject-category filters to the Admin/Owner Shorts moderation dashboard.

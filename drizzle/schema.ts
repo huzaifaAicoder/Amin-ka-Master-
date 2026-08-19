@@ -284,6 +284,7 @@ export const educationalShorts = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     title: varchar("title", { length: 220 }).notNull(),
     description: varchar("description", { length: 1000 }),
+    subjectCategory: varchar("subjectCategory", { length: 80 }).default("General").notNull(),
     videoUrl: varchar("videoUrl", { length: 2048 }).notNull(),
     storageKey: varchar("storageKey", { length: 1024 }),
     provider: varchar("provider", { length: 64 }),

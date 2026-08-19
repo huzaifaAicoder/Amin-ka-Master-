@@ -1525,7 +1525,7 @@ export async function addShortComment(userId: number, shortId: number, body: str
   return comment ?? null;
 }
 
-export async function submitStudentShort(input: { userId: number; title: string; description?: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
+export async function submitStudentShort(input: { userId: number; title: string; description?: string; subjectCategory: string; videoUrl: string; storageKey: string; provider?: string; mimeType?: string; sizeBytes?: number; durationSeconds: number; thumbnailUrl?: string }) {
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   const [student] = await database.select({ role: users.role, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, input.userId)).limit(1);
@@ -1533,6 +1533,7 @@ export async function submitStudentShort(input: { userId: number; title: string;
   const result = await database.insert(educationalShorts).values({
     title: input.title,
     description: input.description,
+    subjectCategory: input.subjectCategory,
     videoUrl: input.videoUrl,
     storageKey: input.storageKey,
     provider: input.provider,

@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
@@ -19,6 +19,7 @@ type PendingShort = {
   authorName: string | null;
   authorEmail: string | null;
   authorMobile: string | null;
+  subjectCategory: string;
   createdAt: Date;
 };
 
@@ -32,12 +33,14 @@ export default function ModerationScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [query, setQuery] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("All subjects");
+  const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
   const queue = queueQuery.data ?? [];
+  const subjectCategories = useMemo(() => ["All subjects", ...Array.from(new Set(queue.map((item) => item.subjectCategory || "General"))).sort((a, b) => a.localeCompare(b))], [queue]);
   const filteredQueue = useMemo(() => {
     const search = query.trim().toLowerCase();
-    if (!search) return queue;
-    return queue.filter((item) => `${item.title} ${item.authorName ?? ""} ${item.authorEmail ?? ""} ${item.authorMobile ?? ""}`.toLowerCase().includes(search));
-  }, [query, queue]);
+    return queue.filter((item) => (subjectFilter === "All subjects" || (item.subjectCategory || "General") === subjectFilter) && (!search || `${item.title} ${item.subjectCategory || "General"} ${item.authorName ?? ""} ${item.authorEmail ?? ""} ${item.authorMobile ?? ""}`.toLowerCase().includes(search))).sort((a, b) => dateOrder === "newest" ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [dateOrder, query, queue, subjectFilter]);
   const selected = queue.find((item) => item.id === selectedId) ?? null;
 
   useEffect(() => {
@@ -79,6 +82,8 @@ export default function ModerationScreen() {
         <View style={styles.queueBanner}><View style={styles.queueIcon}><MaterialIcons name="hourglass-top" size={25} color={COLORS.saffron} /></View><View style={styles.queueCopy}><Text style={styles.queueCount}>{queue.length} pending {queue.length === 1 ? "submission" : "submissions"}</Text><Text style={styles.queueDetail}>Review video, context and student identity before publishing. Every decision is auditable.</Text></View><Tag label="PENDING" tone="saffron" /></View>
         {queueQuery.isError ? <View style={styles.retry}><EmptyState icon="wifi-off" title="Queue could not load" body="Check the connection and retry the secure moderation queue." /><PrimaryButton label="Retry queue" icon="refresh" onPress={() => void queueQuery.refetch()} /></View> : queue.length ? <>
           <TextInput value={query} onChangeText={setQuery} placeholder="Search title or student" placeholderTextColor="#98A2B3" style={styles.search} autoCapitalize="none" autoCorrect={false} />
+          <View style={styles.filtersHeader}><Text style={styles.filterTitle}>Filter review queue</Text><Pressable accessibilityRole="button" onPress={() => setDateOrder((current) => current === "newest" ? "oldest" : "newest")} style={({ pressed }) => [styles.dateSort, pressed && styles.pressed]}><MaterialIcons name="schedule" size={16} color={COLORS.indigo} /><Text style={styles.dateSortText}>{dateOrder === "newest" ? "Newest first" : "Oldest first"}</Text></Pressable></View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjectFilters}>{subjectCategories.map((subject) => <FilterChip key={subject} label={subject} selected={subject === subjectFilter} onPress={() => setSubjectFilter(subject)} />)}</ScrollView>
           {selected ? <ReviewDesk key={selected.id} item={selected} note={note} onChangeNote={setNote} busy={moderateMutation.isPending} onApprove={() => decide("approved")} onReject={() => decide("rejected")} /> : null}
           <View style={styles.queueHeader}><Text style={styles.sectionTitle}>Review queue</Text><Text style={styles.sectionMeta}>{filteredQueue.length} shown</Text></View>
         </> : null}
@@ -90,16 +95,17 @@ export default function ModerationScreen() {
 }
 
 function QueueRow({ item, selected, onPress }: { item: PendingShort; selected: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.title}`} onPress={onPress} style={({ pressed }) => [styles.row, selected && styles.selectedRow, pressed && styles.pressed]}><View style={styles.thumbnail}><MaterialIcons name="play-circle-filled" size={31} color={selected ? COLORS.white : COLORS.indigo} /></View><View style={styles.rowCopy}><Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.rowMeta}>{item.authorName ?? "Student"} · {formatShortDate(item.createdAt)}</Text></View><MaterialIcons name={selected ? "check-circle" : "chevron-right"} size={21} color={selected ? COLORS.indigo : COLORS.muted} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Review ${item.title}`} onPress={onPress} style={({ pressed }) => [styles.row, selected && styles.selectedRow, pressed && styles.pressed]}><View style={styles.thumbnail}><MaterialIcons name="play-circle-filled" size={31} color={selected ? COLORS.white : COLORS.indigo} /></View><View style={styles.rowCopy}><Text numberOfLines={1} style={styles.rowTitle}>{item.title}</Text><Text numberOfLines={1} style={styles.rowMeta}>{item.subjectCategory || "General"} · {item.authorName ?? "Student"} · {formatShortDate(item.createdAt)}</Text></View><MaterialIcons name={selected ? "check-circle" : "chevron-right"} size={21} color={selected ? COLORS.indigo : COLORS.muted} /></Pressable>;
 }
 
 function ReviewDesk({ item, note, onChangeNote, busy, onApprove, onReject }: { item: PendingShort; note: string; onChangeNote: (value: string) => void; busy: boolean; onApprove: () => void; onReject: () => void }) {
   const player = useVideoPlayer(item.videoUrl, (video) => { video.loop = true; });
   const studentContact = item.authorEmail ?? item.authorMobile ?? "No contact detail";
-  return <View style={styles.reviewDesk}><View style={styles.reviewHeader}><View><Text style={styles.reviewEyebrow}>NOW REVIEWING</Text><Text style={styles.reviewTitle} numberOfLines={2}>{item.title}</Text></View><Tag label="PENDING" tone="saffron" /></View><VideoView player={player} nativeControls contentFit="contain" style={styles.video} /><View style={styles.checklist}><ChecklistItem icon="smart-display" label="Playback checked" detail="Watch the submitted Short before deciding." /><ChecklistItem icon="person" label={item.authorName ?? "Student"} detail={studentContact} /><ChecklistItem icon="schedule" label="Submitted" detail={formatFullDate(item.createdAt)} /></View><View style={styles.descriptionBox}><Text style={styles.descriptionLabel}>Student description</Text><Text style={styles.description}>{item.description || "No description was provided with this submission."}</Text></View><Text style={styles.noteLabel}>Internal moderation note <Text style={styles.optional}>optional</Text></Text><TextInput value={note} onChangeText={onChangeNote} placeholder="Record a policy reason, editorial change, or follow-up for staff…" placeholderTextColor="#98A2B3" multiline maxLength={1000} style={styles.note} textAlignVertical="top" /><Text style={styles.noteHint}>{note.length}/1000 · This note is not visible to the student.</Text><View style={styles.actions}><View style={styles.actionHalf}><PrimaryButton label={busy ? "Saving…" : "Approve & publish"} icon="check-circle" disabled={busy} onPress={onApprove} loading={busy} /></View><View style={styles.actionHalf}><PrimaryButton label="Reject" icon="block" subtle disabled={busy} onPress={onReject} /></View></View></View>;
+  return <View style={styles.reviewDesk}><View style={styles.reviewHeader}><View><Text style={styles.reviewEyebrow}>NOW REVIEWING</Text><Text style={styles.reviewTitle} numberOfLines={2}>{item.title}</Text></View><Tag label="PENDING" tone="saffron" /></View><VideoView player={player} nativeControls contentFit="contain" style={styles.video} /><View style={styles.checklist}><ChecklistItem icon="smart-display" label="Playback checked" detail="Watch the submitted Short before deciding." /><ChecklistItem icon="category" label="Subject" detail={item.subjectCategory || "General"} /><ChecklistItem icon="person" label={item.authorName ?? "Student"} detail={studentContact} /><ChecklistItem icon="schedule" label="Submitted" detail={formatFullDate(item.createdAt)} /></View><View style={styles.descriptionBox}><Text style={styles.descriptionLabel}>Student description</Text><Text style={styles.description}>{item.description || "No description was provided with this submission."}</Text></View><Text style={styles.noteLabel}>Internal moderation note <Text style={styles.optional}>optional</Text></Text><TextInput value={note} onChangeText={onChangeNote} placeholder="Record a policy reason, editorial change, or follow-up for staff…" placeholderTextColor="#98A2B3" multiline maxLength={1000} style={styles.note} textAlignVertical="top" /><Text style={styles.noteHint}>{note.length}/1000 · This note is not visible to the student.</Text><View style={styles.actions}><View style={styles.actionHalf}><PrimaryButton label={busy ? "Saving…" : "Approve & publish"} icon="check-circle" disabled={busy} onPress={onApprove} loading={busy} /></View><View style={styles.actionHalf}><PrimaryButton label="Reject" icon="block" subtle disabled={busy} onPress={onReject} /></View></View></View>;
 }
 
-function ChecklistItem({ icon, label, detail }: { icon: "smart-display" | "person" | "schedule"; label: string; detail: string }) { return <View style={styles.checkItem}><MaterialIcons name={icon} size={17} color={COLORS.indigo} /><View style={styles.checkCopy}><Text numberOfLines={1} style={styles.checkLabel}>{label}</Text><Text numberOfLines={1} style={styles.checkDetail}>{detail}</Text></View></View>; }
+function ChecklistItem({ icon, label, detail }: { icon: "smart-display" | "category" | "person" | "schedule"; label: string; detail: string }) { return <View style={styles.checkItem}><MaterialIcons name={icon} size={17} color={COLORS.indigo} /><View style={styles.checkCopy}><Text numberOfLines={1} style={styles.checkLabel}>{label}</Text><Text numberOfLines={1} style={styles.checkDetail}>{detail}</Text></View></View>; }
+function FilterChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) { return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [styles.filterChip, selected && styles.filterChipSelected, pressed && styles.pressed]}><Text numberOfLines={1} style={[styles.filterChipText, selected && styles.filterChipTextSelected]}>{label}</Text></Pressable>; }
 function formatShortDate(value: Date) { return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" }); }
 function formatFullDate(value: Date) { return new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }); }
 
@@ -116,6 +122,15 @@ const styles = StyleSheet.create({
   queueCount: { color: COLORS.white, fontSize: 16, fontWeight: "900" },
   queueDetail: { color: "#D6DFF2", fontSize: 11, lineHeight: 16, marginTop: 3 },
   search: { minHeight: 49, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, backgroundColor: COLORS.white, color: COLORS.ink, paddingHorizontal: 13, fontSize: 14 },
+  filtersHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 2 },
+  filterTitle: { color: COLORS.ink, fontSize: 13, fontWeight: "900" },
+  dateSort: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 9, backgroundColor: COLORS.indigoSoft },
+  dateSortText: { color: COLORS.indigo, fontSize: 11, fontWeight: "900" },
+  subjectFilters: { gap: 7, paddingVertical: 1, paddingRight: 8 },
+  filterChip: { maxWidth: 170, minHeight: 34, justifyContent: "center", borderRadius: 17, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, paddingHorizontal: 12 },
+  filterChipSelected: { borderColor: COLORS.indigo, backgroundColor: COLORS.indigo },
+  filterChipText: { color: COLORS.indigo, fontSize: 11, fontWeight: "900" },
+  filterChipTextSelected: { color: COLORS.white },
   reviewDesk: { gap: 10, borderRadius: 20, borderWidth: 1.5, borderColor: COLORS.indigo, backgroundColor: COLORS.white, padding: 13 },
   reviewHeader: { flexDirection: "row", justifyContent: "space-between", gap: 9, alignItems: "flex-start" },
   reviewEyebrow: { color: COLORS.earth, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
