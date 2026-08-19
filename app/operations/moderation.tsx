@@ -11,6 +11,7 @@ import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
 
 type Decision = "approved" | "rejected";
+type DateRange = "all" | "today" | "last7Days";
 type PendingShort = {
   id: number;
   title: string;
@@ -35,19 +36,30 @@ export default function ModerationScreen() {
   const [query, setQuery] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("All subjects");
   const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
+  const [dateRange, setDateRange] = useState<DateRange>("all");
   const queue = queueQuery.data ?? [];
   const subjectCategories = useMemo(() => ["All subjects", ...Array.from(new Set(queue.map((item) => item.subjectCategory || "General"))).sort((a, b) => a.localeCompare(b))], [queue]);
   const filteredQueue = useMemo(() => {
     const search = query.trim().toLowerCase();
-    return queue.filter((item) => (subjectFilter === "All subjects" || (item.subjectCategory || "General") === subjectFilter) && (!search || `${item.title} ${item.subjectCategory || "General"} ${item.authorName ?? ""} ${item.authorEmail ?? ""} ${item.authorMobile ?? ""}`.toLowerCase().includes(search))).sort((a, b) => dateOrder === "newest" ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [dateOrder, query, queue, subjectFilter]);
-  const selected = queue.find((item) => item.id === selectedId) ?? null;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const matchesRange = (createdAt: Date) => {
+      const submittedAt = new Date(createdAt);
+      if (dateRange === "today") return submittedAt >= todayStart && submittedAt <= now;
+      if (dateRange === "last7Days") return submittedAt >= weekStart && submittedAt <= now;
+      return true;
+    };
+    return queue.filter((item) => matchesRange(item.createdAt) && (subjectFilter === "All subjects" || (item.subjectCategory || "General") === subjectFilter) && (!search || `${item.title} ${item.subjectCategory || "General"} ${item.authorName ?? ""} ${item.authorEmail ?? ""} ${item.authorMobile ?? ""}`.toLowerCase().includes(search))).sort((a, b) => dateOrder === "newest" ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [dateOrder, dateRange, query, queue, subjectFilter]);
+  const selected = filteredQueue.find((item) => item.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (selectedId && queue.some((item) => item.id === selectedId)) return;
-    setSelectedId(queue[0]?.id ?? null);
+    if (selectedId && filteredQueue.some((item) => item.id === selectedId)) return;
+    setSelectedId(filteredQueue[0]?.id ?? null);
     setNote("");
-  }, [queue, selectedId]);
+  }, [filteredQueue, selectedId]);
 
   const select = (id: number) => { setSelectedId(id); setNote(""); };
   const decide = (decision: Decision) => {
@@ -83,6 +95,9 @@ export default function ModerationScreen() {
         {queueQuery.isError ? <View style={styles.retry}><EmptyState icon="wifi-off" title="Queue could not load" body="Check the connection and retry the secure moderation queue." /><PrimaryButton label="Retry queue" icon="refresh" onPress={() => void queueQuery.refetch()} /></View> : queue.length ? <>
           <TextInput value={query} onChangeText={setQuery} placeholder="Search title or student" placeholderTextColor="#98A2B3" style={styles.search} autoCapitalize="none" autoCorrect={false} />
           <View style={styles.filtersHeader}><Text style={styles.filterTitle}>Filter review queue</Text><Pressable accessibilityRole="button" onPress={() => setDateOrder((current) => current === "newest" ? "oldest" : "newest")} style={({ pressed }) => [styles.dateSort, pressed && styles.pressed]}><MaterialIcons name="schedule" size={16} color={COLORS.indigo} /><Text style={styles.dateSortText}>{dateOrder === "newest" ? "Newest first" : "Oldest first"}</Text></Pressable></View>
+          <Text style={styles.rangeLabel}>Quick date range</Text>
+          <View style={styles.dateRangeFilters}><FilterChip label="All dates" selected={dateRange === "all"} onPress={() => setDateRange("all")} /><FilterChip label="Today" selected={dateRange === "today"} onPress={() => setDateRange("today")} /><FilterChip label="Last 7 Days" selected={dateRange === "last7Days"} onPress={() => setDateRange("last7Days")} /></View>
+          <Text style={styles.rangeLabel}>Subject category</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjectFilters}>{subjectCategories.map((subject) => <FilterChip key={subject} label={subject} selected={subject === subjectFilter} onPress={() => setSubjectFilter(subject)} />)}</ScrollView>
           {selected ? <ReviewDesk key={selected.id} item={selected} note={note} onChangeNote={setNote} busy={moderateMutation.isPending} onApprove={() => decide("approved")} onReject={() => decide("rejected")} /> : null}
           <View style={styles.queueHeader}><Text style={styles.sectionTitle}>Review queue</Text><Text style={styles.sectionMeta}>{filteredQueue.length} shown</Text></View>
@@ -126,6 +141,8 @@ const styles = StyleSheet.create({
   filterTitle: { color: COLORS.ink, fontSize: 13, fontWeight: "900" },
   dateSort: { minHeight: 32, flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 10, paddingHorizontal: 9, backgroundColor: COLORS.indigoSoft },
   dateSortText: { color: COLORS.indigo, fontSize: 11, fontWeight: "900" },
+  rangeLabel: { color: COLORS.muted, fontSize: 10, fontWeight: "900", letterSpacing: 0.45, marginTop: 1 },
+  dateRangeFilters: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
   subjectFilters: { gap: 7, paddingVertical: 1, paddingRight: 8 },
   filterChip: { maxWidth: 170, minHeight: 34, justifyContent: "center", borderRadius: 17, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, paddingHorizontal: 12 },
   filterChipSelected: { borderColor: COLORS.indigo, backgroundColor: COLORS.indigo },

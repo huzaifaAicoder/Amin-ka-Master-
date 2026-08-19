@@ -114,3 +114,4 @@
 - [x] Complete the master-instruction application-wide GREEN/RED functional verification report and repair verified regressions.
 - [x] Build a dedicated Admin/Owner Shorts moderation dashboard with review context, preview, decision notes, approval, rejection, and pending-queue refresh.
 - [x] Add upload-date sorting and subject-category filters to the Admin/Owner Shorts moderation dashboard.
+- [x] Add Today and Last 7 Days quick date-range presets to the Admin/Owner Shorts moderation dashboard.
