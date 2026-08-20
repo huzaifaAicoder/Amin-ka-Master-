@@ -467,17 +467,18 @@ export const appRouter = router({
       requireStudentAccess(ctx.user.role);
       return db.getStudentShortUploadAccess(ctx.user.id);
     }),
-    askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters") })).mutation(async ({ ctx, input }) => {
+    askAi: protectedProcedure.input(z.object({ question: z.string().trim().min(3, "Type at least three characters").max(1500, "Keep one doubt under 1,500 characters"), image: z.object({ base64: z.string().min(32).max(3_500_000), mimeType: z.enum(["image/jpeg", "image/png", "image/webp"]) }).optional() })).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "The Doubt Solver is available in the student learning experience." });
       const apiKey = process.env.GEMINI_API_KEY?.trim();
       if (!apiKey) return { answer: "AI is temporarily in study mode. Please review the lesson notes and try again shortly.", mode: "fallback" as const, question: input.question };
       try {
         const client = new GoogleGenerativeAI(apiKey);
-        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests.", generationConfig: { maxOutputTokens: 900, temperature: 0.3 } });
-        const result = await model.generateContent(input.question);
+        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests. When a Student supplies an image, describe only visible educational details, state uncertainty clearly, and never present your answer as an official land-record verification, legal conclusion, or certified survey.", generationConfig: { maxOutputTokens: 900, temperature: 0.3 } });
+        const prompt = input.image ? [{ text: `${input.question}\n\nThe attached image is provided only for educational analysis. Do not identify people or make legal, ownership, or official-record claims.` }, { inlineData: { data: input.image.base64, mimeType: input.image.mimeType } }] : input.question;
+        const result = await model.generateContent(prompt);
         const answer = result.response.text().trim();
         if (!answer) throw new Error("Gemini returned an empty response");
-        return { answer, mode: "gemini" as const, question: input.question };
+        return { answer, mode: "gemini" as const, question: input.question, analyzedImage: Boolean(input.image) };
       } catch (error) {
         console.error("Gemini Doubt Solver request failed", error instanceof Error ? error.message : "unknown provider error");
         return { answer: "I could not reach the AI tutor right now. Please check the relevant lesson notes and try again.", mode: "fallback" as const, question: input.question };
@@ -741,6 +742,7 @@ export const appRouter = router({
       studyCoachEnabled: z.boolean().optional(),
       learningOperationsEnabled: z.boolean().optional(),
       guardianReportsEnabled: z.boolean().optional(),
+      aminToolkitEnabled: z.boolean().optional(),
       telemetryApiLatencyEnabled: z.boolean().optional(),
       telemetryCrashReportingEnabled: z.boolean().optional(),
       interfaceLanguageDefault: z.enum(["english", "hindi", "bilingual"]).optional(),
@@ -772,6 +774,7 @@ export const appRouter = router({
         ...(input.studyCoachEnabled !== undefined ? { "feature.study_coach_enabled": input.studyCoachEnabled } : {}),
         ...(input.learningOperationsEnabled !== undefined ? { "feature.learning_operations_enabled": input.learningOperationsEnabled } : {}),
         ...(input.guardianReportsEnabled !== undefined ? { "feature.guardian_reports_enabled": input.guardianReportsEnabled } : {}),
+        ...(input.aminToolkitEnabled !== undefined ? { "feature.amin_toolkit_enabled": input.aminToolkitEnabled } : {}),
         ...(input.telemetryApiLatencyEnabled !== undefined ? { "telemetry.api_latency_enabled": input.telemetryApiLatencyEnabled } : {}),
         ...(input.telemetryCrashReportingEnabled !== undefined ? { "telemetry.crash_reporting_enabled": input.telemetryCrashReportingEnabled } : {}),
         ...(input.interfaceLanguageDefault !== undefined ? { "platform.interface_language_default": input.interfaceLanguageDefault } : {}),

@@ -89,6 +89,19 @@ const config: ExpoConfig = {
     "expo-font",
     "expo-web-browser",
     [
+      "expo-image-picker",
+      {
+        photosPermission: "Allow $(PRODUCT_NAME) to select a land map or document for an AI study question.",
+        cameraPermission: "Allow $(PRODUCT_NAME) to take a photo of a land map or document for an AI study question.",
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission: "Allow $(PRODUCT_NAME) to use your location while you actively estimate a plot perimeter.",
+      },
+    ],
+    [
       "expo-audio",
       {
         microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",

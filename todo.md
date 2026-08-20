@@ -184,4 +184,10 @@
 - [x] Add an opt-in Parent/Guardian Progress Reports foundation with Student-controlled consent, privacy-minimised aggregate reports, authorized staff/owner delivery, and audit records.
 - [x] Perform deterministic mobile-readiness validation for Study Coach protected PDF storage, internal-reader routing, and opt-in notification flows; document native-device, Razorpay/UPI, and privacy-approved telemetry boundaries.
 - [x] Implement a Developer-controlled privacy-approved telemetry foundation for minimised API latency aggregates and application crash events, with strict exclusion of Student content, identifiers, credentials, files, and raw requests.
+- [x] Add Student-only Gemini Vision image analysis to the existing AI Doubt Solver with permission-aware camera/library selection, local image minimisation, server-only provider access, and no image persistence.
+- [x] Add an Amin Master Toolkit hub to Student profile/dashboard with Developer-managed availability controls and practical-use accuracy/privacy disclosures.
+- [x] Add a foreground-only GPS perimeter estimator that calculates locally from user-recorded plot points and gracefully handles denied permissions, unavailable services, low accuracy, and web fallback.
+- [x] Add an in-app official land-record portal directory and allowlisted WebView browser without browser handoff or arbitrary external navigation.
+- [x] Add a native digital compass with magnetometer availability checks, fixed-category direction display, and calibration/accuracy disclosure.
+- [x] Validate new Vision AI, permissions, GPS calculations, portals, compass behavior, security/RBAC, and regressions; prepare the requested repository update.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

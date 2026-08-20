@@ -82,18 +82,18 @@ export const STAFF_PERMISSION_OPTIONS = [
   "guardian_reports.manage",
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
-export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz", "study_coach", "guardian_reports"] as const;
+export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz", "study_coach", "guardian_reports", "amin_toolkit"] as const;
 export type StudentFeature = (typeof STUDENT_FEATURE_OPTIONS)[number];
 
 export const MASTER_TEMPLATE_FEATURE_MANIFEST = {
   version: "amin-ka-master.master.v1",
-  includedModules: ["authentication", "role_boundaries", "courses", "protected_learning", "assessments", "live_classes", "shorts", "offline_downloads", "ai_doubt_solver", "ai_quiz", "study_coach", "guardian_reports", "developer_controls"],
+  includedModules: ["authentication", "role_boundaries", "courses", "protected_learning", "assessments", "live_classes", "shorts", "offline_downloads", "ai_doubt_solver", "ai_quiz", "study_coach", "guardian_reports", "amin_toolkit", "developer_controls"],
   supportedBranding: ["appName", "tagline", "primaryColor", "accentColor", "logoUrl"],
-  supportedFeatureProfile: ["courses", "assessments", "liveClasses", "shorts", "downloads", "aiDoubt", "aiQuiz", "studyCoach", "guardianReports"],
+  supportedFeatureProfile: ["courses", "assessments", "liveClasses", "shorts", "downloads", "aiDoubt", "aiQuiz", "studyCoach", "guardianReports", "aminToolkit"],
   excludedFromClone: ["users", "passwordHashes", "sessions", "passkeys", "setupCodes", "providerSecrets", "paymentSecrets", "webhookSecrets", "databaseCredentials", "productionMedia", "auditHistory"],
 } as const;
 
-export const DEFAULT_CLIENT_FEATURE_PROFILE = { courses: true, assessments: true, liveClasses: true, shorts: true, downloads: true, aiDoubt: true, aiQuiz: true, studyCoach: true, guardianReports: true };
+export const DEFAULT_CLIENT_FEATURE_PROFILE = { courses: true, assessments: true, liveClasses: true, shorts: true, downloads: true, aiDoubt: true, aiQuiz: true, studyCoach: true, guardianReports: true, aminToolkit: true };
 export const DEFAULT_CLIENT_NAVIGATION_PROFILE = { studentTabs: ["home", "my_learning", "shorts", "downloads", "account"], staffAreas: ["courses", "tests", "live_classes", "media", "moderation", "guardian_reports"], ownerAreas: ["operations", "reports", "people", "guardian_reports"] };
 
 export function getOtpVerificationState(input: {
@@ -1974,21 +1974,21 @@ export async function listPublishedAnnouncements() {
 }
 
 const MANAGED_SETTINGS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
-  "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
-  "platform.registration_enabled", "platform.maintenance_enabled",
-  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled",
-  "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
+ "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+ "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
+ "platform.registration_enabled", "platform.maintenance_enabled",
+ "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
+ "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
-  "platform.maintenance_enabled",
-  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled",
-  "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
+ "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+ "platform.maintenance_enabled",
+ "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
+ "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
