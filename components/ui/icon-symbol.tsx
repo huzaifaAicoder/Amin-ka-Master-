@@ -22,6 +22,7 @@ const MAPPING = {
   "chevron.left": "chevron-left",
   "play.circle.fill": "play-circle-filled",
   "bolt.circle.fill": "slow-motion-video",
+  "arrow.down.circle.fill": "download",
   "lock.fill": "lock",
   "checkmark.circle.fill": "check-circle",
   "paperplane.fill": "send",
