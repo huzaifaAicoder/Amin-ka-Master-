@@ -472,6 +472,26 @@ export const appRouter = router({
   }),
   developer: router({
     settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
+    users: requireRoles(["developer"]).input(z.object({ search: z.string().trim().max(120).optional() }).optional()).query(({ input }) => db.listManagedUsers(input?.search)),
+    updateUser: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive(), role: z.enum(["student", "teacher", "admin", "super_admin"]).optional(), status: z.enum(["active", "suspended"]).optional() })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Use your own account security flow for Developer access." });
+      await db.developerUpdateUser(input.userId, { role: input.role, status: input.status });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.updated", entityType: "user", entityId: input.userId, metadata: { role: input.role, status: input.status } });
+      return { success: true as const };
+    }),
+    resetUserPassword: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive(), password: z.string().min(12).max(128) })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Use your own account security flow for Developer access." });
+      await db.developerResetUserPassword(input.userId, input.password);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.password_reset", entityType: "user", entityId: input.userId, metadata: { sessionsRevoked: true } });
+      return { success: true as const };
+    }),
+    archiveContent: requireRoles(["developer"]).input(z.object({ contentType: z.enum(["course", "test", "short"]), contentId: z.number().int().positive(), confirmation: z.literal("ARCHIVE") })).mutation(async ({ ctx, input }) => {
+      if (input.contentType === "course") await db.updateCourseStatus(input.contentId, "archived");
+      if (input.contentType === "test") await db.setManagedTestStatus(input.contentId, "archived");
+      if (input.contentType === "short") await db.setEducationalShortStatus(input.contentId, "archived");
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_content.archived", entityType: input.contentType, entityId: input.contentId, metadata: { confirmation: input.confirmation } });
+      return { success: true as const };
+    }),
     integrationStatus: requireRoles(["developer"]).query(() => ({
       developerPortalPasskeyConfigured: isDeveloperPortalConfigured(),
       geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),

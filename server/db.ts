@@ -1416,6 +1416,12 @@ export async function saveEducationalShort(input: { shortId?: number; title: str
   return Number(result[0].insertId);
 }
 
+export async function setEducationalShortStatus(shortId: number, status: "draft" | "pending" | "published" | "rejected" | "archived") {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.update(educationalShorts).set({ status }).where(eq(educationalShorts.id, shortId));
+}
+
 function managedStorageKey(contentUrl?: string | null, storageKey?: string | null) {
   if (storageKey?.trim()) return storageKey;
   if (!contentUrl?.startsWith("/manus-storage/")) return undefined;
@@ -1732,6 +1738,25 @@ export async function updateManagedUser(userId: number, input: { role?: "student
   const database = await getDb();
   if (!database) throw new Error("Database is unavailable");
   await database.update(users).set(input).where(eq(users.id, userId));
+}
+
+export async function developerUpdateUser(userId: number, input: { role?: "student" | "teacher" | "admin" | "super_admin"; status?: "active" | "suspended" }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) throw new Error("User not found");
+  if (target.role === "developer") throw new Error("Developer accounts cannot be modified through this control.");
+  await database.update(users).set(input).where(eq(users.id, userId));
+  await revokeAllSessions(userId);
+}
+
+export async function developerResetUserPassword(userId: number, password: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target || target.role === "developer") throw new Error("This password cannot be reset through this control.");
+  await database.update(users).set({ passwordHash: hashPassword(password) }).where(eq(users.id, userId));
+  await revokeAllSessions(userId);
 }
 
 export async function getStudentShortUploadAccess(userId: number) {

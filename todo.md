@@ -128,3 +128,8 @@
 - [x] Improve the Gemini Doubt Solver with an accessible typing indicator and a clear, automatically scrolling chat history.
 - [x] Correct external Shorts inline WebView rendering and prevent provider URLs from entering private download logic.
 - [x] Add a dedicated native share action beside inline external Shorts media.
+- [x] Add audited Developer-only global user and role administration with safe one-way password reset workflows and session revocation.
+- [ ] Add Developer content override controls for courses, media, and tests with confirmation and audit records.
+- [ ] Expand Developer feature and panel kill switches, including developer-bypass maintenance mode.
+- [ ] Add white-label instance configuration and cloning foundations without copying live user data or provider secrets.
+- [ ] Prepare and push the V3 root-control upgrade when repository write access is confirmed.

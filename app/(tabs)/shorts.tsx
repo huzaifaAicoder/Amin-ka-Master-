@@ -3,7 +3,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ScreenCapture from "expo-screen-capture";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Linking, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View, type ViewToken } from "react-native";
+import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Modal, Platform, Pressable, RefreshControl, Share, StyleSheet, Text, TextInput, View, type ViewToken } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { WebView } from "react-native-webview";
 
