@@ -29,6 +29,11 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
     expect(screen).toContain("submitAiQuizForReview.useMutation");
     expect(screen).toContain("never auto-published");
     expect(screen).toContain("Try ${advanceDifficulty(difficulty)} next time.");
+    expect(screen).toContain("DetailedResultsReview");
+    expect(screen).toContain("Detailed results review");
+    expect(screen).toContain("YOUR ANSWER");
+    expect(screen).toContain("CORRECT ANSWER");
+    expect(screen).toContain("AI EXPLANATION");
   });
 
   it("retains the Student dashboard average widget and Android-conscious YouTube feed constraints", () => {

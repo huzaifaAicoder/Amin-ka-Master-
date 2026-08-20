@@ -161,4 +161,5 @@
 - [ ] Physically verify screenshot and recording blocking in a standalone Android/iOS build; Expo/preview containers may not enforce native secure-window flags consistently.
 - [x] Add adaptive AI Quiz difficulty, timed practice, persisted score history, and a Student dashboard average-score widget without replacing the current review-safe quiz workflow.
 - [x] Run deterministic Android-layout and YouTube Shorts FlatList/WebView lifecycle QA, then document the remaining physical-device provider test.
+- [x] Add a detailed AI Quiz post-results review that isolates incorrect answers, shows selected versus correct options, and surfaces the Gemini-generated explanation for each missed question.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
