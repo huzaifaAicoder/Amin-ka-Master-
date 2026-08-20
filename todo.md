@@ -150,3 +150,6 @@
 - [x] Create an evidence-based current-versus-advanced-checkpoint feature inventory across authentication, roles, Student, Owner, Developer, AI, courses, tests, media, downloads, security, and navigation.
 - [x] Reconcile the best verified advanced and current implementations without rollback or destructive replacement.
 - [ ] Perform documented P0 end-to-end QA for role boundaries, offline resources, Shorts, AI, courses, tests, live classes, and navigation.
+- [ ] Validate authenticated Student offline-video download/viewing and YouTube/Instagram fallback behavior with automated evidence plus physical Android/iOS checks where available.
+- [x] Apply the YouTube-specific browser/mobile embed configuration repair while preserving working Instagram playback and provider fallback behavior.
+- [ ] Re-test the repaired YouTube Short on the reported Android device and capture the exact provider error if playback still fails.
