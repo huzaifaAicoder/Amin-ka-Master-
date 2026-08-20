@@ -5,7 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import * as ScreenCapture from "expo-screen-capture";
 import { usePreventScreenCapture } from "expo-screen-capture";
 import "@/lib/_core/nativewind-pressable";
@@ -29,6 +29,7 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
 function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useLmsSession();
+  const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { enabled: Boolean(user && user.role !== "developer"), retry: false });
   const router = useRouter();
   const segments = useSegments();
   const rootSegment = segments[0];
@@ -36,6 +37,10 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const isDeveloperRoute = rootSegment === "dev-portal";
   const isStaffRoute = rootSegment === "operations";
   const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
+  const controls = controlsQuery.data;
+  const flag = (key: string, fallback = true) => typeof controls?.[key as keyof typeof controls] === "boolean" ? Boolean(controls?.[key as keyof typeof controls]) : fallback;
+  const panelPaused = Boolean(user && user.role !== "developer" && (flag("platform.maintenance_enabled", false) || (user.role === "student" && !flag("platform.student_access_enabled")) || ((user.role === "teacher" || user.role === "admin") && !flag("platform.staff_access_enabled")) || (user.role === "super_admin" && !flag("platform.owner_access_enabled"))));
+  const studentFeaturePaused = Boolean(user?.role === "student" && ((rootSegment === "shorts" || segments[1] === "shorts") && !flag("feature.shorts_enabled") || ((rootSegment === "ask-ai" || rootSegment === "ai-quiz") && (!flag("feature.ai_doubt_enabled") || (rootSegment === "ai-quiz" && !flag("feature.ai_quiz_enabled")))) || ((rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history") && !flag("feature.assessments_enabled")) || ((rootSegment === "live" || rootSegment === "sessions") && !flag("feature.live_classes_enabled")) || (rootSegment === "course" && !flag("feature.courses_enabled"))));
 
   useEffect(() => {
     if (loading) return;
@@ -50,6 +55,7 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   if (loading || (!user && !isAuthRoute && !isDeveloperRoute) || (user && isAuthRoute) || (user?.role === "developer" && !isDeveloperRoute) || (user && user.role !== "developer" && isDeveloperRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute)) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
   }
+  if (panelPaused || studentFeaturePaused) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 28, backgroundColor: "#FFFDF7" }}><Text style={{ color: "#14213D", fontSize: 20, fontWeight: "900", textAlign: "center" }}>{panelPaused ? "Access is temporarily paused" : "This feature is temporarily unavailable"}</Text><Text style={{ color: "#667085", fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 10 }}>The Developer has temporarily disabled this area. Please check back later or contact your platform administrator.</Text></View>;
   return <>{children}</>;
 }
 

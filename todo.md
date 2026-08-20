@@ -163,4 +163,5 @@
 - [x] Run deterministic Android-layout and YouTube Shorts FlatList/WebView lifecycle QA, then document the remaining physical-device provider test.
 - [x] Add a detailed AI Quiz post-results review that isolates incorrect answers, shows selected versus correct options, and surfaces the Gemini-generated explanation for each missed question.
 - [x] Add a Student-private downloadable PDF export for detailed AI Quiz results, missed answers, correct answers, and Gemini-generated explanations.
+- [x] Expand the Developer Portal into an audited root-control center for cross-role user, role, permission, panel, feature, maintenance, and content management without exposing passwords or provider secrets.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

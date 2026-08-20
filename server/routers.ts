@@ -542,6 +542,33 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.password_reset", entityType: "user", entityId: input.userId, metadata: { sessionsRevoked: true } });
       return { success: true as const };
     }),
+    createUser: requireRoles(["developer"]).input(credentialSchema.safeExtend({ role: z.enum(["student", "teacher", "admin", "super_admin"]) })).mutation(async ({ ctx, input }) => {
+      const userId = await db.developerCreateCredentialUser({ ...input, email: input.email || undefined, mobile: input.mobile || undefined });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.created", entityType: "user", entityId: userId, metadata: { role: input.role } });
+      return { userId };
+    }),
+    deleteUser: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive(), confirmation: z.literal("DELETE") })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "A Developer cannot delete their own active root account." });
+      await db.developerDeleteUser(input.userId);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.deleted", entityType: "user", entityId: input.userId, metadata: { confirmation: input.confirmation } });
+      return { success: true as const };
+    }),
+    setUserControls: requireRoles(["developer"]).input(z.object({
+      userId: z.number().int().positive(),
+      canUploadShorts: z.boolean().optional(),
+      permissions: z.array(z.enum(db.STAFF_PERMISSION_OPTIONS)).max(db.STAFF_PERMISSION_OPTIONS.length).optional(),
+    }).refine((input) => input.canUploadShorts !== undefined || input.permissions !== undefined, "Choose a control to update.")).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Use your own account security flow for Developer access." });
+      await db.developerSetUserControls({ ...input, grantedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.controls_updated", entityType: "user", entityId: input.userId, metadata: { canUploadShorts: input.canUploadShorts, permissions: input.permissions } });
+      return { success: true as const };
+    }),
+    contentInventory: requireRoles(["developer"]).query(() => db.listDeveloperContentInventory()),
+    setContentStatus: requireRoles(["developer"]).input(z.object({ contentType: z.enum(["course", "test", "short"]), contentId: z.number().int().positive(), status: z.enum(["draft", "published", "archived"]) })).mutation(async ({ ctx, input }) => {
+      await db.developerSetContentStatus(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_content.status_updated", entityType: input.contentType, entityId: input.contentId, metadata: { status: input.status } });
+      return { success: true as const };
+    }),
     archiveContent: requireRoles(["developer"]).input(z.object({ contentType: z.enum(["course", "test", "short"]), contentId: z.number().int().positive(), confirmation: z.literal("ARCHIVE") })).mutation(async ({ ctx, input }) => {
       if (input.contentType === "course") await db.updateCourseStatus(input.contentId, "archived");
       if (input.contentType === "test") await db.setManagedTestStatus(input.contentId, "archived");
@@ -564,6 +591,16 @@ export const appRouter = router({
       themePrimary: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       themeAccent: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       maintenanceEnabled: z.boolean().optional(),
+      studentAccessEnabled: z.boolean().optional(),
+      staffAccessEnabled: z.boolean().optional(),
+      ownerAccessEnabled: z.boolean().optional(),
+      coursesEnabled: z.boolean().optional(),
+      assessmentsEnabled: z.boolean().optional(),
+      liveClassesEnabled: z.boolean().optional(),
+      shortsEnabled: z.boolean().optional(),
+      downloadsEnabled: z.boolean().optional(),
+      aiDoubtEnabled: z.boolean().optional(),
+      aiQuizEnabled: z.boolean().optional(),
       developerName: z.string().trim().max(160).optional(),
       developerRole: z.string().trim().max(160).optional(),
       developerProjectInfo: z.string().trim().max(600).optional(),
@@ -579,6 +616,16 @@ export const appRouter = router({
         ...(input.themePrimary !== undefined ? { "brand.theme_primary": input.themePrimary } : {}),
         ...(input.themeAccent !== undefined ? { "brand.theme_accent": input.themeAccent } : {}),
         ...(input.maintenanceEnabled !== undefined ? { "platform.maintenance_enabled": input.maintenanceEnabled } : {}),
+        ...(input.studentAccessEnabled !== undefined ? { "platform.student_access_enabled": input.studentAccessEnabled } : {}),
+        ...(input.staffAccessEnabled !== undefined ? { "platform.staff_access_enabled": input.staffAccessEnabled } : {}),
+        ...(input.ownerAccessEnabled !== undefined ? { "platform.owner_access_enabled": input.ownerAccessEnabled } : {}),
+        ...(input.coursesEnabled !== undefined ? { "feature.courses_enabled": input.coursesEnabled } : {}),
+        ...(input.assessmentsEnabled !== undefined ? { "feature.assessments_enabled": input.assessmentsEnabled } : {}),
+        ...(input.liveClassesEnabled !== undefined ? { "feature.live_classes_enabled": input.liveClassesEnabled } : {}),
+        ...(input.shortsEnabled !== undefined ? { "feature.shorts_enabled": input.shortsEnabled } : {}),
+        ...(input.downloadsEnabled !== undefined ? { "feature.downloads_enabled": input.downloadsEnabled } : {}),
+        ...(input.aiDoubtEnabled !== undefined ? { "feature.ai_doubt_enabled": input.aiDoubtEnabled } : {}),
+        ...(input.aiQuizEnabled !== undefined ? { "feature.ai_quiz_enabled": input.aiQuizEnabled } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
         ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),
         ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}),

@@ -1724,12 +1724,16 @@ const MANAGED_SETTINGS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
+  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "platform.maintenance_enabled",
+  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
@@ -1829,6 +1833,81 @@ export async function developerResetUserPassword(userId: number, password: strin
   if (!target || target.role === "developer") throw new Error("This password cannot be reset through this control.");
   await database.update(users).set({ passwordHash: hashPassword(password) }).where(eq(users.id, userId));
   await revokeAllSessions(userId);
+}
+
+export async function developerCreateCredentialUser(input: {
+  fullName: string;
+  email?: string;
+  mobile?: string;
+  password: string;
+  role: "student" | "teacher" | "admin" | "super_admin";
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const email = input.email ? normalizeIdentity(input.email) : null;
+  const mobile = input.mobile ? normalizeMobile(input.mobile) : null;
+  if (!email && !mobile) throw new Error("Provide an email address or mobile number");
+  const identityMatch = await database.select({ id: users.id }).from(users).where(or(email ? eq(users.email, email) : sql`false`, mobile ? eq(users.mobile, mobile) : sql`false`)).limit(1);
+  if (identityMatch[0]) throw new Error("An account already exists for that email or mobile number");
+  const result = await database.insert(users).values({
+    openId: `local_${randomUUID()}`,
+    fullName: input.fullName.trim(),
+    email,
+    mobile,
+    passwordHash: hashPassword(input.password),
+    loginMethod: "password",
+    role: input.role,
+    status: "active",
+    lastSignedIn: new Date(),
+  });
+  return Number(result[0].insertId);
+}
+
+export async function developerDeleteUser(userId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target) throw new Error("User not found");
+  if (target.role === "developer") throw new Error("Developer accounts cannot be deleted through this control.");
+  await database.transaction(async (tx) => {
+    await tx.delete(authSessions).where(eq(authSessions.userId, userId));
+    await tx.delete(userPermissions).where(eq(userPermissions.userId, userId));
+    await tx.delete(users).where(eq(users.id, userId));
+  });
+}
+
+export async function developerSetUserControls(input: { userId: number; canUploadShorts?: boolean; permissions?: StaffPermission[]; grantedByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!target || target.role === "developer") throw new Error("This account cannot be changed through this control.");
+  if (input.canUploadShorts !== undefined) {
+    if (target.role !== "student") throw new Error("Short upload permission can only be changed for Student accounts.");
+    await database.update(users).set({ canUploadShorts: input.canUploadShorts }).where(eq(users.id, input.userId));
+  }
+  if (input.permissions !== undefined) {
+    if (target.role !== "teacher") throw new Error("Staff permissions can only be changed for Teacher accounts.");
+    await database.delete(userPermissions).where(eq(userPermissions.userId, input.userId));
+    for (const permission of input.permissions) await database.insert(userPermissions).values({ userId: input.userId, permission, grantedByUserId: input.grantedByUserId });
+  }
+  await revokeAllSessions(input.userId);
+}
+
+export async function listDeveloperContentInventory() {
+  const database = await getDb();
+  if (!database) return { courses: [], tests: [], shorts: [] };
+  const [courseItems, testItems, shortItems] = await Promise.all([
+    database.select({ id: courses.id, title: courses.title, status: courses.status, updatedAt: courses.updatedAt }).from(courses).orderBy(desc(courses.updatedAt)).limit(100),
+    database.select({ id: tests.id, title: tests.title, status: tests.status, updatedAt: tests.updatedAt }).from(tests).orderBy(desc(tests.updatedAt)).limit(100),
+    database.select({ id: educationalShorts.id, title: educationalShorts.title, status: educationalShorts.status, updatedAt: educationalShorts.updatedAt }).from(educationalShorts).orderBy(desc(educationalShorts.updatedAt)).limit(100),
+  ]);
+  return { courses: courseItems, tests: testItems, shorts: shortItems };
+}
+
+export async function developerSetContentStatus(input: { contentType: "course" | "test" | "short"; contentId: number; status: "draft" | "published" | "archived" }) {
+  if (input.contentType === "course") return updateCourseStatus(input.contentId, input.status);
+  if (input.contentType === "test") return setManagedTestStatus(input.contentId, input.status);
+  return setEducationalShortStatus(input.contentId, input.status);
 }
 
 export async function getStudentShortUploadAccess(userId: number) {
