@@ -146,3 +146,4 @@
 - [ ] Audit Student offline downloads and YouTube/Instagram Shorts playback end to end, fix verified regressions, and record physical-device/provider limitations.
 - [x] Restrict external Shorts WebView mounting to the active feed item to reduce stale playback and overlapping embedded players.
 - [ ] Restore authorized managed-video offline download support without weakening enrollment, publication, or private-storage checks.
+- [x] Add a graceful provider-aware error fallback with retry and link-sharing actions for failed external Shorts embeds.
