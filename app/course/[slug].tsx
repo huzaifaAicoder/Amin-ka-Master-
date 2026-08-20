@@ -61,7 +61,18 @@ export default function CourseDetailScreen() {
       const privateFolder = `${documentDirectory}protected-resources/`;
       await FileSystem.makeDirectoryAsync(privateFolder, { intermediates: true });
       const targetUri = `${privateFolder}${Date.now()}-${safeFileName}`;
-      await FileSystem.downloadAsync(issued.signedUrl, targetUri);
+      const temporaryUri = `${targetUri}.partial`;
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+      try {
+        const download = await FileSystem.downloadAsync(issued.signedUrl, temporaryUri);
+        if (!download || download.status < 200 || download.status >= 300) throw new Error("The download did not complete successfully.");
+        const info = await FileSystem.getInfoAsync(temporaryUri);
+        if (!info.exists || !info.size) throw new Error("The downloaded file is incomplete. Please retry.");
+        await FileSystem.moveAsync({ from: temporaryUri, to: targetUri });
+      } catch (cause) {
+        await FileSystem.deleteAsync(temporaryUri, { idempotent: true });
+        throw cause;
+      }
       router.push({ pathname: "/pdf-reader", params: { uri: targetUri, title } });
     } catch (error) {
       Alert.alert("PDF unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");

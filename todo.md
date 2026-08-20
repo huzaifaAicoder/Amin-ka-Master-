@@ -133,3 +133,7 @@
 - [ ] Expand Developer feature and panel kill switches, including developer-bypass maintenance mode.
 - [ ] Add white-label instance configuration and cloning foundations without copying live user data or provider secrets.
 - [ ] Prepare and push the V3 root-control upgrade when repository write access is confirmed.
+- [ ] Complete regression-first V2 hardening audit for media, downloads, AI keyboard behavior, navigation, safe areas, authorization, and performance.
+- [x] Centralize validated YouTube URL parsing and add regression coverage for Shorts, course, and lesson media.
+- [x] Make authorized downloads interruption-safe using temporary files and completion-only promotion into the protected offline library.
+- [ ] Produce an evidence-based V2 GREEN/RED release audit with actual device-test and load-test limitations.

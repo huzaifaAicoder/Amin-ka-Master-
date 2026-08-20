@@ -11,6 +11,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, EmptyState, PrimaryButton } from "@/components/lms-ui";
 import { uploadLearningMedia } from "@/lib/media-upload";
 import { trpc } from "@/lib/trpc";
+import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import { usePanelRefresh } from "@/hooks/use-panel-refresh";
 
 const { height: viewportHeight } = Dimensions.get("window");
@@ -75,8 +76,7 @@ function ExternalShortPage({ item, onLike, onSave, onShare, onComments, liking, 
 
 function getExternalEmbedUrl(sourceType: ShortItem["sourceType"], url: string) {
   if (sourceType === "youtube") {
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{6,})/i);
-    return match ? `https://www.youtube-nocookie.com/embed/${match[1]}?playsinline=1&rel=0&modestbranding=1` : null;
+    return getYouTubeEmbedUrl(url);
   }
   const match = url.match(/instagram\.com\/(?:reel|p)\/([^/?#]+)/i);
   return match ? `https://www.instagram.com/${url.includes("/p/") ? "p" : "reel"}/${match[1]}/embed/captioned/` : null;
