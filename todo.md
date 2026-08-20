@@ -209,3 +209,5 @@
 - [x] Apply the attached additive UX instruction set: Home translation control, AI chat image preview refinement, and State/District search without regressing current routes, RBAC, or backend flows.
 - [x] Add reviewed district-reference cards, private recent-conversion PDF export, and pinch-to-zoom to the existing AI image preview without weakening source or privacy boundaries.
 - [x] Upgrade the existing AI Quiz and assessment experience with additive modern timed-test, submit, results, review, and history improvements while preserving server-derived scoring and staff controls.
+- [x] Prepare authenticated native Android/iOS validation guidance for pinch/PDF/WebView flows, expand reviewed district-reference coverage, and add staff-configurable mock-test presets.
+- [x] Verify and preserve the attached five-step UX requirements: Developer login back navigation, Home language access, AI image thumbnail/removal, and State/District filtering; document any already-complete functionality rather than duplicating it.

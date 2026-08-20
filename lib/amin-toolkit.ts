@@ -147,8 +147,10 @@ export function compassHeading(x: number, y: number) {
 
 export const OFFICIAL_LAND_PORTALS = [
   { id: "bihar-bhumi", state: "Bihar", title: "Bihar Bhumi", url: "https://biharbhumi.bihar.gov.in/Biharbhumi/", host: "biharbhumi.bihar.gov.in", note: "Revenue Bihar land and related online services." },
+  { id: "bihar-revenue-department", state: "Bihar", title: "Bihar Revenue & Land Reforms Department", url: "https://land.bihar.gov.in/landbihar/Default.aspx", host: "land.bihar.gov.in", note: "Government of Bihar Revenue and Land Reforms Department and survey/record reference directory." },
   { id: "up-bhulekh", state: "Uttar Pradesh", title: "UP Bhulekh", url: "https://upbhulekh.gov.in/", host: "upbhulekh.gov.in", note: "Uttar Pradesh official Bhulekh land-record portal." },
   { id: "mp-bhulekh", state: "Madhya Pradesh", title: "MP Bhulekh", url: "https://mpbhulekh.gov.in/", host: "mpbhulekh.gov.in", note: "Madhya Pradesh official land-record and map portal." },
+  { id: "mp-revenue-circulars", state: "Madhya Pradesh", title: "MP Revenue Orders & Circulars", url: "https://revenue.mp.gov.in/circular/", host: "revenue.mp.gov.in", note: "Madhya Pradesh Revenue Department official orders and circulars directory." },
   { id: "rajasthan-apna-khata", state: "Rajasthan", title: "Apna Khata", url: "https://apnakhata.rajasthan.gov.in/", host: "apnakhata.rajasthan.gov.in", note: "Rajasthan Government Apna Khata land-record portal." },
   { id: "rajasthan-land-revenue-circulars", state: "Rajasthan", title: "Rajasthan Land Revenue Circulars", url: "https://landrevenue.rajasthan.gov.in/content/landrevenuenew/en/board-of-revenue-for-raj-dep/documents/circulars/LRcircular.html", host: "landrevenue.rajasthan.gov.in", note: "Rajasthan Board of Revenue circular directory." },
   { id: "dolr", state: "India", title: "Department of Land Resources", url: "https://dolr.gov.in/en/", host: "dolr.gov.in", note: "National Department of Land Resources reference portal." },
@@ -165,9 +167,15 @@ export type ReviewedLandReferenceCard = { id: string; portalId: typeof OFFICIAL_
 
 /** Only source-reviewed state coverage is presented. The UI deliberately does not fabricate a district-specific circular where one was not reviewed. */
 export const REVIEWED_LAND_REFERENCE_CARDS: Record<string, ReviewedLandReferenceCard[]> = {
-  BR: [{ id: "BR-revenue", portalId: "bihar-bhumi", title: "Bihar official land-record reference", issuer: "Government of Bihar", coverage: "Bihar · verify district/tehsil practice", kind: "official records", note: "Use the official record portal to confirm terminology used in the local revenue record." }],
+  BR: [
+    { id: "BR-department", portalId: "bihar-revenue-department", title: "Bihar Revenue & Land Reforms Department", issuer: "Government of Bihar", coverage: "Bihar · statewide department and survey directory", kind: "revenue department reference", note: "Use the department and survey directory to locate the appropriate record or survey reference for the district/tehsil." },
+    { id: "BR-revenue", portalId: "bihar-bhumi", title: "Bihar official land-record reference", issuer: "Government of Bihar", coverage: "Bihar · verify district/tehsil practice", kind: "official records", note: "Use the official record portal to confirm terminology used in the local revenue record." },
+  ],
   UP: [{ id: "UP-bhulekh", portalId: "up-bhulekh", title: "UP Bhulekh official record reference", issuer: "Government of Uttar Pradesh", coverage: "Uttar Pradesh · verify district/tehsil practice", kind: "official records", note: "Use the official record portal to confirm local terminology before applying a traditional-unit profile." }],
-  MP: [{ id: "MP-bhulekh", portalId: "mp-bhulekh", title: "MP Bhulekh official record reference", issuer: "Government of Madhya Pradesh", coverage: "Madhya Pradesh · verify district/tehsil practice", kind: "official records", note: "Use the official record and map portal to confirm the local revenue convention." }],
+  MP: [
+    { id: "MP-circulars", portalId: "mp-revenue-circulars", title: "MP Revenue Department orders & circulars", issuer: "Government of Madhya Pradesh", coverage: "Madhya Pradesh · statewide directory; verify district applicability", kind: "circular directory", note: "Search the official order/circular directory and confirm that the selected item applies to the district/tehsil before using a local profile." },
+    { id: "MP-bhulekh", portalId: "mp-bhulekh", title: "MP Bhulekh official record reference", issuer: "Government of Madhya Pradesh", coverage: "Madhya Pradesh · verify district/tehsil practice", kind: "official records", note: "Use the official record and map portal to confirm the local revenue convention." },
+  ],
   RJ: [
     { id: "RJ-circulars", portalId: "rajasthan-land-revenue-circulars", title: "Rajasthan Board of Revenue circular directory", issuer: "Rajasthan Land Revenue Department", coverage: "Rajasthan · statewide directory; verify district applicability", kind: "circular directory", note: "A statewide official circular directory. Check the relevant district/tehsil context before relying on a local unit." },
     { id: "RJ-apna-khata", portalId: "rajasthan-apna-khata", title: "Apna Khata official record reference", issuer: "Government of Rajasthan", coverage: "Rajasthan · verify district/tehsil practice", kind: "official records", note: "Use official record terminology alongside the selected local profile." },
