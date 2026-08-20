@@ -142,3 +142,4 @@
 - [x] Add an explicit confirmation modal before applying Developer Master Kill-Switch or maintenance lockout changes.
 - [ ] Diagnose and resolve the reported stale preview/session display so it reflects the current project checkpoint.
 - [x] Add an explicit Developer testing shortcut to the existing protected sign-in screen without automatic privileged login or credential bypass.
+- [x] Compare current source against the verified advanced checkpoints and recover the Student UI, Shorts, offline Downloads, AI, and Developer Portal exposure that diverged from the preview.
