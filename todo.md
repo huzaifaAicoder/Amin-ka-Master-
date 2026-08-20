@@ -203,4 +203,6 @@
 - [x] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
 - [x] Add local-only failure records, per-item authorized retry, and title search to the protected Student Downloads library.
 - [x] Build a safe India-wide state-first land-unit selector with standard units everywhere and only source-verified local-unit systems by state/district.
+- [x] Repair the undefined `auth` route redirect, compass sensor UI lag, and AI Doubt Solver keyboard overlap without replacing existing authentication, Toolkit, or Vision flows.
+- [x] Repair the undefined `auth` route redirect, compass sensor UI lag, and AI Doubt Solver keyboard overlap without replacing existing authentication, Toolkit, or Vision flows.
 - [ ] Research, document, and add only verified district-specific UP, MP, and Rajasthan local-unit systems to the Amin Toolkit converter.

@@ -34,4 +34,11 @@ describe("Developer and Staff authentication recovery", () => {
     expect(routerSource).toContain("verifyDeveloperPortalPasskey(input.developerPasskey)");
     expect(rootSource).toContain('const isDeveloperRoute = rootSegment === "dev-portal" || rootSegment === "view-as"');
   });
+
+  it("keeps the Expo Router Stack mounted while hydration redirects are blocked", () => {
+    expect(rootSource).toContain("const routeTransitioning =");
+    expect(rootSource).toContain("Keep the child Stack mounted under the blocker");
+    expect(rootSource).toContain("<AuthenticationGate>");
+    expect(rootSource).toContain('<Stack screenOptions={{ headerShown: false }}>');
+  });
 });

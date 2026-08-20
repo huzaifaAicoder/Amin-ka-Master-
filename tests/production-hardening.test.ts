@@ -9,6 +9,7 @@ describe("Production hardening regression guard", () => {
   it("keeps native-safe auth recovery and visible secret controls across shared authentication screens", () => {
     const auth = read("app/auth.tsx");
     const developer = read("app/dev-portal.tsx");
+    const askAi = read("app/ask-ai.tsx");
     const client = read("lib/trpc.ts");
     expect(client).not.toContain("window.location.replace");
     for (const source of [auth, developer]) {
@@ -16,6 +17,9 @@ describe("Production hardening regression guard", () => {
       expect(source).toContain('name={visible ? "visibility-off" : "visibility"}');
       expect(source).toContain("Show ${label}");
     }
+    expect(askAi).toContain('KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}');
+    expect(askAi).toContain("styles.chatShell");
+    expect(askAi).toContain("styles.composerArea");
   });
 
   it("retains offline Student routing, provider-aware YouTube safeguards, and bounded Shorts virtualization", () => {

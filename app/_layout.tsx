@@ -62,11 +62,10 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
     if (offlineStudent && rootSegment !== "downloads" && flag("feature.downloads_enabled") && studentFeature("downloads")) router.replace("/downloads");
   }, [flag, isAuthRoute, isDeveloperRoute, isStaffRoute, isStudentPortalRoute, loading, offlineStudent, rootSegment, router, studentFeature, user]);
 
-  if (loading || (!user && !isAuthRoute && !isDeveloperRoute) || (user && isAuthRoute) || (user?.role === "developer" && !isDeveloperRoute) || (user && user.role !== "developer" && isDeveloperRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute)) {
-    return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
-  }
-  if (panelPaused || studentFeaturePaused || staffFeaturePaused) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 28, backgroundColor: "#FFFDF7" }}><Text style={{ color: "#14213D", fontSize: 20, fontWeight: "900", textAlign: "center" }}>{panelPaused ? "Access is temporarily paused" : "This feature is temporarily unavailable"}</Text><Text style={{ color: "#667085", fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 10 }}>The Developer has temporarily disabled this area. Please check back later or contact your platform administrator.</Text></View>;
-  return <>{children}</>;
+  const routeTransitioning = loading || (!user && !isAuthRoute && !isDeveloperRoute) || (user && isAuthRoute) || (user?.role === "developer" && !isDeveloperRoute) || (user && user.role !== "developer" && isDeveloperRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute);
+  // Keep the child Stack mounted under the blocker. This makes its route registry available
+  // before the guarded redirect runs and prevents an unhandled REPLACE action during hydration.
+  return <>{children}{routeTransitioning ? <View pointerEvents="auto" style={{ position: "absolute", zIndex: 50, top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", backgroundColor: "#FFFDF7" }}><ActivityIndicator /></View> : null}{!routeTransitioning && (panelPaused || studentFeaturePaused || staffFeaturePaused) ? <View style={{ position: "absolute", zIndex: 50, top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center", padding: 28, backgroundColor: "#FFFDF7" }}><Text style={{ color: "#14213D", fontSize: 20, fontWeight: "900", textAlign: "center" }}>{panelPaused ? "Access is temporarily paused" : "This feature is temporarily unavailable"}</Text><Text style={{ color: "#667085", fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 10 }}>The Developer has temporarily disabled this area. Please check back later or contact your platform administrator.</Text></View> : null}</>;
 }
 
 function NativeStudentCaptureGuard() {

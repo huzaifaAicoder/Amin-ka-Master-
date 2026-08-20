@@ -9,6 +9,7 @@ const rootSource = readFileSync("app/_layout.tsx", "utf8");
 const dbSource = readFileSync("server/db.ts", "utf8");
 const gpsSource = readFileSync("app/toolkit/gps-area.tsx", "utf8");
 const converterSource = readFileSync("app/toolkit/unit-converter.tsx", "utf8");
+const compassSource = readFileSync("app/toolkit/compass.tsx", "utf8");
 
 describe("Amin Master Toolkit", () => {
   it("calculates a bounded local plot estimate without a server call", () => {
@@ -74,6 +75,14 @@ describe("Amin Master Toolkit", () => {
     expect(gpsSource).toContain("loadSavedPlots");
     expect(gpsSource).toContain("Opened ${plot.name}");
     expect(gpsSource).not.toContain("trpc.");
+  });
+
+  it("throttles compass updates and uses a native-driven needle animation instead of rendering each sensor sample", () => {
+    expect(compassSource).toContain("const SENSOR_INTERVAL_MS = 200");
+    expect(compassSource).toContain("const DISPLAY_UPDATE_INTERVAL_MS = 250");
+    expect(compassSource).toContain("useNativeDriver: true");
+    expect(compassSource).toContain("Animated.View");
+    expect(compassSource).not.toContain("addListener(({ x, y }) => setHeading");
   });
 
   it("enforces the Toolkit through the existing Developer global and individual Student gates", () => {
