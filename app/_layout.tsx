@@ -7,9 +7,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { ActivityIndicator, Platform, Text, View } from "react-native";
 import * as ScreenCapture from "expo-screen-capture";
+import * as Network from "expo-network";
 import { usePreventScreenCapture } from "expo-screen-capture";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { LanguagePreferenceProvider } from "@/lib/language-preference";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -40,10 +42,12 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
   const controls = controlsQuery.data;
   const studentOverrides = studentOverridesQuery.data;
-  const flag = (key: string, fallback = true) => typeof controls?.[key as keyof typeof controls] === "boolean" ? Boolean(controls?.[key as keyof typeof controls]) : fallback;
-  const studentFeature = (key: string) => studentOverrides?.[key] !== false;
+  const networkState = Network.useNetworkState();
+  const flag = useCallback((key: string, fallback = true) => typeof controls?.[key as keyof typeof controls] === "boolean" ? Boolean(controls?.[key as keyof typeof controls]) : fallback, [controls]);
+  const studentFeature = useCallback((key: string) => studentOverrides?.[key] !== false, [studentOverrides]);
   const panelPaused = Boolean(user && user.role !== "developer" && (flag("platform.maintenance_enabled", false) || (user.role === "student" && !flag("platform.student_access_enabled")) || ((user.role === "teacher" || user.role === "admin") && !flag("platform.staff_access_enabled")) || (user.role === "super_admin" && !flag("platform.owner_access_enabled"))));
   const studentFeaturePaused = Boolean(user?.role === "student" && (((rootSegment === "shorts" || segments[1] === "shorts") && (!flag("feature.shorts_enabled") || !studentFeature("shorts"))) || ((rootSegment === "downloads" || segments[1] === "downloads") && (!flag("feature.downloads_enabled") || !studentFeature("downloads"))) || ((rootSegment === "ask-ai" || rootSegment === "ai-quiz") && (!flag("feature.ai_doubt_enabled") || !studentFeature("ai_doubt") || (rootSegment === "ai-quiz" && (!flag("feature.ai_quiz_enabled") || !studentFeature("ai_quiz"))))) || ((rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history") && (!flag("feature.assessments_enabled") || !studentFeature("assessments"))) || ((rootSegment === "live" || rootSegment === "sessions") && (!flag("feature.live_classes_enabled") || !studentFeature("live_classes"))) || (rootSegment === "course" && (!flag("feature.courses_enabled") || !studentFeature("courses")))));
+  const offlineStudent = user?.role === "student" && (networkState.isInternetReachable === false || networkState.isConnected === false);
 
   useEffect(() => {
     if (loading) return;
@@ -53,7 +57,8 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
     if (user && user.role !== "developer" && isDeveloperRoute) router.replace(user.role === "student" ? "/" : "/operations");
     if (user?.role === "student" && isStaffRoute) router.replace("/");
     if (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute) router.replace("/operations");
-  }, [isAuthRoute, isDeveloperRoute, isStaffRoute, isStudentPortalRoute, loading, router, user]);
+    if (offlineStudent && rootSegment !== "downloads" && flag("feature.downloads_enabled") && studentFeature("downloads")) router.replace("/downloads");
+  }, [flag, isAuthRoute, isDeveloperRoute, isStaffRoute, isStudentPortalRoute, loading, offlineStudent, rootSegment, router, studentFeature, user]);
 
   if (loading || (!user && !isAuthRoute && !isDeveloperRoute) || (user && isAuthRoute) || (user?.role === "developer" && !isDeveloperRoute) || (user && user.role !== "developer" && isDeveloperRoute) || (user?.role === "student" && isStaffRoute) || (user && user.role !== "student" && user.role !== "developer" && isStudentPortalRoute)) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
@@ -143,7 +148,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <LmsSessionProvider>
+          <LanguagePreferenceProvider><LmsSessionProvider>
             <StudentSessionCaptureGuard />
             <AuthenticationGate>
               <Stack screenOptions={{ headerShown: false }}>
@@ -156,7 +161,7 @@ export default function RootLayout() {
               <OwnerPermissionsShortcut />
             </AuthenticationGate>
             <StatusBar style="auto" />
-          </LmsSessionProvider>
+          </LmsSessionProvider></LanguagePreferenceProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </GestureHandlerRootView>

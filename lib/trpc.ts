@@ -37,7 +37,6 @@ export function createTRPCClient() {
           });
           if (response.status === 401) {
             await Auth.invalidateLocalSession();
-            if (typeof window !== "undefined" && window.location.pathname !== "/auth") window.location.replace("/auth");
           }
           return response;
         },

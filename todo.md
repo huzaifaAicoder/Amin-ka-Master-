@@ -170,4 +170,9 @@
 - [x] Add audited Select All and Reset to Default bulk controls to the Developer Student and Teacher permission matrices.
 - [x] Build a safe white-label Master Template Studio where Developer can create isolated client instance configurations, visually customize supported settings, preview them, and prepare a release without copying users, secrets, or live production data.
 - [x] Extend the studio for separate client-project provisioning manifests and release packages, while requiring platform-mediated final Publish/APK builds rather than autonomous in-app deployment.
+- [x] Apply additive production hardening for cross-platform authentication, keyboard avoidance, and password/passkey visibility across authentication flows.
+- [x] Add offline-first connection awareness that routes authenticated Students to protected Downloads while retaining in-app-only media playback.
+- [x] Harden YouTube Shorts embeds and FlatList virtualization without claiming provider-controlled playback or device-frame-rate guarantees.
+- [x] Add a persisted English/Hindi/Bilingual interface-preference foundation and Developer-managed default language setting.
+- [x] Verify multi-device session behavior, API pagination boundaries, release configuration, tests, and documented standalone-build limitations without deleting existing Expo dependencies.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

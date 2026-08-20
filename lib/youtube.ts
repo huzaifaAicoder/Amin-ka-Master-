@@ -16,5 +16,5 @@ export function getYouTubeVideoId(url: string): string | null {
 
 export function getYouTubeEmbedUrl(url: string): string | null {
   const id = getYouTubeVideoId(url);
-  return id ? `https://www.youtube.com/embed/${id}?playsinline=1&rel=0&modestbranding=1` : null;
+  return id ? `https://www.youtube.com/embed/${id}?playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com` : null;
 }
