@@ -46,6 +46,7 @@ import {
   freePlaylists,
   questions,
   staffPasskeys,
+  studentFeaturePermissions,
   testAnswers,
   testAttempts,
   tests,
@@ -72,6 +73,8 @@ export const STAFF_PERMISSION_OPTIONS = [
   "live_classes.manage",
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
+export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz"] as const;
+export type StudentFeature = (typeof STUDENT_FEATURE_OPTIONS)[number];
 
 export function getOtpVerificationState(input: {
   expiresAt: Date;
@@ -1793,9 +1796,12 @@ export async function listManagedUsers(search?: string) {
   const people = await database.select({ id: users.id, fullName: users.fullName, email: users.email, mobile: users.mobile, role: users.role, status: users.status, canUploadShorts: users.canUploadShorts, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn }).from(users).where(condition).orderBy(desc(users.createdAt)).limit(200);
   if (!people.length) return [];
   const grants = await database.select({ userId: userPermissions.userId, permission: userPermissions.permission }).from(userPermissions).where(inArray(userPermissions.userId, people.map((person) => person.id)));
+  const featureGrants = await database.select({ userId: studentFeaturePermissions.userId, feature: studentFeaturePermissions.feature, enabled: studentFeaturePermissions.enabled }).from(studentFeaturePermissions).where(inArray(studentFeaturePermissions.userId, people.map((person) => person.id)));
   const permissionsByUser = new Map<number, string[]>();
   for (const grant of grants) permissionsByUser.set(grant.userId, [...(permissionsByUser.get(grant.userId) ?? []), grant.permission]);
-  return people.map((person) => ({ ...person, permissions: permissionsByUser.get(person.id) ?? [] }));
+  const featureOverridesByUser = new Map<number, Record<string, boolean>>();
+  for (const grant of featureGrants) featureOverridesByUser.set(grant.userId, { ...(featureOverridesByUser.get(grant.userId) ?? {}), [grant.feature]: grant.enabled });
+  return people.map((person) => ({ ...person, permissions: permissionsByUser.get(person.id) ?? [], studentFeatureOverrides: featureOverridesByUser.get(person.id) ?? {} }));
 }
 
 export async function setManagedUserPermission(input: { userId: number; permission: StaffPermission; granted: boolean; grantedByUserId: number }) {
@@ -1891,6 +1897,46 @@ export async function developerSetUserControls(input: { userId: number; canUploa
     for (const permission of input.permissions) await database.insert(userPermissions).values({ userId: input.userId, permission, grantedByUserId: input.grantedByUserId });
   }
   await revokeAllSessions(input.userId);
+}
+
+export async function developerSetStudentFeatureControls(input: { userId: number; features: Array<{ feature: StudentFeature; enabled: boolean }>; grantedByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!target || target.role !== "student") throw new Error("Individual feature controls can only be changed for Student accounts.");
+  await database.transaction(async (tx) => {
+    for (const item of input.features) {
+      await tx.insert(studentFeaturePermissions).values({ userId: input.userId, feature: item.feature, enabled: item.enabled, grantedByUserId: input.grantedByUserId }).onDuplicateKeyUpdate({ set: { enabled: item.enabled, grantedByUserId: input.grantedByUserId } });
+    }
+  });
+  await revokeAllSessions(input.userId);
+}
+
+export async function getStudentFeatureOverrides(userId: number) {
+  const database = await getDb();
+  if (!database) return {} as Record<string, boolean>;
+  const rows = await database.select({ feature: studentFeaturePermissions.feature, enabled: studentFeaturePermissions.enabled }).from(studentFeaturePermissions).where(eq(studentFeaturePermissions.userId, userId));
+  return rows.reduce<Record<string, boolean>>((result, row) => ({ ...result, [row.feature]: row.enabled }), {});
+}
+
+export async function listDeveloperAuditLogs(input: { search?: string; limit: number }) {
+  const database = await getDb();
+  if (!database) return [];
+  const needle = input.search?.trim();
+  const condition = needle ? or(like(auditLogs.action, `%${needle}%`), like(auditLogs.entityType, `%${needle}%`), like(auditLogs.entityId, `%${needle}%`), like(users.fullName, `%${needle}%`), like(users.email, `%${needle}%`)) : undefined;
+  return database.select({ id: auditLogs.id, action: auditLogs.action, entityType: auditLogs.entityType, entityId: auditLogs.entityId, metadata: auditLogs.metadata, createdAt: auditLogs.createdAt, actorName: users.fullName, actorEmail: users.email }).from(auditLogs).leftJoin(users, eq(auditLogs.actorUserId, users.id)).where(condition).orderBy(desc(auditLogs.createdAt)).limit(input.limit);
+}
+
+export async function getDeveloperViewAsTarget(userId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ id: users.id, fullName: users.fullName, role: users.role, status: users.status, canUploadShorts: users.canUploadShorts }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target || target.role === "developer") throw new Error("This account cannot be previewed through View As.");
+  const [permissions, studentFeatureOverrides] = await Promise.all([
+    database.select({ permission: userPermissions.permission }).from(userPermissions).where(eq(userPermissions.userId, userId)),
+    getStudentFeatureOverrides(userId),
+  ]);
+  return { ...target, permissions: permissions.map((item) => item.permission), studentFeatureOverrides };
 }
 
 export async function listDeveloperContentInventory() {

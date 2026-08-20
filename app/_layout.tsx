@@ -30,17 +30,20 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useLmsSession();
   const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { enabled: Boolean(user && user.role !== "developer"), retry: false });
+  const studentOverridesQuery = trpc.student.featureOverrides.useQuery(undefined, { enabled: user?.role === "student", retry: false });
   const router = useRouter();
   const segments = useSegments();
   const rootSegment = segments[0];
   const isAuthRoute = rootSegment === "auth" || rootSegment === "oauth";
-  const isDeveloperRoute = rootSegment === "dev-portal";
+  const isDeveloperRoute = rootSegment === "dev-portal" || rootSegment === "view-as";
   const isStaffRoute = rootSegment === "operations";
   const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions";
   const controls = controlsQuery.data;
+  const studentOverrides = studentOverridesQuery.data;
   const flag = (key: string, fallback = true) => typeof controls?.[key as keyof typeof controls] === "boolean" ? Boolean(controls?.[key as keyof typeof controls]) : fallback;
+  const studentFeature = (key: string) => studentOverrides?.[key] !== false;
   const panelPaused = Boolean(user && user.role !== "developer" && (flag("platform.maintenance_enabled", false) || (user.role === "student" && !flag("platform.student_access_enabled")) || ((user.role === "teacher" || user.role === "admin") && !flag("platform.staff_access_enabled")) || (user.role === "super_admin" && !flag("platform.owner_access_enabled"))));
-  const studentFeaturePaused = Boolean(user?.role === "student" && ((rootSegment === "shorts" || segments[1] === "shorts") && !flag("feature.shorts_enabled") || ((rootSegment === "ask-ai" || rootSegment === "ai-quiz") && (!flag("feature.ai_doubt_enabled") || (rootSegment === "ai-quiz" && !flag("feature.ai_quiz_enabled")))) || ((rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history") && !flag("feature.assessments_enabled")) || ((rootSegment === "live" || rootSegment === "sessions") && !flag("feature.live_classes_enabled")) || (rootSegment === "course" && !flag("feature.courses_enabled"))));
+  const studentFeaturePaused = Boolean(user?.role === "student" && (((rootSegment === "shorts" || segments[1] === "shorts") && (!flag("feature.shorts_enabled") || !studentFeature("shorts"))) || ((rootSegment === "downloads" || segments[1] === "downloads") && (!flag("feature.downloads_enabled") || !studentFeature("downloads"))) || ((rootSegment === "ask-ai" || rootSegment === "ai-quiz") && (!flag("feature.ai_doubt_enabled") || !studentFeature("ai_doubt") || (rootSegment === "ai-quiz" && (!flag("feature.ai_quiz_enabled") || !studentFeature("ai_quiz"))))) || ((rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history") && (!flag("feature.assessments_enabled") || !studentFeature("assessments"))) || ((rootSegment === "live" || rootSegment === "sessions") && (!flag("feature.live_classes_enabled") || !studentFeature("live_classes"))) || (rootSegment === "course" && (!flag("feature.courses_enabled") || !studentFeature("courses")))));
 
   useEffect(() => {
     if (loading) return;

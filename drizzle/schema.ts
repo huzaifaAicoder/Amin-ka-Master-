@@ -96,6 +96,20 @@ export const userPermissions = mysqlTable(
   (table) => [uniqueIndex("user_permission_uq").on(table.userId, table.permission)],
 );
 
+export const studentFeaturePermissions = mysqlTable(
+  "student_feature_permissions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    feature: varchar("feature", { length: 96 }).notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    grantedByUserId: int("grantedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("student_feature_permission_uq").on(table.userId, table.feature)],
+);
+
 export const categories = mysqlTable(
   "categories",
   {

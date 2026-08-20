@@ -343,6 +343,10 @@ export const appRouter = router({
     }),
   }),
   student: router({
+    featureOverrides: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "student") return {};
+      return db.getStudentFeatureOverrides(ctx.user.id);
+    }),
     enrollFree: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
     learning: protectedProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
     certificates: protectedProcedure.query(({ ctx }) => db.listMyCertificates(ctx.user.id)),
@@ -562,6 +566,22 @@ export const appRouter = router({
       await db.developerSetUserControls({ ...input, grantedByUserId: ctx.user.id });
       await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_user.controls_updated", entityType: "user", entityId: input.userId, metadata: { canUploadShorts: input.canUploadShorts, permissions: input.permissions } });
       return { success: true as const };
+    }),
+    setStudentFeatureControls: requireRoles(["developer"]).input(z.object({
+      userId: z.number().int().positive(),
+      features: z.array(z.object({ feature: z.enum(db.STUDENT_FEATURE_OPTIONS), enabled: z.boolean() })).min(1).max(db.STUDENT_FEATURE_OPTIONS.length),
+    })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Use the Developer access controls rather than previewing or changing the active root account." });
+      await db.developerSetStudentFeatureControls({ ...input, grantedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_student.feature_matrix_updated", entityType: "user", entityId: input.userId, metadata: { features: input.features } });
+      return { success: true as const };
+    }),
+    auditLogs: requireRoles(["developer"]).input(z.object({ search: z.string().trim().max(120).optional(), limit: z.number().int().min(1).max(500).default(200) }).optional()).query(({ input }) => db.listDeveloperAuditLogs({ search: input?.search, limit: input?.limit ?? 200 })),
+    viewAsPreview: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Developer View As only supports non-Developer accounts." });
+      const target = await db.getDeveloperViewAsTarget(input.userId);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer.view_as_preview_opened", entityType: "user", entityId: input.userId, metadata: { role: target.role, safeReadOnlyPreview: true } });
+      return target;
     }),
     contentInventory: requireRoles(["developer"]).query(() => db.listDeveloperContentInventory()),
     setContentStatus: requireRoles(["developer"]).input(z.object({ contentType: z.enum(["course", "test", "short"]), contentId: z.number().int().positive(), status: z.enum(["draft", "published", "archived"]) })).mutation(async ({ ctx, input }) => {
