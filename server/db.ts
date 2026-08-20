@@ -1288,6 +1288,13 @@ export async function setStudyCoachNoticePreference(userId: number, noticesEnabl
   await database.insert(studyCoachPreferences).values({ userId, noticesEnabled }).onDuplicateKeyUpdate({ set: { noticesEnabled } });
 }
 
+export async function createStudyCoachNoticeConfirmation(userId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(notifications).values({ userId, title: "Study Coach notices are on", body: "You can review your private study plan whenever you are ready. You can turn this preference off from Study Coach at any time.", type: "study_coach", link: "/study-coach" });
+  return Number(result[0].insertId);
+}
+
 export async function getGuardianReportPreference(userId: number) {
   const database = await getDb();
   const empty = { guardianName: "", guardianEmail: "", guardianMobile: "", consentGranted: false };

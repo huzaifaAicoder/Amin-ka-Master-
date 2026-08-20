@@ -542,9 +542,11 @@ export const appRouter = router({
     setStudyCoachNoticePreference: protectedProcedure.input(z.object({ noticesEnabled: z.boolean() })).mutation(async ({ ctx, input }) => {
       requireStudentAccess(ctx.user.role);
       await requireGrowthSuiteFeature("feature.study_coach_enabled");
+      const previous = await db.getStudyCoachNoticePreference(ctx.user.id);
       await db.setStudyCoachNoticePreference(ctx.user.id, input.noticesEnabled);
-      await db.writeAudit({ actorUserId: ctx.user.id, action: "study_coach.notice_preference_updated", entityType: "study_coach_preference", entityId: ctx.user.id, metadata: { noticesEnabled: input.noticesEnabled } });
-      return { success: true as const };
+      const notificationId = input.noticesEnabled && !previous.noticesEnabled ? await db.createStudyCoachNoticeConfirmation(ctx.user.id) : null;
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "study_coach.notice_preference_updated", entityType: "study_coach_preference", entityId: ctx.user.id, metadata: { noticesEnabled: input.noticesEnabled, notificationId } });
+      return { success: true as const, notificationId };
     }),
     guardianReportPreference: protectedProcedure.query(async ({ ctx }) => {
       requireStudentAccess(ctx.user.role);

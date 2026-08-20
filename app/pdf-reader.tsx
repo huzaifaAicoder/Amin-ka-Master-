@@ -12,6 +12,7 @@ export default function PdfReaderScreen() {
   const params = useLocalSearchParams<{ uri?: string; title?: string }>();
   const uri = typeof params.uri === "string" ? params.uri : "";
   const title = typeof params.title === "string" ? params.title : "Course PDF";
+  const isProtectedResource = /^file:\/\//.test(uri) && uri.includes("protected-resources/");
 
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -26,7 +27,7 @@ export default function PdfReaderScreen() {
       <Text numberOfLines={1} style={styles.title}>{title}</Text>
       <Text style={styles.badge}>IN-APP</Text>
     </View>
-    {Platform.OS === "web" ? <View style={styles.message}><Text style={styles.messageTitle}>Open this PDF in the Amin Ka Master mobile app</Text><Text style={styles.messageBody}>Private offline PDF storage and the internal reader are intentionally not exposed through the browser download flow.</Text></View> : uri ? <WebView source={{ uri }} style={styles.viewer} originWhitelist={["file://", "http://", "https://"]} javaScriptEnabled={false} domStorageEnabled={false} setSupportMultipleWindows={false} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} /> : <View style={styles.message}><Text style={styles.messageTitle}>PDF unavailable</Text><Text style={styles.messageBody}>Download the learning resource again from the enrolled course.</Text></View>}
+    {Platform.OS === "web" ? <View style={styles.message}><Text style={styles.messageTitle}>Open this PDF in the Amin Ka Master mobile app</Text><Text style={styles.messageBody}>Private offline PDF storage and the internal reader are intentionally not exposed through the browser download flow.</Text></View> : isProtectedResource ? <WebView source={{ uri }} style={styles.viewer} originWhitelist={["file://"]} javaScriptEnabled={false} domStorageEnabled={false} setSupportMultipleWindows={false} allowFileAccess={false} allowFileAccessFromFileURLs={false} allowUniversalAccessFromFileURLs={false} /> : <View style={styles.message}><Text style={styles.messageTitle}>Protected PDF unavailable</Text><Text style={styles.messageBody}>Open this document from Downloads, Study Coach, or the authorized course resource flow.</Text></View>}
   </ScreenContainer>;
 }
 
