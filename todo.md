@@ -191,4 +191,6 @@
 - [x] Add a native digital compass with magnetometer availability checks, fixed-category direction display, and calibration/accuracy disclosure.
 - [x] Validate new Vision AI, permissions, GPS calculations, portals, compass behavior, security/RBAC, and regressions; prepare the requested repository update.
 - [x] Adopt the permanent backward-compatibility and feature-preservation rule across project governance, requiring additive changes, safe migrations, pre-change dependency audits, and feature-specific regression reporting for all future work.
+- [x] Diagnose and safely fix Developer authentication-to-Control-Center navigation and Staff sign-in delay, timeout, error, session, and redirect handling without weakening passkeys, RBAC, or existing panels.
+- [x] Validate Developer and Staff authentication, authorization, navigation, and surrounding Student, media, AI, offline, white-label, and security regressions.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

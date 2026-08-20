@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/array-type */
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { COLORS, EmptyState, PrimaryButton, Tag } from "@/components/lms-ui";
@@ -37,6 +37,7 @@ export default function DeveloperPortalScreen() {
   const [mode, setMode] = useState<"login" | "setup">("login");
   const [name, setName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [passkey, setPasskey] = useState("");
   const [tab, setTab] = useState<PortalTab>("overview"); const [form, setForm] = useState<Form>(EMPTY_FORM); const [flash, setFlash] = useState<Flash | null>(null);
+  const [developerLoginTimedOut, setDeveloperLoginTimedOut] = useState(false); const developerLoginAttemptRef = useRef(false);
   const [userSearch, setUserSearch] = useState(""); const [auditSearch, setAuditSearch] = useState(""); const [selectedId, setSelectedId] = useState<number | null>(null); const [resetPassword, setResetPassword] = useState("");
   const [newUser, setNewUser] = useState({ fullName: "", email: "", mobile: "", password: "", role: "student" as Role });
 
@@ -66,17 +67,20 @@ export default function DeveloperPortalScreen() {
   const people = useMemo(() => (usersQuery.data ?? []) as UserRow[], [usersQuery.data]);
   const selected = useMemo(() => people.find((candidate) => candidate.id === selectedId) ?? null, [people, selectedId]);
 
+  const developerBusy = (developerLogin.isPending || developerSetup.isPending) && !developerLoginTimedOut;
   const enter = async () => {
+    if (developerLoginAttemptRef.current) return notify({ title: "Sign-in still checking", message: "The earlier secure Developer request is still completing. Duplicate submissions are blocked until it returns.", tone: "error" });
     if (mode === "setup" && name.trim().length < 2) return notify({ title: "Name required", message: "Enter your full Developer name.", tone: "error" });
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) return notify({ title: "Email required", message: "Enter a valid Developer email address.", tone: "error" });
     if (password.length < 12) return notify({ title: "Password too short", message: "Password must be at least 12 characters long.", tone: "error" });
     if (!passkey.trim()) return notify({ title: "Passkey required", message: "Enter the server-verified Developer Passkey.", tone: "error" });
-    try { const result = mode === "setup" ? await developerSetup.mutateAsync({ fullName: name.trim(), email: email.trim(), password, developerPasskey: passkey }) : await developerLogin.mutateAsync({ email: email.trim(), password, developerPasskey: passkey }); await completeLogin(result); router.replace("/dev-portal"); } catch (error) { notify({ title: "Sign-in not completed", message: friendly(error), tone: "error" }); }
+    developerLoginAttemptRef.current = true; setDeveloperLoginTimedOut(false); const timeout = setTimeout(() => { setDeveloperLoginTimedOut(true); notify({ title: "Sign-in is taking longer", message: "The secure Developer request is still being checked. Duplicate submissions are blocked until it finishes.", tone: "error" }); }, 15_000);
+    try { const result = mode === "setup" ? await developerSetup.mutateAsync({ fullName: name.trim(), email: email.trim(), password, developerPasskey: passkey }) : await developerLogin.mutateAsync({ email: email.trim(), password, developerPasskey: passkey }); await completeLogin(result); router.replace("/dev-portal"); } catch (error) { notify({ title: "Sign-in not completed", message: friendly(error), tone: "error" }); } finally { clearTimeout(timeout); developerLoginAttemptRef.current = false; setDeveloperLoginTimedOut(false); }
   };
   const save = async (message: string) => { try { await saveSettings.mutateAsync(form); notify({ title: "Root controls saved", message, tone: "success" }); } catch (error) { notify({ title: "Changes not saved", message: friendly(error), tone: "error" }); } };
 
   if (user && user.role !== "developer") return <ScreenContainer className="items-center justify-center px-5"><EmptyState icon="lock" title="Developer access required" body="Only a server-verified Developer identity can enter this root-control center." /></ScreenContainer>;
-  if (!user) return <Login mode={mode} setMode={setMode} setupAvailable={Boolean(setupQuery.data?.available)} configured={Boolean(setupQuery.data?.configured)} name={name} setName={setName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passkey={passkey} setPasskey={setPasskey} pending={developerLogin.isPending || developerSetup.isPending} onEnter={() => void enter()} flash={flash} />;
+  if (!user) return <Login mode={mode} setMode={setMode} setupAvailable={Boolean(setupQuery.data?.available)} configured={Boolean(setupQuery.data?.configured)} name={name} setName={setName} email={email} setEmail={setEmail} password={password} setPassword={setPassword} passkey={passkey} setPasskey={setPasskey} pending={developerBusy} onEnter={() => void enter()} flash={flash} />;
   if (settingsQuery.isLoading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={COLORS.indigo} /></ScreenContainer>;
 
   return <ScreenContainer className="px-5" edges={["top", "left", "right"]}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><View style={styles.header}><View><Text style={styles.eyebrow}>ROOT PLATFORM OPERATOR</Text><Text style={styles.title}>Developer Control Center</Text></View><Pressable onPress={() => void logout()} style={styles.signOut}><MaterialIcons name="logout" size={18} color={COLORS.indigo} /><Text style={styles.signOutText}>Sign out</Text></Pressable></View><View style={styles.warning}><Text style={styles.warningText}>You control platform access, people, role boundaries, individual permissions, and content status. Passwords and provider secrets remain non-recoverable and are never displayed.</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>{(["overview", "health", "branding", "access", "users", "templates", "content", "audit"] as PortalTab[]).map((item) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabActive]}><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item === "access" ? "Access" : item === "templates" ? "Templates" : item === "health" ? "Health" : item}</Text></Pressable>)}</ScrollView>

@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -29,6 +29,8 @@ export default function AuthScreen() {
   const [resetToken, setResetToken] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [signInTimedOut, setSignInTimedOut] = useState(false);
+  const signInAttemptRef = useRef(false);
 
   const loginMutation = trpc.auth.login.useMutation();
   const registerMutation = trpc.auth.register.useMutation();
@@ -38,7 +40,8 @@ export default function AuthScreen() {
   const requestResetMutation = trpc.auth.requestPasswordReset.useMutation();
   const verifyOtpMutation = trpc.auth.verifyOtp.useMutation();
   const resetPasswordMutation = trpc.auth.resetPassword.useMutation();
-  const isBusy = loginMutation.isPending || registerMutation.isPending || registerStaffMutation.isPending || ownerLoginMutation.isPending || claimInitialOwnerMutation.isPending || requestResetMutation.isPending || verifyOtpMutation.isPending || resetPasswordMutation.isPending;
+  const mutationBusy = loginMutation.isPending || registerMutation.isPending || registerStaffMutation.isPending || ownerLoginMutation.isPending || claimInitialOwnerMutation.isPending || requestResetMutation.isPending || verifyOtpMutation.isPending || resetPasswordMutation.isPending;
+  const isBusy = mutationBusy && !signInTimedOut;
 
   const clearFeedback = () => { setError(null); setNotice(null); };
   const clearSensitiveFields = () => { setPassword(""); setConfirmPassword(""); setStaffPasskey(""); setStaffPasskeyConfirmation(""); setOwnerSetupCode(""); };
@@ -55,6 +58,7 @@ export default function AuthScreen() {
   };
   const messageForFailure = (cause: unknown) => {
     const message = cause instanceof Error ? cause.message : "";
+    if (/network|fetch|connection|offline|timeout/i.test(message)) return "The connection did not complete. Check your network and try again.";
     if (message.includes("Staff Passkey")) return "The Staff Passkey is incorrect or has been rotated. Ask the owner for the current value.";
     if (message.includes("Private Owner Passkey") || message.includes("Initial owner setup")) return "The Private Owner Setup Code is incorrect or owner setup is no longer available.";
     if (message.includes("already exists")) return "An account already exists with these details. Select Sign In instead.";
@@ -71,10 +75,17 @@ export default function AuthScreen() {
 
   const submitPortal = async () => {
     clearFeedback();
+    if (signInAttemptRef.current) return setError("Your previous sign-in request is still completing. Please wait for its result to avoid creating a duplicate session.");
     if (!identity.trim()) return setError(portal === "owner" ? "Enter the owner email address." : "Enter your email address or mobile number.");
     if (!password) return setError("Enter your password to continue.");
     if (authAction === "create" && fullName.trim().length < 2) return setError("Enter your full name.");
     if (authAction === "create" && password !== confirmPassword) return setError("Your password confirmation does not match.");
+    signInAttemptRef.current = true;
+    setSignInTimedOut(false);
+    const timeout = setTimeout(() => {
+      setSignInTimedOut(true);
+      setNotice("Signing in is taking longer than expected. The secure request is still being checked; duplicate submissions are blocked until it finishes.");
+    }, 15_000);
     try {
       if (portal === "student") {
         if (authAction === "create") {
@@ -103,7 +114,7 @@ export default function AuthScreen() {
       }
       const payload = await ownerLoginMutation.mutateAsync({ email: identity.trim(), password, ownerSetupCode });
       await completeLogin(payload); router.replace("/operations");
-    } catch (cause) { setError(messageForFailure(cause)); }
+    } catch (cause) { setError(messageForFailure(cause)); } finally { clearTimeout(timeout); signInAttemptRef.current = false; setSignInTimedOut(false); }
   };
 
   const requestReset = async () => {

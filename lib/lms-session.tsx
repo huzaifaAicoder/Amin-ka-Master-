@@ -59,7 +59,7 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
       setLocalUser(meQuery.data);
       void Auth.setUserInfo(meQuery.data);
     }
-    if (meQuery.isError) {
+    if (meQuery.isError && meQuery.error?.data?.code === "UNAUTHORIZED") {
       setLocalUser(null);
       setHasToken(false);
       void Auth.invalidateLocalSession();
@@ -94,7 +94,7 @@ export function LmsSessionProvider({ children }: { children: React.ReactNode }) 
   const value = useMemo<SessionContextValue>(
     () => ({
       user: meQuery.data ?? localUser,
-      loading: !tokenReady || (hasToken && meQuery.isLoading),
+      loading: !tokenReady || (hasToken && meQuery.isLoading && !localUser),
       completeLogin,
       logout,
       refresh,
