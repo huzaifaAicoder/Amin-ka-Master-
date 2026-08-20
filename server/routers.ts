@@ -186,7 +186,7 @@ async function requireAnyDelegatedPermission(
   }
 }
 
-async function requireGrowthSuiteFeature(key: "feature.study_coach_enabled" | "feature.learning_operations_enabled") {
+async function requireGrowthSuiteFeature(key: "feature.study_coach_enabled" | "feature.learning_operations_enabled" | "feature.guardian_reports_enabled") {
   const settings = await db.getManagedSettings();
   if (settings[key] === false) throw new TRPCError({ code: "FORBIDDEN", message: "This feature is temporarily unavailable because the Developer has paused it." });
 }
@@ -546,6 +546,21 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "study_coach.notice_preference_updated", entityType: "study_coach_preference", entityId: ctx.user.id, metadata: { noticesEnabled: input.noticesEnabled } });
       return { success: true as const };
     }),
+    guardianReportPreference: protectedProcedure.query(async ({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      await requireGrowthSuiteFeature("feature.guardian_reports_enabled");
+      return db.getGuardianReportPreference(ctx.user.id);
+    }),
+    setGuardianReportPreference: protectedProcedure.input(z.object({ guardianName: z.string().trim().max(160), guardianEmail: z.string().trim().email().max(320).optional().or(z.literal("")), guardianMobile: z.string().trim().max(24).optional().or(z.literal("")), consentGranted: z.boolean() }).superRefine((input, validation) => {
+      if (input.consentGranted && input.guardianName.length < 2) validation.addIssue({ code: "custom", path: ["guardianName"], message: "Enter the guardian's name before granting consent." });
+      if (input.consentGranted && !input.guardianEmail && !input.guardianMobile) validation.addIssue({ code: "custom", path: ["guardianEmail"], message: "Provide a guardian email or mobile number before granting consent." });
+    })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      await requireGrowthSuiteFeature("feature.guardian_reports_enabled");
+      await db.setGuardianReportPreference({ userId: ctx.user.id, ...input });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "guardian_report.preference_updated", entityType: "guardian_report_preference", entityId: ctx.user.id, metadata: { consentGranted: input.consentGranted, contactMethod: input.guardianEmail ? "email" : input.guardianMobile ? "mobile" : "none" } });
+      return { success: true as const };
+    }),
     submitAiQuizForReview: protectedProcedure.input(aiQuizReviewSubmissionSchema).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Students can submit a private AI Quiz for teacher review." });
       const submissionId = await db.createAiQuizReviewSubmission({ ...input, submittedByUserId: ctx.user.id });
@@ -716,6 +731,7 @@ export const appRouter = router({
       aiQuizEnabled: z.boolean().optional(),
       studyCoachEnabled: z.boolean().optional(),
       learningOperationsEnabled: z.boolean().optional(),
+      guardianReportsEnabled: z.boolean().optional(),
       interfaceLanguageDefault: z.enum(["english", "hindi", "bilingual"]).optional(),
       developerName: z.string().trim().max(160).optional(),
       developerRole: z.string().trim().max(160).optional(),
@@ -744,6 +760,7 @@ export const appRouter = router({
         ...(input.aiQuizEnabled !== undefined ? { "feature.ai_quiz_enabled": input.aiQuizEnabled } : {}),
         ...(input.studyCoachEnabled !== undefined ? { "feature.study_coach_enabled": input.studyCoachEnabled } : {}),
         ...(input.learningOperationsEnabled !== undefined ? { "feature.learning_operations_enabled": input.learningOperationsEnabled } : {}),
+        ...(input.guardianReportsEnabled !== undefined ? { "feature.guardian_reports_enabled": input.guardianReportsEnabled } : {}),
         ...(input.interfaceLanguageDefault !== undefined ? { "platform.interface_language_default": input.interfaceLanguageDefault } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
         ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),
@@ -776,6 +793,20 @@ export const appRouter = router({
       await requireAnyDelegatedPermission(ctx.user, ["learning_operations.manage", "assessments.manage", "courses.manage"]);
       const notificationId = await db.createLearningOperationsNotice(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "learning_operations.notice_sent", entityType: "notification", entityId: notificationId, metadata: { recipientUserId: input.userId, title: input.title, link: input.link ?? null } });
+      return { notificationId };
+    }),
+    guardianReports: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireGrowthSuiteFeature("feature.guardian_reports_enabled");
+      await requireAnyDelegatedPermission(ctx.user, ["guardian_reports.manage"]);
+      return db.listGuardianProgressReports();
+    }),
+    recordGuardianReportShare: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ studentUserId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await requireGrowthSuiteFeature("feature.guardian_reports_enabled");
+      await requireAnyDelegatedPermission(ctx.user, ["guardian_reports.manage"]);
+      const report = await db.getGuardianProgressReport(input.studentUserId);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "No consented guardian report is available for this Student." });
+      const notificationId = await db.recordGuardianReportShared(input.studentUserId);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "guardian_report.share_initiated", entityType: "guardian_report", entityId: input.studentUserId, metadata: { notificationId, contactMethod: report.guardianContact.includes("@") ? "email" : "mobile" } });
       return { notificationId };
     }),
     businessIntelligence: requireRoles(["super_admin"]).query(() => db.getOwnerBusinessIntelligence()),

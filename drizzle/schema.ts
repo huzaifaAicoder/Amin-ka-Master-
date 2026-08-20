@@ -127,6 +127,23 @@ export const studyCoachPreferences = mysqlTable(
   (table) => [uniqueIndex("study_coach_preference_user_uq").on(table.userId)],
 );
 
+/** Student-controlled guardian contact and consent for explicit progress-report
+ * sharing. This is not a guardian account and never grants login access. */
+export const guardianReportPreferences = mysqlTable(
+  "guardian_report_preferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    guardianName: varchar("guardianName", { length: 160 }),
+    guardianEmail: varchar("guardianEmail", { length: 320 }),
+    guardianMobile: varchar("guardianMobile", { length: 24 }),
+    consentGranted: boolean("consentGranted").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("guardian_report_preference_user_uq").on(table.userId)],
+);
+
 export const categories = mysqlTable(
   "categories",
   {

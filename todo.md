@@ -181,4 +181,5 @@
 - [x] Add an Owner Business Intelligence dashboard for aggregate enrollment, conversion, learning engagement, content performance, staff activity, and documented payment-readiness signals without fabricating revenue data.
 - [x] Add Staff intervention tools for at-risk learner reminders, assignment/test follow-up, doubt-response queue visibility, batch context, and auditable notices using existing notification boundaries.
 - [x] Add Student coaching extensions for revision reminders, streak milestones, downloadable study reports, and opt-in study plan notices while preserving existing courses, AI Quiz, and downloads workflows.
+- [x] Add an opt-in Parent/Guardian Progress Reports foundation with Student-controlled consent, privacy-minimised aggregate reports, authorized staff/owner delivery, and audit records.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

@@ -47,6 +47,7 @@ import {
   shortSaves,
   freePlaylistItems,
   freePlaylists,
+  guardianReportPreferences,
   questions,
   staffPasskeys,
   studentFeaturePermissions,
@@ -76,21 +77,22 @@ export const STAFF_PERMISSION_OPTIONS = [
   "assessments.publish",
   "live_classes.manage",
   "learning_operations.manage",
+  "guardian_reports.manage",
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
-export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz", "study_coach"] as const;
+export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz", "study_coach", "guardian_reports"] as const;
 export type StudentFeature = (typeof STUDENT_FEATURE_OPTIONS)[number];
 
 export const MASTER_TEMPLATE_FEATURE_MANIFEST = {
   version: "amin-ka-master.master.v1",
-  includedModules: ["authentication", "role_boundaries", "courses", "protected_learning", "assessments", "live_classes", "shorts", "offline_downloads", "ai_doubt_solver", "ai_quiz", "developer_controls"],
+  includedModules: ["authentication", "role_boundaries", "courses", "protected_learning", "assessments", "live_classes", "shorts", "offline_downloads", "ai_doubt_solver", "ai_quiz", "study_coach", "guardian_reports", "developer_controls"],
   supportedBranding: ["appName", "tagline", "primaryColor", "accentColor", "logoUrl"],
-  supportedFeatureProfile: ["courses", "assessments", "liveClasses", "shorts", "downloads", "aiDoubt", "aiQuiz"],
+  supportedFeatureProfile: ["courses", "assessments", "liveClasses", "shorts", "downloads", "aiDoubt", "aiQuiz", "studyCoach", "guardianReports"],
   excludedFromClone: ["users", "passwordHashes", "sessions", "passkeys", "setupCodes", "providerSecrets", "paymentSecrets", "webhookSecrets", "databaseCredentials", "productionMedia", "auditHistory"],
 } as const;
 
-export const DEFAULT_CLIENT_FEATURE_PROFILE = { courses: true, assessments: true, liveClasses: true, shorts: true, downloads: true, aiDoubt: true, aiQuiz: true };
-export const DEFAULT_CLIENT_NAVIGATION_PROFILE = { studentTabs: ["home", "my_learning", "shorts", "downloads", "account"], staffAreas: ["courses", "tests", "live_classes", "media", "moderation"], ownerAreas: ["operations", "reports", "people"] };
+export const DEFAULT_CLIENT_FEATURE_PROFILE = { courses: true, assessments: true, liveClasses: true, shorts: true, downloads: true, aiDoubt: true, aiQuiz: true, studyCoach: true, guardianReports: true };
+export const DEFAULT_CLIENT_NAVIGATION_PROFILE = { studentTabs: ["home", "my_learning", "shorts", "downloads", "account"], staffAreas: ["courses", "tests", "live_classes", "media", "moderation", "guardian_reports"], ownerAreas: ["operations", "reports", "people", "guardian_reports"] };
 
 export function getOtpVerificationState(input: {
   expiresAt: Date;
@@ -1286,6 +1288,60 @@ export async function setStudyCoachNoticePreference(userId: number, noticesEnabl
   await database.insert(studyCoachPreferences).values({ userId, noticesEnabled }).onDuplicateKeyUpdate({ set: { noticesEnabled } });
 }
 
+export async function getGuardianReportPreference(userId: number) {
+  const database = await getDb();
+  const empty = { guardianName: "", guardianEmail: "", guardianMobile: "", consentGranted: false };
+  if (!database) return empty;
+  const [preference] = await database.select().from(guardianReportPreferences).where(eq(guardianReportPreferences.userId, userId)).limit(1);
+  return preference ? { guardianName: preference.guardianName ?? "", guardianEmail: preference.guardianEmail ?? "", guardianMobile: preference.guardianMobile ?? "", consentGranted: preference.consentGranted } : empty;
+}
+
+export async function setGuardianReportPreference(input: { userId: number; guardianName: string; guardianEmail?: string; guardianMobile?: string; consentGranted: boolean }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.insert(guardianReportPreferences).values({ userId: input.userId, guardianName: input.guardianName, guardianEmail: input.guardianEmail || null, guardianMobile: input.guardianMobile || null, consentGranted: input.consentGranted }).onDuplicateKeyUpdate({ set: { guardianName: input.guardianName, guardianEmail: input.guardianEmail || null, guardianMobile: input.guardianMobile || null, consentGranted: input.consentGranted } });
+}
+
+type GuardianProgressReport = {
+  studentUserId: number;
+  studentName: string;
+  guardianName: string;
+  guardianContact: string;
+  generatedAt: Date;
+  summary: { activeCourseCount: number; overallProgressPercent: number; currentStreakDays: number; guidance: string };
+};
+
+async function buildGuardianProgressReport(userId: number): Promise<GuardianProgressReport | null> {
+  const database = await getDb();
+  if (!database) return null;
+  const [row] = await database.select({ preference: guardianReportPreferences, studentName: users.fullName }).from(guardianReportPreferences).innerJoin(users, eq(guardianReportPreferences.userId, users.id)).where(eq(guardianReportPreferences.userId, userId)).limit(1);
+  if (!row?.preference.consentGranted || !row.preference.guardianName || (!row.preference.guardianEmail && !row.preference.guardianMobile)) return null;
+  const coach = await getStudentStudyCoachData(userId);
+  const guidance = coach.activeCourseCount === 0 ? "Encourage the learner to choose a course and begin one small study step." : coach.overallProgressPercent < 40 ? "A short, regular study routine may help build confidence." : coach.currentStreakDays >= 3 ? "The learner is building steady study momentum; encouragement can help maintain the routine." : "Encourage the learner to continue the next planned study step.";
+  return { studentUserId: userId, studentName: row.studentName?.trim() || "Student", guardianName: row.preference.guardianName, guardianContact: row.preference.guardianEmail || row.preference.guardianMobile || "", generatedAt: new Date(), summary: { activeCourseCount: coach.activeCourseCount, overallProgressPercent: coach.overallProgressPercent, currentStreakDays: coach.currentStreakDays, guidance } };
+}
+
+/** Returns only consented, aggregate progress. It deliberately excludes marks,
+ * answers, AI topics, notes, downloads, assessment history, and private plans. */
+export async function listGuardianProgressReports() {
+  const database = await getDb();
+  if (!database) return [] as GuardianProgressReport[];
+  const preferences = await database.select({ userId: guardianReportPreferences.userId }).from(guardianReportPreferences).where(eq(guardianReportPreferences.consentGranted, true));
+  const reports = await Promise.all(preferences.map((preference) => buildGuardianProgressReport(preference.userId)));
+  return reports.filter((report): report is GuardianProgressReport => report !== null);
+}
+
+export async function getGuardianProgressReport(studentUserId: number) {
+  return buildGuardianProgressReport(studentUserId);
+}
+
+export async function recordGuardianReportShared(studentUserId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(notifications).values({ userId: studentUserId, title: "Guardian progress report shared", body: "An authorized staff member shared your consented aggregate progress report with your selected parent or guardian.", type: "guardian_report", link: "/guardian-reports" });
+  return Number(result[0].insertId);
+}
+
 /** Private guidance derived only from this Student's persisted learning data. */
 export async function getStudentStudyCoachData(userId: number) {
   const database = await getDb();
@@ -1913,7 +1969,7 @@ const MANAGED_SETTINGS = [
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
   "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
@@ -1921,7 +1977,7 @@ const DEVELOPER_SETTING_KEYS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "platform.maintenance_enabled",
   "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
