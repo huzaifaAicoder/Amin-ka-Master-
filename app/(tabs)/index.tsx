@@ -7,10 +7,13 @@ import { Card, COLORS, IconCircle, PrimaryButton, ProgressBar, SectionHeading, T
 import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
 import { usePanelRefresh } from "@/hooks/use-panel-refresh";
+import { useLanguagePreference, type InterfaceLanguage } from "@/lib/language-preference";
+import { WeeklyLearningGraph } from "@/components/study-planner";
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useLmsSession();
+  const { language, setLanguage } = useLanguagePreference();
   const categoriesQuery = trpc.catalog.categories.useQuery();
   const settingsQuery = trpc.catalog.uiSettings.useQuery();
   const coursesQuery = trpc.catalog.courses.useQuery();
@@ -27,6 +30,7 @@ export default function HomeScreen() {
   const heroSubtitle = typeof publicSettings["homepage.hero_subtitle"] === "string" ? publicSettings["homepage.hero_subtitle"] : "Practical surveying and Amin exam preparation, organised around your next step.";
   const heroCta = typeof publicSettings["homepage.hero_cta"] === "string" ? publicSettings["homepage.hero_cta"] : user ? "Explore courses" : "Start learning";
   const showLive = typeof publicSettings["homepage.show_live"] === "boolean" ? publicSettings["homepage.show_live"] : true;
+  const cycleLanguage = () => { const next: Record<InterfaceLanguage, InterfaceLanguage> = { english: "hindi", hindi: "bilingual", bilingual: "english" }; void setLanguage(next[language]); };
 
   return (
     <ScreenContainer containerClassName="bg-background" className="px-5" edges={["top", "left", "right"]}>
@@ -36,9 +40,7 @@ export default function HomeScreen() {
             <Text style={styles.eyebrow}>{user ? "YOUR LEARNING SPACE" : "LEARN. MEASURE. MASTER."}</Text>
             <Text style={styles.greeting}>{user?.fullName ? `Hello, ${user.fullName.split(" ")[0]}` : appName}</Text>
           </View>
-          <Pressable accessibilityLabel="Notifications" onPress={() => user ? router.push("/notifications") : router.push("/auth")} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}>
-            <MaterialIcons name="notifications-none" size={24} color={COLORS.indigo} />
-          </Pressable>
+          <View style={styles.headerActions}><Pressable accessibilityLabel={`Change interface language, currently ${language}`} onPress={cycleLanguage} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}><MaterialIcons name="translate" size={22} color={COLORS.indigo} /></Pressable><Pressable accessibilityLabel="Notifications" onPress={() => user ? router.push("/notifications") : router.push("/auth")} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}><MaterialIcons name="notifications-none" size={24} color={COLORS.indigo} /></Pressable></View>
         </View>
 
         {activeLearning ? (
@@ -66,7 +68,7 @@ export default function HomeScreen() {
         ) : null}
         {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Ask a course doubt, then practise it with a private AI Quiz.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
         {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Quiz" onPress={() => router.push("/ai-quiz")} style={({ pressed }) => [styles.quizAverage, pressed && styles.pressed]}><IconCircle icon="quiz" size={42} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={styles.quizAverageCopy}><Text style={styles.quizAverageLabel}>AI QUIZ AVERAGE</Text>{aiQuizStatsQuery.isLoading ? <Text style={styles.quizAverageTitle}>Loading practice history…</Text> : <><Text style={styles.quizAverageTitle}>{aiQuizStatsQuery.data?.totalAttempts ? `${aiQuizStatsQuery.data.averageScore}% average score` : "Start your first private quiz"}</Text><Text style={styles.quizAverageBody}>{aiQuizStatsQuery.data?.totalAttempts ? `${aiQuizStatsQuery.data.totalAttempts} completed practice ${aiQuizStatsQuery.data.totalAttempts === 1 ? "set" : "sets"} · adaptive difficulty ready` : "Timed practice with answers explained after submission."}</Text></>}</View><MaterialIcons name="arrow-forward" size={23} color={COLORS.indigo} /></Pressable> : null}
-        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open Study Coach" onPress={() => router.push("/study-coach")} style={({ pressed }) => [styles.studyCoach, pressed && styles.pressed]}><IconCircle icon="local-fire-department" size={42} color={COLORS.green} background={COLORS.greenSoft} /><View style={styles.quizAverageCopy}><Text style={styles.studyCoachLabel}>PERSONAL STUDY COACH</Text>{studyCoachQuery.isLoading ? <Text style={styles.quizAverageTitle}>Preparing your next step…</Text> : <><Text style={styles.quizAverageTitle}>{studyCoachQuery.data?.currentStreakDays ? `${studyCoachQuery.data.currentStreakDays}-day learning streak` : "Plan your next study step"}</Text><Text style={styles.quizAverageBody}>{studyCoachQuery.data ? `${studyCoachQuery.data.overallProgressPercent}% course progress · ${studyCoachQuery.data.revisionPriorities.length} revision ${studyCoachQuery.data.revisionPriorities.length === 1 ? "priority" : "priorities"}` : "Daily plan, weak-topic insights, and private offline reports."}</Text></>}</View><MaterialIcons name="arrow-forward" size={23} color={COLORS.green} /></Pressable> : null}
+        {user?.role === "student" ? <><Pressable accessibilityRole="button" accessibilityLabel="Open Study Coach" onPress={() => router.push("/study-coach")} style={({ pressed }) => [styles.studyCoach, pressed && styles.pressed]}><IconCircle icon="local-fire-department" size={42} color={COLORS.green} background={COLORS.greenSoft} /><View style={styles.quizAverageCopy}><Text style={styles.studyCoachLabel}>PERSONAL STUDY COACH</Text>{studyCoachQuery.isLoading ? <Text style={styles.quizAverageTitle}>Preparing your next step…</Text> : <><Text style={styles.quizAverageTitle}>{studyCoachQuery.data?.currentStreakDays ? `${studyCoachQuery.data.currentStreakDays}-day learning streak` : "Plan your next study step"}</Text><Text style={styles.quizAverageBody}>{studyCoachQuery.data ? `${studyCoachQuery.data.overallProgressPercent}% course progress · ${studyCoachQuery.data.revisionPriorities.length} revision ${studyCoachQuery.data.revisionPriorities.length === 1 ? "priority" : "priorities"}` : "Daily plan, weak-topic insights, and private offline reports."}</Text></>}</View><MaterialIcons name="arrow-forward" size={23} color={COLORS.green} /></Pressable><WeeklyLearningGraph userId={user.id} /></> : null}
         {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open Amin Master Toolkit" onPress={() => router.push("/amin-toolkit" as never)} style={({ pressed }) => [styles.studyCoach, pressed && styles.pressed]}><IconCircle icon="terrain" size={42} color={COLORS.saffron} background="#FFF2D5" /><View style={styles.quizAverageCopy}><Text style={styles.studyCoachLabel}>AMIN MASTER TOOLKIT</Text><Text style={styles.quizAverageTitle}>Practical field-learning tools</Text><Text style={styles.quizAverageBody}>Estimate a GPS plot area, browse official portals, and plot directions with your device compass.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.saffron} /></Pressable> : null}
         <SectionHeading title="Study by topic" action="Explore" onPress={() => router.push("/explore")} />
         {categoriesQuery.isLoading ? <ActivityIndicator color={COLORS.indigo} /> : <FlatList horizontal showsHorizontalScrollIndicator={false} data={categoriesQuery.data ?? []} contentContainerStyle={styles.categories} keyExtractor={(item) => item.id.toString()} renderItem={({ item, index }) => <Pressable onPress={() => router.push(`/explore?category=${item.slug}`)} style={({ pressed }) => [styles.categoryCard, index % 2 === 1 && styles.categoryCardWarm, pressed && styles.pressed]}><MaterialIcons name={index % 2 === 0 ? "straighten" : "account-balance"} size={23} color={COLORS.indigo} /><Text style={styles.categoryText}>{item.name}</Text></Pressable>} />}
@@ -80,7 +82,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingTop: 12, paddingBottom: 110 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }, headerActions: { flexDirection: "row", gap: 8 },
   eyebrow: { color: COLORS.earth, fontWeight: "800", fontSize: 10, letterSpacing: 1.2 },
   greeting: { color: COLORS.ink, fontSize: 27, fontWeight: "800", marginTop: 4 },
   notificationButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", backgroundColor: COLORS.white, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line },

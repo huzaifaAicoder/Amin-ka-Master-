@@ -3,12 +3,13 @@ import * as ScreenCapture from "expo-screen-capture";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 import { trpc } from "@/lib/trpc";
+import { recordLearningSeconds } from "@/lib/study-planner";
 
 export default function LessonScreen() {
   const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
@@ -17,6 +18,7 @@ export default function LessonScreen() {
   const id = Number(lessonId);
   const lessonQuery = trpc.student.lesson.useQuery({ lessonId: id }, { enabled: Boolean(user && Number.isInteger(id) && id > 0), retry: false });
   const authorizedData = lessonQuery.data?.authorized ? lessonQuery.data : undefined;
+  const authorizedLessonId = authorizedData?.lesson.id;
   const courseQuery = trpc.student.courseLearning.useQuery({ courseId: authorizedData?.course.id ?? 0 }, { enabled: Boolean(authorizedData?.course.id), retry: false });
   const progressMutation = trpc.student.updateProgress.useMutation({ onSuccess: () => void lessonQuery.refetch() });
   const bookmarkMutation = trpc.student.toggleBookmark.useMutation({ onSuccess: () => void lessonQuery.refetch() });
@@ -30,6 +32,13 @@ export default function LessonScreen() {
     void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined);
     return () => { void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined); };
   }, [authorizedData?.lesson.id]);
+  useEffect(() => {
+    if (!authorizedLessonId || user?.role !== "student") return;
+    let active = true; let startedAt = Date.now();
+    const flush = () => { if (!active) return; const seconds = Math.floor((Date.now() - startedAt) / 1000); startedAt = Date.now(); if (seconds >= 30) void recordLearningSeconds(user.id, seconds); };
+    const subscription = AppState.addEventListener("change", (nextState) => { if (nextState === "active" && !active) { active = true; startedAt = Date.now(); } else if (nextState !== "active" && active) { flush(); active = false; } });
+    return () => { flush(); subscription.remove(); };
+  }, [authorizedLessonId, user?.id, user?.role]);
   const sequence = useMemo(() => courseQuery.data?.modules.flatMap((module) => module.lessons.map((row) => row.lesson)) ?? [], [courseQuery.data]);
   const currentIndex = sequence.findIndex((lesson) => lesson.id === id);
   const previous = currentIndex > 0 ? sequence[currentIndex - 1] : undefined;

@@ -4,10 +4,13 @@ const EARTH_RADIUS_METERS = 6_378_137;
 const SQ_METERS_TO_SQ_FEET = 10.7639104167;
 const SQ_METERS_PER_ACRE = 4_046.8564224;
 const SAVED_PLOTS_KEY = "amin-toolkit.saved-plots.v1";
+const PREFERRED_STATE_KEY = "amin-toolkit.preferred-state.v1";
+const RECENT_CONVERSIONS_KEY = "amin-toolkit.recent-conversions.v1";
 
 export type GeoPoint = { latitude: number; longitude: number; accuracy?: number | null };
 export type SavedPlot = { id: string; name: string; points: GeoPoint[]; createdAt: string };
 export type LandUnit = "acre" | "hectare" | "square_feet" | "square_meters" | "bigha" | "katha" | "dhur";
+export type RecentConversion = { id: string; stateCode: string; systemId: string; districtOrTehsil: string; amount: number; from: LandUnit; to: LandUnit; createdAt: string };
 
 export const LAND_UNIT_LABELS: Record<LandUnit, string> = {
   acre: "Acre", hectare: "Hectare", square_feet: "Square feet", square_meters: "Square meter", bigha: "Bigha", katha: "Katha", dhur: "Dhur",
@@ -100,6 +103,33 @@ export async function removeSavedPlot(id: string) {
   return next;
 }
 
+/** State preference and conversion history stay device-local, contain no land parcel data,
+ * and let Students reuse a carefully selected context without creating a backend profile. */
+export async function loadPreferredIndiaState() {
+  try { const value = await AsyncStorage.getItem(PREFERRED_STATE_KEY); return INDIA_STATES.some((state) => state.code === value) ? value : null; } catch { return null; }
+}
+
+export async function persistPreferredIndiaState(stateCode: string) {
+  if (!INDIA_STATES.some((state) => state.code === stateCode)) return;
+  await AsyncStorage.setItem(PREFERRED_STATE_KEY, stateCode);
+}
+
+export async function loadRecentConversions(): Promise<RecentConversion[]> {
+  try {
+    const value = await AsyncStorage.getItem(RECENT_CONVERSIONS_KEY);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is RecentConversion => Boolean(entry && typeof entry.id === "string" && typeof entry.stateCode === "string" && typeof entry.systemId === "string" && typeof entry.amount === "number" && typeof entry.from === "string" && typeof entry.to === "string")).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 12) : [];
+  } catch { return []; }
+}
+
+export async function persistRecentConversion(input: Omit<RecentConversion, "id" | "createdAt">) {
+  if (!Number.isFinite(input.amount) || input.amount < 0 || !LAND_UNIT_SYSTEMS.some((system) => system.id === input.systemId)) return await loadRecentConversions();
+  const entry: RecentConversion = { ...input, districtOrTehsil: input.districtOrTehsil.trim().slice(0, 80), id: `conversion-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString() };
+  const next = [entry, ...(await loadRecentConversions())].slice(0, 12);
+  await AsyncStorage.setItem(RECENT_CONVERSIONS_KEY, JSON.stringify(next));
+  return next;
+}
+
 export function metersBetween(a: GeoPoint, b: GeoPoint) {
   const radians = (value: number) => value * Math.PI / 180;
   const deltaLatitude = radians(b.latitude - a.latitude);
@@ -122,6 +152,13 @@ export const OFFICIAL_LAND_PORTALS = [
   { id: "rajasthan-apna-khata", state: "Rajasthan", title: "Apna Khata", url: "https://apnakhata.rajasthan.gov.in/", host: "apnakhata.rajasthan.gov.in", note: "Rajasthan Government Apna Khata land-record portal." },
   { id: "dolr", state: "India", title: "Department of Land Resources", url: "https://dolr.gov.in/en/", host: "dolr.gov.in", note: "National Department of Land Resources reference portal." },
 ] as const;
+
+/** Official entry points are references only. A district/tehsil record must still confirm any local-unit convention. */
+export function officialReferencesForState(stateCode: string) {
+  const state = INDIA_STATES.find((entry) => entry.code === stateCode)?.name;
+  const stateReferences = OFFICIAL_LAND_PORTALS.filter((portal) => portal.state === state);
+  return stateReferences.length ? stateReferences : OFFICIAL_LAND_PORTALS.filter((portal) => portal.id === "dolr");
+}
 
 export function isAllowedOfficialPortalUrl(url: string) {
   if (url === "about:blank") return true;

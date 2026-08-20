@@ -206,3 +206,4 @@
 - [x] Repair the undefined `auth` route redirect, compass sensor UI lag, and AI Doubt Solver keyboard overlap without replacing existing authentication, Toolkit, or Vision flows.
 - [x] Repair the undefined `auth` route redirect, compass sensor UI lag, and AI Doubt Solver keyboard overlap without replacing existing authentication, Toolkit, or Vision flows.
 - [ ] Research, document, and add only verified district-specific UP, MP, and Rajasthan local-unit systems to the Amin Toolkit converter.
+- [x] Apply the attached additive UX instruction set: Home translation control, AI chat image preview refinement, and State/District search without regressing current routes, RBAC, or backend flows.
