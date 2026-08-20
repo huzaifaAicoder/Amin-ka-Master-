@@ -139,3 +139,4 @@
 - [ ] Produce an evidence-based V2 GREEN/RED release audit with actual device-test and load-test limitations.
 - [ ] Audit preview-to-code discrepancies, restore already-implemented navigation exposure without rollback, and document a verified feature matrix.
 - [x] Restore the existing private Downloads screen to Student tab navigation after verifying it remained implemented in the codebase.
+- [x] Add an explicit confirmation modal before applying Developer Master Kill-Switch or maintenance lockout changes.

@@ -1658,6 +1658,7 @@ const MANAGED_SETTINGS = [
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
+  "platform.maintenance_enabled",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
