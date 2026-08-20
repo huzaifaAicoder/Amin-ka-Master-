@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -18,8 +18,6 @@ export default function CourseDetailScreen() {
   const learningQuery = trpc.student.courseLearning.useQuery({ courseId: courseQuery.data?.course.id ?? 0 }, { enabled: Boolean(user && courseQuery.data?.course.id), retry: false });
   const enrollMutation = trpc.student.enrollFree.useMutation({ onSuccess: () => void learningQuery.refetch() });
   const resourceDownloadMutation = trpc.student.requestResourceDownload.useMutation();
-  const resumableRef = useRef<FileSystem.DownloadResumable | null>(null);
-  const [activeDownload, setActiveDownload] = useState<{ resourceId: number; progress: number; paused: boolean } | null>(null);
   const enrolled = learningQuery.data?.enrolled === true;
   const protectedCourseId = courseQuery.data?.course.id;
   useEffect(() => {
@@ -50,31 +48,23 @@ export default function CourseDetailScreen() {
       Alert.alert("Enrollment unavailable", cause instanceof Error ? cause.message : "Please try again.");
     }
   };
-  const downloadOfflineResource = async (resourceId: number, title: string, expectedType: "pdf" | "video") => {
+  const openPdf = async (resourceId: number, title: string) => {
     try {
       const issued = await resourceDownloadMutation.mutateAsync({ resourceId });
       if (Platform.OS === "web") {
-        Alert.alert("Native app required", "Private offline resources are available in the Android or iOS app. Browser handoff is intentionally disabled.");
+        Alert.alert("Native app required", "The secure internal PDF reader is available in the Android or iOS app. Browser handoff is intentionally disabled.");
         return;
       }
       const documentDirectory = FileSystem.documentDirectory;
       if (!documentDirectory) throw new Error("Your device does not provide private app storage.");
-      const resourceType = issued.resource.resourceType === "video" ? "video" : "pdf";
-      if (resourceType !== expectedType) throw new Error("The requested resource type changed. Refresh the course and try again.");
-      const extension = resourceType === "video" ? (issued.resource.mimeType?.includes("webm") ? "webm" : issued.resource.mimeType?.includes("quicktime") ? "mov" : "mp4") : "pdf";
-      const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-resource"}.${extension}`;
+      const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-note"}.pdf`;
       const privateFolder = `${documentDirectory}protected-resources/`;
       await FileSystem.makeDirectoryAsync(privateFolder, { intermediates: true });
       const targetUri = `${privateFolder}${Date.now()}-${safeFileName}`;
-      const resumable = FileSystem.createDownloadResumable(issued.signedUrl, targetUri, {}, (event) => setActiveDownload({ resourceId, progress: event.totalBytesExpectedToWrite ? event.totalBytesWritten / event.totalBytesExpectedToWrite : 0, paused: false }));
-      resumableRef.current = resumable;
-      setActiveDownload({ resourceId, progress: 0, paused: false });
-      await resumable.downloadAsync();
-      setActiveDownload(null); resumableRef.current = null;
-      router.push((resourceType === "pdf" ? { pathname: "/pdf-reader", params: { uri: targetUri, title } } : { pathname: "/offline-media", params: { uri: targetUri, title } }) as never);
+      await FileSystem.downloadAsync(issued.signedUrl, targetUri);
+      router.push({ pathname: "/pdf-reader", params: { uri: targetUri, title } });
     } catch (error) {
-      setActiveDownload(null); resumableRef.current = null;
-      Alert.alert("Offline download unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
+      Alert.alert("PDF unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
     }
   };
 
@@ -88,7 +78,7 @@ export default function CourseDetailScreen() {
         {course.fullDescription ? <><Text style={styles.sectionTitle}>About this course</Text><Text style={styles.description}>{course.fullDescription}</Text></> : null}
         {benefits.length ? <><Text style={styles.sectionTitle}>What you will learn</Text><Card style={styles.benefitCard}>{benefits.map((benefit, index) => <View key={`${benefit}-${index}`} style={styles.benefitRow}><IconCircle icon="check" size={26} color={COLORS.green} background={COLORS.greenSoft} /><Text style={styles.benefitText}>{benefit}</Text></View>)}</Card></> : null}
         <Text style={styles.sectionTitle}>Course content</Text>
-        {enrolled ? <View style={styles.moduleList}>{learningQuery.data?.modules.map((module, index) => <Card key={module.id} style={styles.moduleCard}><View style={styles.moduleHeader}><View style={styles.moduleNumber}><Text style={styles.moduleNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.moduleTitle}>{module.title}</Text><Text style={styles.moduleCount}>{module.lessons.length} lesson{module.lessons.length === 1 ? "" : "s"}{module.resources.length ? ` · ${module.resources.length} resources` : ""}</Text></View></View>{module.resources.map((resource) => <View key={`resource-${resource.id}`} style={styles.resourceRow}><Pressable onPress={() => resource.contentUrl ? void Linking.openURL(resource.contentUrl) : undefined} style={({ pressed }) => [styles.resourceOpen, pressed && styles.pressed]}><MaterialIcons name={resource.resourceType === "video" ? "video-library" : "picture-as-pdf"} size={20} color={resource.resourceType === "video" ? COLORS.indigo : COLORS.red} /><Text style={styles.lessonTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></Pressable>{resource.downloadAllowed ? activeDownload?.resourceId === resource.id ? <View style={styles.downloadButton}><Text style={styles.downloadText}>{Math.round(activeDownload.progress * 100)}%</Text><Pressable onPress={() => { if (activeDownload.paused) { void resumableRef.current?.resumeAsync(); setActiveDownload({ ...activeDownload, paused: false }); } else { void resumableRef.current?.pauseAsync(); setActiveDownload({ ...activeDownload, paused: true }); } }}><MaterialIcons name={activeDownload.paused ? "play-arrow" : "pause"} size={17} color={COLORS.indigo}/></Pressable><Pressable onPress={() => { void resumableRef.current?.cancelAsync(); setActiveDownload(null); }}><MaterialIcons name="close" size={17} color={COLORS.red}/></Pressable></View> : <Pressable accessibilityRole="button" accessibilityLabel={`Download ${resource.title} for offline use`} onPress={() => void downloadOfflineResource(resource.id, resource.title, resource.resourceType)} disabled={resourceDownloadMutation.isPending} style={({ pressed }) => [styles.downloadButton, (pressed || resourceDownloadMutation.isPending) && styles.pressed]}><MaterialIcons name={resourceDownloadMutation.isPending ? "hourglass-top" : "download"} size={17} color={COLORS.indigo} /><Text style={styles.downloadText}>{resourceDownloadMutation.isPending ? "Preparing" : "Download"}</Text></Pressable> : null}</View>)}{module.lessons.map((row) => <Pressable key={row.lesson.id} onPress={() => router.push(`/lesson/${row.lesson.id}`)} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><MaterialIcons name={row.progress?.isCompleted ? "check-circle" : "play-circle-outline"} size={20} color={row.progress?.isCompleted ? COLORS.green : COLORS.indigo} /><Text style={styles.lessonTitle}>{row.lesson.title}</Text><Text style={styles.lessonDuration}>{Math.ceil(row.lesson.durationSeconds / 60)}m</Text></Pressable>)}</Card>)}</View> : <Card style={styles.lockedCard}><IconCircle icon="lock" size={40} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={{ flex: 1 }}><Text style={styles.lockedTitle}>Enroll to unlock the full course</Text><Text style={styles.lockedBody}>Your course sequence, resources and progress become available after server-authorized enrollment.</Text></View></Card>}
+        {enrolled ? <View style={styles.moduleList}>{learningQuery.data?.modules.map((module, index) => <Card key={module.id} style={styles.moduleCard}><View style={styles.moduleHeader}><View style={styles.moduleNumber}><Text style={styles.moduleNumberText}>{index + 1}</Text></View><View style={{ flex: 1 }}><Text style={styles.moduleTitle}>{module.title}</Text><Text style={styles.moduleCount}>{module.lessons.length} lesson{module.lessons.length === 1 ? "" : "s"}{module.resources.length ? ` · ${module.resources.length} resources` : ""}</Text></View></View>{module.resources.map((resource) => <View key={`resource-${resource.id}`} style={styles.resourceRow}><Pressable onPress={() => resource.resourceType === "pdf" ? void openPdf(resource.id, resource.title) : resource.contentUrl ? void Linking.openURL(resource.contentUrl) : undefined} style={({ pressed }) => [styles.resourceOpen, pressed && styles.pressed]}><MaterialIcons name={resource.resourceType === "video" ? "video-library" : "picture-as-pdf"} size={20} color={resource.resourceType === "video" ? COLORS.indigo : COLORS.red} /><Text style={styles.lessonTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></Pressable>{resource.resourceType === "pdf" && resource.downloadAllowed ? <Pressable accessibilityRole="button" accessibilityLabel={`Download ${resource.title}`} onPress={() => void openPdf(resource.id, resource.title)} disabled={resourceDownloadMutation.isPending} style={({ pressed }) => [styles.downloadButton, (pressed || resourceDownloadMutation.isPending) && styles.pressed]}><MaterialIcons name={resourceDownloadMutation.isPending ? "hourglass-top" : "download"} size={17} color={COLORS.indigo} /><Text style={styles.downloadText}>{resourceDownloadMutation.isPending ? "Preparing" : "Download"}</Text></Pressable> : null}</View>)}{module.lessons.map((row) => <Pressable key={row.lesson.id} onPress={() => router.push(`/lesson/${row.lesson.id}`)} style={({ pressed }) => [styles.lessonRow, pressed && styles.pressed]}><MaterialIcons name={row.progress?.isCompleted ? "check-circle" : "play-circle-outline"} size={20} color={row.progress?.isCompleted ? COLORS.green : COLORS.indigo} /><Text style={styles.lessonTitle}>{row.lesson.title}</Text><Text style={styles.lessonDuration}>{Math.ceil(row.lesson.durationSeconds / 60)}m</Text></Pressable>)}</Card>)}</View> : <Card style={styles.lockedCard}><IconCircle icon="lock" size={40} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={{ flex: 1 }}><Text style={styles.lockedTitle}>Enroll to unlock the full course</Text><Text style={styles.lockedBody}>Your course sequence, resources and progress become available after server-authorized enrollment.</Text></View></Card>}
         <View style={styles.reviewHint}><Text style={styles.reviewTitle}>Course reviews</Text><Text style={styles.reviewBody}>Reviews can be submitted by eligible enrolled learners and moderated by the operations team.</Text><OutlineButton label="Browse more courses" icon="explore" onPress={() => router.push("/explore")} /></View>
       </ScrollView>
     </ScreenContainer>

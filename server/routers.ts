@@ -351,7 +351,7 @@ export const appRouter = router({
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
       const result = await db.getAuthorizedResourceDownload(ctx.user.id, input.resourceId);
       if (result.status === "not_enrolled") throw new TRPCError({ code: "FORBIDDEN", message: "An active course enrollment is required to download this material." });
-      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This approved course resource is unavailable for offline download." });
+      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This PDF is unavailable for download." });
       return result;
     }),
     lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
@@ -486,15 +486,11 @@ export const appRouter = router({
       whatsapp: z.string().trim().max(40).optional(),
       themePrimary: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       themeAccent: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/).optional(),
-      logoUrl: z.string().trim().max(2048).optional(),
       developerName: z.string().trim().max(160).optional(),
       developerRole: z.string().trim().max(160).optional(),
       developerProjectInfo: z.string().trim().max(600).optional(),
       developerContact: z.string().trim().max(320).optional(),
       developerCopyright: z.string().trim().max(240).optional(),
-      featureShorts: z.boolean().optional(),
-      featureOfflineDownloads: z.boolean().optional(),
-      featureAiDoubtSolver: z.boolean().optional(),
     })).mutation(async ({ ctx, input }) => {
       const values = {
         ...(input.appName !== undefined ? { "brand.app_name": input.appName } : {}),
@@ -504,15 +500,11 @@ export const appRouter = router({
         ...(input.whatsapp !== undefined ? { "brand.whatsapp": input.whatsapp } : {}),
         ...(input.themePrimary !== undefined ? { "brand.theme_primary": input.themePrimary } : {}),
         ...(input.themeAccent !== undefined ? { "brand.theme_accent": input.themeAccent } : {}),
-        ...(input.logoUrl !== undefined ? { "brand.logo_url": input.logoUrl } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
         ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),
         ...(input.developerProjectInfo !== undefined ? { "developer.project_info": input.developerProjectInfo } : {}),
         ...(input.developerContact !== undefined ? { "developer.contact": input.developerContact } : {}),
         ...(input.developerCopyright !== undefined ? { "developer.copyright": input.developerCopyright } : {}),
-        ...(input.featureShorts !== undefined ? { "feature.shorts": input.featureShorts ? "true" : "false" } : {}),
-        ...(input.featureOfflineDownloads !== undefined ? { "feature.offline_downloads": input.featureOfflineDownloads ? "true" : "false" } : {}),
-        ...(input.featureAiDoubtSolver !== undefined ? { "feature.ai_doubt_solver": input.featureAiDoubtSolver ? "true" : "false" } : {}),
       };
       await db.saveDeveloperManagedSettings(ctx.user.id, values);
       await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_settings.updated", entityType: "app_settings", metadata: { keys: Object.keys(values) } });

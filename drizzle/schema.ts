@@ -229,7 +229,7 @@ export const resourceDownloadEvents = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     userId: int("userId").notNull(),
     resourceId: int("resourceId").notNull(),
-    resourceType: mysqlEnum("resourceDownloadType", ["pdf", "video"]).notNull(),
+    resourceType: mysqlEnum("resourceDownloadType", ["pdf"]).notNull(),
     downloadedAt: timestamp("downloadedAt").defaultNow().notNull(),
   },
   (table) => [

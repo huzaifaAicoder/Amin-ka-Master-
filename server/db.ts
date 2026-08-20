@@ -768,7 +768,7 @@ export async function getAuthorizedResourceDownload(userId: number, resourceId: 
     .innerJoin(courses, eq(courseModules.courseId, courses.id))
     .where(and(
       eq(moduleResources.id, resourceId),
-      inArray(moduleResources.resourceType, ["pdf", "video"]),
+      eq(moduleResources.resourceType, "pdf"),
       eq(moduleResources.isPublished, true),
       eq(moduleResources.downloadAllowed, true),
       eq(courseModules.isPublished, true),
@@ -784,11 +784,11 @@ export async function getAuthorizedResourceDownload(userId: number, resourceId: 
   if (!storageKey) return { status: "unavailable" as const };
 
   const signedUrl = await storageGetSignedUrl(storageKey);
-  await database.insert(resourceDownloadEvents).values({ userId, resourceId, resourceType: row.resource.resourceType });
+  await database.insert(resourceDownloadEvents).values({ userId, resourceId, resourceType: "pdf" });
   return {
     status: "authorized" as const,
     signedUrl,
-    resource: { id: row.resource.id, title: row.resource.title, resourceType: row.resource.resourceType, mimeType: row.resource.mimeType ?? (row.resource.resourceType === "video" ? "video/mp4" : "application/pdf") },
+    resource: { id: row.resource.id, title: row.resource.title, mimeType: row.resource.mimeType ?? "application/pdf" },
   };
 }
 
@@ -1644,16 +1644,14 @@ export async function listPublishedAnnouncements() {
 }
 
 const MANAGED_SETTINGS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent", "brand.logo_url",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
-  "feature.shorts", "feature.offline_downloads", "feature.ai_doubt_solver",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
-  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent", "brand.logo_url",
-  "feature.shorts", "feature.offline_downloads", "feature.ai_doubt_solver",
+  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [

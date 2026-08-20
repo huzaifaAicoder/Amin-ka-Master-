@@ -1,1 +1,0 @@
-ALTER TABLE `resource_download_events` MODIFY COLUMN `resourceDownloadType` enum('pdf','video') NOT NULL;
