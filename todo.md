@@ -167,4 +167,5 @@
 - [x] Add a searchable Developer audit log with safe CSV export of administrative actions.
 - [x] Add a per-user Developer permission matrix for individual Student and Teacher feature controls.
 - [x] Add an audited, read-only Developer “View As” preview that never impersonates a user or exposes private data.
+- [x] Add audited Select All and Reset to Default bulk controls to the Developer Student and Teacher permission matrices.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

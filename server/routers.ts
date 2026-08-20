@@ -576,6 +576,12 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_student.feature_matrix_updated", entityType: "user", entityId: input.userId, metadata: { features: input.features } });
       return { success: true as const };
     }),
+    resetStudentFeatureControls: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "The active Developer account has no Student matrix to reset." });
+      await db.developerResetStudentFeatureControls(input.userId);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_student.feature_matrix_reset", entityType: "user", entityId: input.userId, metadata: { restoredGlobalPolicyInheritance: true } });
+      return { success: true as const };
+    }),
     auditLogs: requireRoles(["developer"]).input(z.object({ search: z.string().trim().max(120).optional(), limit: z.number().int().min(1).max(500).default(200) }).optional()).query(({ input }) => db.listDeveloperAuditLogs({ search: input?.search, limit: input?.limit ?? 200 })),
     viewAsPreview: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Developer View As only supports non-Developer accounts." });

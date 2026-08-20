@@ -1912,6 +1912,15 @@ export async function developerSetStudentFeatureControls(input: { userId: number
   await revokeAllSessions(input.userId);
 }
 
+export async function developerResetStudentFeatureControls(userId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [target] = await database.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!target || target.role !== "student") throw new Error("Individual feature controls can only be reset for Student accounts.");
+  await database.delete(studentFeaturePermissions).where(eq(studentFeaturePermissions.userId, userId));
+  await revokeAllSessions(userId);
+}
+
 export async function getStudentFeatureOverrides(userId: number) {
   const database = await getDb();
   if (!database) return {} as Record<string, boolean>;

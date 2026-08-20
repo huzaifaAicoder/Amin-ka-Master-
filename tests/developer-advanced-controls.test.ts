@@ -15,7 +15,9 @@ describe("Developer advanced root-control regression guard", () => {
     for (const name of ["setStudentFeatureControls", "auditLogs", "viewAsPreview"]) expect(router).toContain(`${name}: requireRoles([\"developer\"])`);
     expect(router).toContain("developer.view_as_preview_opened");
     expect(db).toContain("developerSetStudentFeatureControls");
+    expect(db).toContain("developerResetStudentFeatureControls");
     expect(db).toContain("listDeveloperAuditLogs");
+    expect(router).toContain("resetStudentFeatureControls: requireRoles([\"developer\"])" );
   });
 
   it("retains safe CSV export and explicitly avoids target-session impersonation", () => {
@@ -38,5 +40,9 @@ describe("Developer advanced root-control regression guard", () => {
     expect(portal).toContain("View as (read-only)");
     expect(rootLayout).toContain("student.featureOverrides");
     expect(rootLayout).toContain("studentOverridesQuery");
+    const bulkControls = read("components/developer-bulk-matrix-controls.tsx");
+    expect(bulkControls).toContain("Select All");
+    expect(bulkControls).toContain("Reset to Default");
+    expect(bulkControls).toContain("developer.resetStudentFeatureControls");
   });
 });
