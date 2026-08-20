@@ -186,6 +186,11 @@ async function requireAnyDelegatedPermission(
   }
 }
 
+async function requireGrowthSuiteFeature(key: "feature.study_coach_enabled" | "feature.learning_operations_enabled") {
+  const settings = await db.getManagedSettings();
+  if (settings[key] === false) throw new TRPCError({ code: "FORBIDDEN", message: "This feature is temporarily unavailable because the Developer has paused it." });
+}
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -524,6 +529,23 @@ export const appRouter = router({
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "AI Quiz analytics are available in the student learning experience." });
       return db.getStudentAiQuizStats(ctx.user.id);
     }),
+    studyCoach: protectedProcedure.query(async ({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      await requireGrowthSuiteFeature("feature.study_coach_enabled");
+      return db.getStudentStudyCoachData(ctx.user.id);
+    }),
+    studyCoachNoticePreference: protectedProcedure.query(async ({ ctx }) => {
+      requireStudentAccess(ctx.user.role);
+      await requireGrowthSuiteFeature("feature.study_coach_enabled");
+      return db.getStudyCoachNoticePreference(ctx.user.id);
+    }),
+    setStudyCoachNoticePreference: protectedProcedure.input(z.object({ noticesEnabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      requireStudentAccess(ctx.user.role);
+      await requireGrowthSuiteFeature("feature.study_coach_enabled");
+      await db.setStudyCoachNoticePreference(ctx.user.id, input.noticesEnabled);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "study_coach.notice_preference_updated", entityType: "study_coach_preference", entityId: ctx.user.id, metadata: { noticesEnabled: input.noticesEnabled } });
+      return { success: true as const };
+    }),
     submitAiQuizForReview: protectedProcedure.input(aiQuizReviewSubmissionSchema).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Students can submit a private AI Quiz for teacher review." });
       const submissionId = await db.createAiQuizReviewSubmission({ ...input, submittedByUserId: ctx.user.id });
@@ -535,6 +557,14 @@ export const appRouter = router({
     settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
     templates: requireRoles(["developer"]).query(({ ctx }) => db.listMasterTemplates(ctx.user.id)),
     clientProjects: requireRoles(["developer"]).query(() => db.listClientProjects()),
+    clientHealth: requireRoles(["developer"]).query(async () => ({
+      ...(await db.getDeveloperClientHealth()),
+      integrations: {
+        geminiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+        razorpayConfigured: Boolean(process.env.RAZORPAY_KEY_ID?.trim() && process.env.RAZORPAY_KEY_SECRET?.trim()),
+        note: "Provider secrets are server-only and are never returned to the Developer client.",
+      },
+    })),
     clientProject: requireRoles(["developer"]).input(z.object({ clientProjectId: z.number().int().positive() })).query(({ input }) => db.getClientProject(input.clientProjectId)),
     createClientProject: requireRoles(["developer"]).input(z.object({
       templateId: z.number().int().positive(),
@@ -684,6 +714,8 @@ export const appRouter = router({
       downloadsEnabled: z.boolean().optional(),
       aiDoubtEnabled: z.boolean().optional(),
       aiQuizEnabled: z.boolean().optional(),
+      studyCoachEnabled: z.boolean().optional(),
+      learningOperationsEnabled: z.boolean().optional(),
       interfaceLanguageDefault: z.enum(["english", "hindi", "bilingual"]).optional(),
       developerName: z.string().trim().max(160).optional(),
       developerRole: z.string().trim().max(160).optional(),
@@ -710,6 +742,8 @@ export const appRouter = router({
         ...(input.downloadsEnabled !== undefined ? { "feature.downloads_enabled": input.downloadsEnabled } : {}),
         ...(input.aiDoubtEnabled !== undefined ? { "feature.ai_doubt_enabled": input.aiDoubtEnabled } : {}),
         ...(input.aiQuizEnabled !== undefined ? { "feature.ai_quiz_enabled": input.aiQuizEnabled } : {}),
+        ...(input.studyCoachEnabled !== undefined ? { "feature.study_coach_enabled": input.studyCoachEnabled } : {}),
+        ...(input.learningOperationsEnabled !== undefined ? { "feature.learning_operations_enabled": input.learningOperationsEnabled } : {}),
         ...(input.interfaceLanguageDefault !== undefined ? { "platform.interface_language_default": input.interfaceLanguageDefault } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
         ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),
@@ -727,6 +761,24 @@ export const appRouter = router({
       requireStaffAccess(ctx.user.role);
       return db.getOperationsSummary();
     }),
+    learningOperations: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireGrowthSuiteFeature("feature.learning_operations_enabled");
+      await requireAnyDelegatedPermission(ctx.user, ["learning_operations.manage", "assessments.manage", "courses.manage"]);
+      return db.getLearningOperationsData();
+    }),
+    atRiskLearners: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireGrowthSuiteFeature("feature.learning_operations_enabled");
+      await requireAnyDelegatedPermission(ctx.user, ["learning_operations.manage", "assessments.manage", "courses.manage"]);
+      return (await db.getLearningOperationsData()).atRiskLearners;
+    }),
+    sendLearningOperationsNotice: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ userId: z.number().int().positive(), title: z.string().trim().min(3).max(220), body: z.string().trim().min(3).max(1000), link: z.string().trim().max(1024).optional() })).mutation(async ({ ctx, input }) => {
+      await requireGrowthSuiteFeature("feature.learning_operations_enabled");
+      await requireAnyDelegatedPermission(ctx.user, ["learning_operations.manage", "assessments.manage", "courses.manage"]);
+      const notificationId = await db.createLearningOperationsNotice(input);
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "learning_operations.notice_sent", entityType: "notification", entityId: notificationId, metadata: { recipientUserId: input.userId, title: input.title, link: input.link ?? null } });
+      return { notificationId };
+    }),
+    businessIntelligence: requireRoles(["super_admin"]).query(() => db.getOwnerBusinessIntelligence()),
     courses: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
       await requireAnyDelegatedPermission(ctx.user, ["courses.manage", "course_content.manage"]);
       return db.listOperationsCourses();

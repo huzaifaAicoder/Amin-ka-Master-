@@ -50,6 +50,7 @@ import {
   questions,
   staffPasskeys,
   studentFeaturePermissions,
+  studyCoachPreferences,
   testAnswers,
   testAttempts,
   tests,
@@ -74,9 +75,10 @@ export const STAFF_PERMISSION_OPTIONS = [
   "assessments.manage",
   "assessments.publish",
   "live_classes.manage",
+  "learning_operations.manage",
 ] as const;
 export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
-export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz"] as const;
+export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz", "study_coach"] as const;
 export type StudentFeature = (typeof STUDENT_FEATURE_OPTIONS)[number];
 
 export const MASTER_TEMPLATE_FEATURE_MANIFEST = {
@@ -1247,10 +1249,179 @@ export async function getStudentAiQuizStats(userId: number) {
   };
 }
 
+const GROWTH_SUITE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function calendarDayKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function calculateStudyStreak(activityDates: Date[], now = new Date()) {
+  const activeDays = new Set(activityDates.map(calendarDayKey));
+  const cursor = new Date(now);
+  cursor.setHours(0, 0, 0, 0);
+  if (!activeDays.has(calendarDayKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let streak = 0;
+  while (activeDays.has(calendarDayKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+function latestDate(values: Array<Date | null | undefined>) {
+  const dates = values.filter((value): value is Date => value instanceof Date);
+  return dates.length ? new Date(Math.max(...dates.map((value) => value.getTime()))) : null;
+}
+
+export async function getStudyCoachNoticePreference(userId: number) {
+  const database = await getDb();
+  if (!database) return { noticesEnabled: false };
+  const [preference] = await database.select({ noticesEnabled: studyCoachPreferences.noticesEnabled }).from(studyCoachPreferences).where(eq(studyCoachPreferences.userId, userId)).limit(1);
+  return { noticesEnabled: preference?.noticesEnabled ?? false };
+}
+
+export async function setStudyCoachNoticePreference(userId: number, noticesEnabled: boolean) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  await database.insert(studyCoachPreferences).values({ userId, noticesEnabled }).onDuplicateKeyUpdate({ set: { noticesEnabled } });
+}
+
+/** Private guidance derived only from this Student's persisted learning data. */
+export async function getStudentStudyCoachData(userId: number) {
+  const database = await getDb();
+  const empty = {
+    generatedAt: new Date(), activeCourseCount: 0, overallProgressPercent: 0, currentStreakDays: 0,
+    dailyPlan: [] as Array<{ type: "lesson" | "revision" | "practice"; title: string; detail: string; href: string }>,
+    weakTopics: [] as Array<{ label: string; reason: string }>,
+    revisionPriorities: [] as Array<{ title: string; detail: string; href: string }>, noticesEnabled: false,
+  };
+  if (!database) return empty;
+  const [learning, aiAttempts, submittedAttempts, downloads, preference] = await Promise.all([
+    listMyLearning(userId),
+    database.select().from(aiQuizAttempts).where(eq(aiQuizAttempts.userId, userId)).orderBy(desc(aiQuizAttempts.createdAt)).limit(60),
+    database.select({ attempt: testAttempts, test: tests }).from(testAttempts).innerJoin(tests, eq(testAttempts.testId, tests.id)).where(and(eq(testAttempts.userId, userId), eq(testAttempts.status, "submitted"))).orderBy(desc(testAttempts.submittedAt)).limit(40),
+    database.select({ downloadedAt: resourceDownloadEvents.downloadedAt }).from(resourceDownloadEvents).where(eq(resourceDownloadEvents.userId, userId)).orderBy(desc(resourceDownloadEvents.downloadedAt)).limit(60),
+    getStudyCoachNoticePreference(userId),
+  ]);
+  const activeLearning = learning.filter((item) => enrollmentIsActive(item.enrollment));
+  const courseIds = activeLearning.map((item) => item.course.id);
+  const lessonRows = courseIds.length
+    ? await database.select({ courseId: courseModules.courseId, lesson: lessons, progress: lessonProgress }).from(lessons).innerJoin(courseModules, eq(lessons.moduleId, courseModules.id)).leftJoin(lessonProgress, and(eq(lessonProgress.lessonId, lessons.id), eq(lessonProgress.userId, userId))).where(and(inArray(courseModules.courseId, courseIds), eq(courseModules.isPublished, true), eq(lessons.isPublished, true))).orderBy(asc(courseModules.displayOrder), asc(lessons.displayOrder))
+    : [];
+  const totalLessons = activeLearning.reduce((total, item) => total + item.progress.lessonCount, 0);
+  const completedLessons = activeLearning.reduce((total, item) => total + item.progress.completedLessons, 0);
+  const courseTitleById = new Map(activeLearning.map((item) => [item.course.id, item.course.title]));
+  const nextLesson = lessonRows.find((item) => !item.progress?.isCompleted);
+  const topicStats = new Map<string, { total: number; sum: number }>();
+  for (const attempt of aiAttempts) {
+    const current = topicStats.get(attempt.topic) ?? { total: 0, sum: 0 };
+    topicStats.set(attempt.topic, { total: current.total + 1, sum: current.sum + Number(attempt.scorePercent) });
+  }
+  const weakTopics = [...topicStats.entries()].filter(([, value]) => value.sum / value.total < 70).sort((a, b) => (a[1].sum / a[1].total) - (b[1].sum / b[1].total)).slice(0, 3).map(([label, value]) => ({ label, reason: `Recent practice average: ${Math.round(value.sum / value.total)}% across ${value.total} attempt${value.total === 1 ? "" : "s"}.` }));
+  const lowAssessment = submittedAttempts.map((item) => ({ title: item.test.title, scorePercent: item.attempt.totalMarks > 0 ? Math.round((Number(item.attempt.score) / Number(item.attempt.totalMarks)) * 100) : null })).filter((item): item is { title: string; scorePercent: number } => item.scorePercent !== null && item.scorePercent < 60).slice(0, 2);
+  const activityDates = [...lessonRows.map((item) => item.progress?.lastViewedAt), ...aiAttempts.map((item) => item.createdAt), ...submittedAttempts.map((item) => item.attempt.submittedAt ?? item.attempt.createdAt), ...downloads.map((item) => item.downloadedAt)].filter((value): value is Date => value instanceof Date);
+  const dailyPlan: Array<{ type: "lesson" | "revision" | "practice"; title: string; detail: string; href: string }> = [];
+  if (nextLesson) dailyPlan.push({ type: "lesson", title: `Continue ${courseTitleById.get(nextLesson.courseId) ?? "your course"}`, detail: nextLesson.lesson.title, href: `/lesson/${nextLesson.lesson.id}` });
+  if (weakTopics[0]) dailyPlan.push({ type: "revision", title: `Revise ${weakTopics[0].label}`, detail: weakTopics[0].reason, href: "/ai-quiz" });
+  if (lowAssessment[0]) dailyPlan.push({ type: "practice", title: `Revisit ${lowAssessment[0].title}`, detail: "Your latest completed attempt needs revision before the next practice session.", href: "/test-history" });
+  if (!dailyPlan.length && activeLearning[0]) dailyPlan.push({ type: "lesson", title: `Maintain momentum in ${activeLearning[0].course.title}`, detail: "Open your learning path and choose the next published lesson.", href: `/course/${activeLearning[0].course.slug}` });
+  return {
+    generatedAt: new Date(), activeCourseCount: activeLearning.length, overallProgressPercent: totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0,
+    currentStreakDays: calculateStudyStreak(activityDates), dailyPlan, weakTopics,
+    revisionPriorities: [...weakTopics.map((item) => ({ title: item.label, detail: item.reason, href: "/ai-quiz" })), ...lowAssessment.map((item) => ({ title: item.title, detail: `Completed assessment score: ${item.scorePercent}%. Review the detailed explanations before retrying.`, href: "/test-history" }))].slice(0, 4),
+    noticesEnabled: preference.noticesEnabled,
+  };
+}
+
 export async function listAiQuizReviewSubmissions() {
   const database = await getDb();
   if (!database) return [];
   return database.select({ submission: aiQuizReviewSubmissions, studentName: users.fullName, studentEmail: users.email }).from(aiQuizReviewSubmissions).leftJoin(users, eq(aiQuizReviewSubmissions.submittedByUserId, users.id)).orderBy(desc(aiQuizReviewSubmissions.createdAt));
+}
+
+/**
+ * Staff intervention data is deliberately privacy-minimised: it contains only
+ * name, enrollment count, activity band, risk band, and general reason labels.
+ * Exact answers, AI Quiz topics/scores, personal notes, email, and downloads
+ * remain private to the Student.
+ */
+export async function getLearningOperationsData() {
+  const database = await getDb();
+  const empty = { summary: { monitoredStudents: 0, atRiskStudents: 0, pendingQuizReviews: 0, upcomingLiveClasses: 0 }, atRiskLearners: [] as Array<{ userId: number; displayName: string; activeEnrollmentCount: number; riskLevel: "low" | "medium" | "high"; activityState: string; signals: string[] }> };
+  if (!database) return empty;
+  const now = new Date();
+  const [studentRows, progressRows, assessmentRows, quizRows, enrollmentRows, reviewRows, upcomingRows] = await Promise.all([
+    database.select({ id: users.id, fullName: users.fullName, createdAt: users.createdAt }).from(users).where(and(eq(users.role, "student"), eq(users.status, "active"))),
+    database.select({ userId: lessonProgress.userId, lastViewedAt: lessonProgress.lastViewedAt }).from(lessonProgress),
+    database.select({ userId: testAttempts.userId, score: testAttempts.score, totalMarks: testAttempts.totalMarks, submittedAt: testAttempts.submittedAt }).from(testAttempts).where(eq(testAttempts.status, "submitted")),
+    database.select({ userId: aiQuizAttempts.userId, scorePercent: aiQuizAttempts.scorePercent, createdAt: aiQuizAttempts.createdAt }).from(aiQuizAttempts),
+    database.select({ userId: enrollments.userId }).from(enrollments).where(eq(enrollments.status, "active")),
+    database.select({ id: aiQuizReviewSubmissions.id }).from(aiQuizReviewSubmissions).where(eq(aiQuizReviewSubmissions.status, "pending")),
+    database.select({ id: liveClasses.id }).from(liveClasses).where(and(eq(liveClasses.status, "upcoming"), gt(liveClasses.startsAt, now))),
+  ]);
+  const latestProgress = new Map<number, Date>();
+  for (const item of progressRows) if (!latestProgress.get(item.userId) || item.lastViewedAt > latestProgress.get(item.userId)!) latestProgress.set(item.userId, item.lastViewedAt);
+  const assessmentsByUser = new Map<number, Array<{ score: number; totalMarks: number; submittedAt: Date | null }>>();
+  for (const item of assessmentRows) assessmentsByUser.set(item.userId, [...(assessmentsByUser.get(item.userId) ?? []), { score: Number(item.score), totalMarks: Number(item.totalMarks), submittedAt: item.submittedAt }]);
+  const quizzesByUser = new Map<number, Array<{ scorePercent: number; createdAt: Date }>>();
+  for (const item of quizRows) quizzesByUser.set(item.userId, [...(quizzesByUser.get(item.userId) ?? []), { scorePercent: Number(item.scorePercent), createdAt: item.createdAt }]);
+  const activeEnrollmentCounts = new Map<number, number>();
+  for (const enrollment of enrollmentRows) activeEnrollmentCounts.set(enrollment.userId, (activeEnrollmentCounts.get(enrollment.userId) ?? 0) + 1);
+  const atRiskLearners = studentRows.flatMap((student) => {
+    const activeEnrollmentCount = activeEnrollmentCounts.get(student.id) ?? 0;
+    if (!activeEnrollmentCount) return [];
+    const assessments = (assessmentsByUser.get(student.id) ?? []).slice(-2);
+    const quizzes = (quizzesByUser.get(student.id) ?? []).slice(-3);
+    const lastActivityAt = latestDate([latestProgress.get(student.id), ...assessments.map((item) => item.submittedAt), ...quizzes.map((item) => item.createdAt)]);
+    const awayDays = lastActivityAt ? Math.floor((now.getTime() - lastActivityAt.getTime()) / GROWTH_SUITE_DAY_MS) : Math.floor((now.getTime() - student.createdAt.getTime()) / GROWTH_SUITE_DAY_MS);
+    const lowAssessment = assessments.some((item) => item.totalMarks > 0 && (item.score / item.totalMarks) * 100 < 50);
+    const lowPractice = quizzes.length > 0 && quizzes.reduce((total, item) => total + item.scorePercent, 0) / quizzes.length < 55;
+    const signals: string[] = [];
+    let riskScore = 0;
+    if (awayDays >= 7) { signals.push(awayDays >= 14 ? "No recorded learning activity for 14+ days" : "No recorded learning activity for 7+ days"); riskScore += 2; }
+    if (lowAssessment) { signals.push("Recent completed assessment needs follow-up"); riskScore += 1; }
+    if (lowPractice) { signals.push("Recent practice performance needs follow-up"); riskScore += 1; }
+    if (!riskScore) return [];
+    return [{ userId: student.id, displayName: student.fullName?.trim() || "Student", activeEnrollmentCount, riskLevel: riskScore >= 3 ? "high" as const : riskScore === 2 ? "medium" as const : "low" as const, activityState: awayDays >= 14 ? "Away 14+ days" : awayDays >= 7 ? "Away 7+ days" : "Recently active", signals }];
+  }).sort((a, b) => ({ high: 3, medium: 2, low: 1 }[b.riskLevel] - { high: 3, medium: 2, low: 1 }[a.riskLevel]));
+  return { summary: { monitoredStudents: studentRows.length, atRiskStudents: atRiskLearners.length, pendingQuizReviews: reviewRows.length, upcomingLiveClasses: upcomingRows.length }, atRiskLearners };
+}
+
+export async function createLearningOperationsNotice(input: { userId: number; title: string; body: string; link?: string }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(notifications).values({ userId: input.userId, title: input.title, body: input.body, type: "learning_operations", link: input.link });
+  return Number(result[0].insertId);
+}
+
+export async function getOwnerBusinessIntelligence() {
+  const database = await getDb();
+  const empty = { enrollment: { active: 0, total: 0, studentsWithEnrollment: 0 }, engagement: { activeLearnersLast30Days: 0, recentLessonViews: 0, recentAssessmentAttempts: 0, recentAiQuizAttempts: 0 }, content: { publishedCourses: 0, draftCourses: 0, coursePerformance: [] as Array<{ courseId: number; title: string; enrollmentCount: number }> }, staffActivity: [] as Array<{ role: string; actionsLast30Days: number }>, payments: { providerOrderSignals: { pending: 0, paid: 0, failed: 0, refunded: 0 }, revenueReporting: "unavailable" as const, courseViewFunnelTracked: false } };
+  if (!database) return empty;
+  const since = new Date(Date.now() - 30 * GROWTH_SUITE_DAY_MS);
+  const [enrollmentRows, recentProgress, recentTests, recentAi, courseRows, courseEnrollmentRows, staffAudits, orderRows] = await Promise.all([
+    database.select({ userId: enrollments.userId, status: enrollments.status }).from(enrollments),
+    database.select({ userId: lessonProgress.userId }).from(lessonProgress).where(gte(lessonProgress.lastViewedAt, since)),
+    database.select({ id: testAttempts.id }).from(testAttempts).where(and(eq(testAttempts.status, "submitted"), gte(testAttempts.submittedAt, since))),
+    database.select({ id: aiQuizAttempts.id }).from(aiQuizAttempts).where(gte(aiQuizAttempts.createdAt, since)),
+    database.select({ id: courses.id, title: courses.title, status: courses.status }).from(courses),
+    database.select({ courseId: enrollments.courseId }).from(enrollments).where(eq(enrollments.status, "active")),
+    database.select({ role: users.role }).from(auditLogs).innerJoin(users, eq(auditLogs.actorUserId, users.id)).where(and(gte(auditLogs.createdAt, since), inArray(users.role, ["teacher", "admin", "super_admin"]))),
+    database.select({ status: orders.status }).from(orders),
+  ]);
+  const enrollmentCounts = new Map<number, number>();
+  for (const row of courseEnrollmentRows) enrollmentCounts.set(row.courseId, (enrollmentCounts.get(row.courseId) ?? 0) + 1);
+  const staffActions = new Map<string, number>();
+  for (const row of staffAudits) staffActions.set(row.role, (staffActions.get(row.role) ?? 0) + 1);
+  const providerOrderSignals = { pending: 0, paid: 0, failed: 0, refunded: 0 };
+  for (const order of orderRows) if (order.status === "pending" || order.status === "paid" || order.status === "failed" || order.status === "refunded") providerOrderSignals[order.status] += 1;
+  return {
+    enrollment: { active: enrollmentRows.filter((row) => row.status === "active").length, total: enrollmentRows.length, studentsWithEnrollment: new Set(enrollmentRows.map((row) => row.userId)).size },
+    engagement: { activeLearnersLast30Days: new Set(recentProgress.map((row) => row.userId)).size, recentLessonViews: recentProgress.length, recentAssessmentAttempts: recentTests.length, recentAiQuizAttempts: recentAi.length },
+    content: { publishedCourses: courseRows.filter((row) => row.status === "published").length, draftCourses: courseRows.filter((row) => row.status === "draft").length, coursePerformance: courseRows.map((course) => ({ courseId: course.id, title: course.title, enrollmentCount: enrollmentCounts.get(course.id) ?? 0 })).sort((a, b) => b.enrollmentCount - a.enrollmentCount).slice(0, 8) },
+    staffActivity: [...staffActions.entries()].map(([role, actionsLast30Days]) => ({ role, actionsLast30Days })).sort((a, b) => b.actionsLast30Days - a.actionsLast30Days),
+    payments: { providerOrderSignals, revenueReporting: "unavailable" as const, courseViewFunnelTracked: false },
+  };
 }
 
 export async function exportAiQuizReviewSubmission(input: { submissionId: number; reviewedByUserId: number }) {
@@ -1742,7 +1913,7 @@ const MANAGED_SETTINGS = [
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
   "platform.registration_enabled", "platform.maintenance_enabled",
   "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled",
   "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
@@ -1750,7 +1921,7 @@ const DEVELOPER_SETTING_KEYS = [
   "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
   "platform.maintenance_enabled",
   "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled",
+  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
@@ -1991,7 +2162,38 @@ export async function listMasterTemplates(actorUserId: number) {
 export async function listClientProjects() {
   const database = await getDb();
   if (!database) return [];
-  return database.select({ project: clientProjects, templateName: masterTemplates.name, templateVersion: masterTemplates.version }).from(clientProjects).innerJoin(masterTemplates, eq(clientProjects.templateId, masterTemplates.id)).orderBy(desc(clientProjects.updatedAt));
+  return database.select().from(clientProjects).orderBy(desc(clientProjects.updatedAt));
+}
+
+export async function getDeveloperClientHealth() {
+  const database = await getDb();
+  const empty = {
+    aggregateUsage: { activeUsersLast30Days: 0, totalUsers: 0, publishedCourses: 0, publishedShorts: 0 },
+    clientProjects: [] as Array<{ clientProjectId: number; name: string; status: string; updatedAt: Date; enabledFeatureCount: number; latestReleaseStatus: string | null; releaseReady: boolean }>,
+    observability: { apiLatency: "not_instrumented" as const, crashReporting: "not_instrumented" as const, storageMetering: "not_instrumented" as const },
+  };
+  if (!database) return empty;
+  const since = new Date(Date.now() - 30 * GROWTH_SUITE_DAY_MS);
+  const [projects, releases, activeUsers, allUsers, publishedCourses, publishedShorts] = await Promise.all([
+    database.select().from(clientProjects).orderBy(desc(clientProjects.updatedAt)),
+    database.select().from(clientProjectReleases).orderBy(desc(clientProjectReleases.createdAt)),
+    database.select({ count: sql<number>`count(*)` }).from(users).where(gte(users.lastSignedIn, since)),
+    database.select({ count: sql<number>`count(*)` }).from(users),
+    database.select({ count: sql<number>`count(*)` }).from(courses).where(eq(courses.status, "published")),
+    database.select({ count: sql<number>`count(*)` }).from(educationalShorts).where(eq(educationalShorts.status, "published")),
+  ]);
+  const latestReleaseByProject = new Map<number, typeof releases[number]>();
+  for (const release of releases) if (!latestReleaseByProject.has(release.clientProjectId)) latestReleaseByProject.set(release.clientProjectId, release);
+  return {
+    aggregateUsage: { activeUsersLast30Days: Number(activeUsers[0]?.count ?? 0), totalUsers: Number(allUsers[0]?.count ?? 0), publishedCourses: Number(publishedCourses[0]?.count ?? 0), publishedShorts: Number(publishedShorts[0]?.count ?? 0) },
+    clientProjects: projects.map((project) => {
+      const featureProfile = project.featureProfile as Record<string, unknown>;
+      const latestRelease = latestReleaseByProject.get(project.id);
+      const enabledFeatureCount = Object.values(featureProfile).filter((value) => value === true).length;
+      return { clientProjectId: project.id, name: project.name, status: project.status, updatedAt: project.updatedAt, enabledFeatureCount, latestReleaseStatus: latestRelease?.status ?? null, releaseReady: project.status === "release_prepared" || latestRelease?.status === "prepared" || latestRelease?.status === "submitted" || latestRelease?.status === "provisioned" };
+    }),
+    observability: { apiLatency: "not_instrumented" as const, crashReporting: "not_instrumented" as const, storageMetering: "not_instrumented" as const },
+  };
 }
 
 export async function getClientProject(clientProjectId: number) {

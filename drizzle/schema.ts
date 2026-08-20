@@ -110,6 +110,23 @@ export const studentFeaturePermissions = mysqlTable(
   (table) => [uniqueIndex("student_feature_permission_uq").on(table.userId, table.feature)],
 );
 
+/**
+ * A Student-owned consent record for in-app Study Coach notices. It is kept
+ * separate from global Developer feature policy so a learner can opt in or out
+ * without changing access to their learning data.
+ */
+export const studyCoachPreferences = mysqlTable(
+  "study_coach_preferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    noticesEnabled: boolean("noticesEnabled").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("study_coach_preference_user_uq").on(table.userId)],
+);
+
 export const categories = mysqlTable(
   "categories",
   {

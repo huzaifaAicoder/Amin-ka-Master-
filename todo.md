@@ -175,4 +175,10 @@
 - [x] Harden YouTube Shorts embeds and FlatList virtualization without claiming provider-controlled playback or device-frame-rate guarantees.
 - [x] Add a persisted English/Hindi/Bilingual interface-preference foundation and Developer-managed default language setting.
 - [x] Verify multi-device session behavior, API pagination boundaries, release configuration, tests, and documented standalone-build limitations without deleting existing Expo dependencies.
+- [x] Add a Student Study Coach using existing progress, assessment, AI Quiz, and course data for daily study guidance, weak-topic insights, revision priorities, and streak-aware progress.
+- [x] Add a role-protected Staff Learning Operations dashboard that identifies at-risk learners through transparent, deterministic engagement and performance signals without exposing private Student data outside authorized staff roles.
+- [x] Add a Developer Client Health dashboard for white-label project health, release readiness, configured integrations, feature availability, and safe aggregate usage signals.
+- [x] Add an Owner Business Intelligence dashboard for aggregate enrollment, conversion, learning engagement, content performance, staff activity, and documented payment-readiness signals without fabricating revenue data.
+- [x] Add Staff intervention tools for at-risk learner reminders, assignment/test follow-up, doubt-response queue visibility, batch context, and auditable notices using existing notification boundaries.
+- [x] Add Student coaching extensions for revision reminders, streak milestones, downloadable study reports, and opt-in study plan notices while preserving existing courses, AI Quiz, and downloads workflows.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
