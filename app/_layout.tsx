@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { ActivityIndicator, Platform, View } from "react-native";
+import * as ScreenCapture from "expo-screen-capture";
 import { usePreventScreenCapture } from "expo-screen-capture";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
@@ -54,6 +55,15 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
 
 function NativeStudentCaptureGuard() {
   usePreventScreenCapture("student-session");
+  useEffect(() => {
+    const key = "student-root-secure";
+    void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined);
+    if (Platform.OS === "ios") void ScreenCapture.enableAppSwitcherProtectionAsync(1).catch(() => undefined);
+    return () => {
+      void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined);
+      if (Platform.OS === "ios") void ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => undefined);
+    };
+  }, []);
   return null;
 }
 

@@ -157,4 +157,6 @@
 - [x] Verify whether AI attachments, AI Quiz, land/surveying utilities, case studies, and leaderboard flows already exist before implementing only confirmed gaps.
 - [x] Implement a server-validated AI Quiz generator with review-safe output, Student completion flow, and no automatic publishing to staff test banks.
 - [x] Add permission-controlled teacher review and export of selected AI Quiz questions into an unpublished draft test bank.
+- [x] Strengthen Student root screen-capture prevention and add regression coverage for root protection plus key advanced panel/route retention.
+- [ ] Physically verify screenshot and recording blocking in a standalone Android/iOS build; Expo/preview containers may not enforce native secure-window flags consistently.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
