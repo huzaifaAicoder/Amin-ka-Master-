@@ -190,4 +190,5 @@
 - [x] Add an in-app official land-record portal directory and allowlisted WebView browser without browser handoff or arbitrary external navigation.
 - [x] Add a native digital compass with magnetometer availability checks, fixed-category direction display, and calibration/accuracy disclosure.
 - [x] Validate new Vision AI, permissions, GPS calculations, portals, compass behavior, security/RBAC, and regressions; prepare the requested repository update.
+- [x] Adopt the permanent backward-compatibility and feature-preservation rule across project governance, requiring additive changes, safe migrations, pre-change dependency audits, and feature-specific regression reporting for all future work.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
