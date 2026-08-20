@@ -24,6 +24,8 @@ import {
   bookmarks,
   categories,
   certificates,
+  clientProjectReleases,
+  clientProjects,
   courseModules,
   courseReviews,
   courses,
@@ -32,6 +34,7 @@ import {
   lessonResources,
   lessons,
   liveClasses,
+  masterTemplates,
   moduleResources,
   notifications,
   otpChallenges,
@@ -75,6 +78,17 @@ export const STAFF_PERMISSION_OPTIONS = [
 export type StaffPermission = (typeof STAFF_PERMISSION_OPTIONS)[number];
 export const STUDENT_FEATURE_OPTIONS = ["courses", "assessments", "live_classes", "shorts", "downloads", "ai_doubt", "ai_quiz"] as const;
 export type StudentFeature = (typeof STUDENT_FEATURE_OPTIONS)[number];
+
+export const MASTER_TEMPLATE_FEATURE_MANIFEST = {
+  version: "amin-ka-master.master.v1",
+  includedModules: ["authentication", "role_boundaries", "courses", "protected_learning", "assessments", "live_classes", "shorts", "offline_downloads", "ai_doubt_solver", "ai_quiz", "developer_controls"],
+  supportedBranding: ["appName", "tagline", "primaryColor", "accentColor", "logoUrl"],
+  supportedFeatureProfile: ["courses", "assessments", "liveClasses", "shorts", "downloads", "aiDoubt", "aiQuiz"],
+  excludedFromClone: ["users", "passwordHashes", "sessions", "passkeys", "setupCodes", "providerSecrets", "paymentSecrets", "webhookSecrets", "databaseCredentials", "productionMedia", "auditHistory"],
+} as const;
+
+export const DEFAULT_CLIENT_FEATURE_PROFILE = { courses: true, assessments: true, liveClasses: true, shorts: true, downloads: true, aiDoubt: true, aiQuiz: true };
+export const DEFAULT_CLIENT_NAVIGATION_PROFILE = { studentTabs: ["home", "my_learning", "shorts", "downloads", "account"], staffAreas: ["courses", "tests", "live_classes", "media", "moderation"], ownerAreas: ["operations", "reports", "people"] };
 
 export function getOtpVerificationState(input: {
   expiresAt: Date;
@@ -1946,6 +1960,113 @@ export async function getDeveloperViewAsTarget(userId: number) {
     getStudentFeatureOverrides(userId),
   ]);
   return { ...target, permissions: permissions.map((item) => item.permission), studentFeatureOverrides };
+}
+
+export async function ensureMasterTemplate(actorUserId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [existing] = await database.select().from(masterTemplates).where(eq(masterTemplates.templateKey, "amin-ka-master-master")).limit(1);
+  if (existing) return existing;
+  const result = await database.insert(masterTemplates).values({
+    templateKey: "amin-ka-master-master",
+    name: "Amin Ka Master — Complete LMS Master",
+    version: "1.0",
+    status: "active",
+    featureManifest: MASTER_TEMPLATE_FEATURE_MANIFEST,
+    sourceCheckpoint: "master-reference",
+    createdByUserId: actorUserId,
+  });
+  const [created] = await database.select().from(masterTemplates).where(eq(masterTemplates.id, Number(result[0].insertId))).limit(1);
+  if (!created) throw new Error("Master template could not be created");
+  return created;
+}
+
+export async function listMasterTemplates(actorUserId: number) {
+  await ensureMasterTemplate(actorUserId);
+  const database = await getDb();
+  if (!database) return [];
+  return database.select().from(masterTemplates).orderBy(desc(masterTemplates.updatedAt));
+}
+
+export async function listClientProjects() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ project: clientProjects, templateName: masterTemplates.name, templateVersion: masterTemplates.version }).from(clientProjects).innerJoin(masterTemplates, eq(clientProjects.templateId, masterTemplates.id)).orderBy(desc(clientProjects.updatedAt));
+}
+
+export async function getClientProject(clientProjectId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [record] = await database.select({ project: clientProjects, templateName: masterTemplates.name, templateVersion: masterTemplates.version, templateManifest: masterTemplates.featureManifest }).from(clientProjects).innerJoin(masterTemplates, eq(clientProjects.templateId, masterTemplates.id)).where(eq(clientProjects.id, clientProjectId)).limit(1);
+  if (!record) throw new Error("Client project was not found");
+  return record;
+}
+
+export async function createClientProject(input: { name: string; slug: string; templateId: number; appName: string; tagline?: string; primaryColor: string; accentColor: string; supportEmail?: string; createdByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [template] = await database.select({ id: masterTemplates.id, status: masterTemplates.status }).from(masterTemplates).where(eq(masterTemplates.id, input.templateId)).limit(1);
+  if (!template || template.status !== "active") throw new Error("Choose an active master template.");
+  const result = await database.insert(clientProjects).values({
+    publicId: `client_${randomUUID()}`,
+    templateId: input.templateId,
+    name: input.name,
+    slug: input.slug,
+    status: "draft",
+    branding: { appName: input.appName, tagline: input.tagline ?? "", primaryColor: input.primaryColor, accentColor: input.accentColor, logoUrl: null },
+    featureProfile: DEFAULT_CLIENT_FEATURE_PROFILE,
+    navigationProfile: DEFAULT_CLIENT_NAVIGATION_PROFILE,
+    publicPages: { supportEmail: input.supportEmail ?? "", about: "", contact: "", privacyUrl: "", termsUrl: "" },
+    createdByUserId: input.createdByUserId,
+  });
+  return Number(result[0].insertId);
+}
+
+export async function updateClientProject(input: { clientProjectId: number; name?: string; status?: "draft" | "ready_for_review" | "release_prepared" | "archived"; branding?: Record<string, unknown>; featureProfile?: Record<string, boolean>; navigationProfile?: Record<string, unknown>; publicPages?: Record<string, unknown>; previewUrl?: string | null; externalProjectReference?: string | null }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [existing] = await database.select({ id: clientProjects.id }).from(clientProjects).where(eq(clientProjects.id, input.clientProjectId)).limit(1);
+  if (!existing) throw new Error("Client project was not found");
+  const values = {
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.status !== undefined ? { status: input.status } : {}),
+    ...(input.branding !== undefined ? { branding: input.branding } : {}),
+    ...(input.featureProfile !== undefined ? { featureProfile: input.featureProfile } : {}),
+    ...(input.navigationProfile !== undefined ? { navigationProfile: input.navigationProfile } : {}),
+    ...(input.publicPages !== undefined ? { publicPages: input.publicPages } : {}),
+    ...(input.previewUrl !== undefined ? { previewUrl: input.previewUrl } : {}),
+    ...(input.externalProjectReference !== undefined ? { externalProjectReference: input.externalProjectReference } : {}),
+  };
+  await database.update(clientProjects).set(values).where(eq(clientProjects.id, input.clientProjectId));
+}
+
+export async function prepareClientProjectRelease(input: { clientProjectId: number; preparedByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const record = await getClientProject(input.clientProjectId);
+  if (record.project.status === "archived") throw new Error("Archived client projects cannot be released.");
+  const releaseCount = await database.select({ id: clientProjectReleases.id }).from(clientProjectReleases).where(eq(clientProjectReleases.clientProjectId, input.clientProjectId));
+  const releaseVersion = `v${releaseCount.length + 1}`;
+  const manifest = {
+    manifestVersion: "white-label-release.v1",
+    clientProject: { publicId: record.project.publicId, name: record.project.name, slug: record.project.slug },
+    masterTemplate: { name: record.templateName, version: record.templateVersion },
+    branding: record.project.branding,
+    featureProfile: record.project.featureProfile,
+    navigationProfile: record.project.navigationProfile,
+    publicPages: record.project.publicPages,
+    securityBoundary: { copiedUsers: false, copiedCredentials: false, copiedProviderSecrets: false, copiedPaymentSecrets: false, copiedWebhooks: false, copiedAuditHistory: false, copiedProductionMedia: false },
+    provisioning: { status: "manual_platform_project_creation_required", finalPublish: "Developer must use the separate project Publish control after review and checkpointing." },
+  };
+  const result = await database.insert(clientProjectReleases).values({ clientProjectId: input.clientProjectId, releaseVersion, status: "prepared", manifest, preparedByUserId: input.preparedByUserId });
+  await database.update(clientProjects).set({ status: "release_prepared" }).where(eq(clientProjects.id, input.clientProjectId));
+  return { releaseId: Number(result[0].insertId), releaseVersion, manifest };
+}
+
+export async function listClientProjectReleases(clientProjectId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select().from(clientProjectReleases).where(eq(clientProjectReleases.clientProjectId, clientProjectId)).orderBy(desc(clientProjectReleases.createdAt));
 }
 
 export async function listDeveloperContentInventory() {

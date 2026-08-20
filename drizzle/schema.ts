@@ -642,6 +642,60 @@ export const appSettings = mysqlTable("app_settings", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const masterTemplates = mysqlTable(
+  "master_templates",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    templateKey: varchar("templateKey", { length: 96 }).notNull().unique(),
+    name: varchar("name", { length: 160 }).notNull(),
+    version: varchar("version", { length: 64 }).notNull(),
+    status: mysqlEnum("masterTemplateStatus", ["active", "archived"]).default("active").notNull(),
+    featureManifest: json("featureManifest").notNull(),
+    sourceCheckpoint: varchar("sourceCheckpoint", { length: 96 }),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("master_templates_status_updated_idx").on(table.status, table.updatedAt)],
+);
+
+export const clientProjects = mysqlTable(
+  "client_projects",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    publicId: varchar("publicId", { length: 64 }).notNull().unique(),
+    templateId: int("templateId").notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    slug: varchar("slug", { length: 120 }).notNull().unique(),
+    status: mysqlEnum("clientProjectStatus", ["draft", "ready_for_review", "release_prepared", "provisioned", "archived"]).default("draft").notNull(),
+    branding: json("branding").notNull(),
+    featureProfile: json("featureProfile").notNull(),
+    navigationProfile: json("navigationProfile").notNull(),
+    publicPages: json("publicPages").notNull(),
+    externalProjectReference: varchar("externalProjectReference", { length: 160 }),
+    previewUrl: varchar("previewUrl", { length: 2048 }),
+    createdByUserId: int("createdByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("client_projects_template_status_idx").on(table.templateId, table.status), index("client_projects_creator_updated_idx").on(table.createdByUserId, table.updatedAt)],
+);
+
+export const clientProjectReleases = mysqlTable(
+  "client_project_releases",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    clientProjectId: int("clientProjectId").notNull(),
+    releaseVersion: varchar("releaseVersion", { length: 64 }).notNull(),
+    status: mysqlEnum("clientProjectReleaseStatus", ["prepared", "submitted", "provisioned", "superseded"]).default("prepared").notNull(),
+    manifest: json("manifest").notNull(),
+    preparedByUserId: int("preparedByUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("client_project_release_version_uq").on(table.clientProjectId, table.releaseVersion), index("client_project_releases_client_time_idx").on(table.clientProjectId, table.createdAt)],
+);
+
 export const auditLogs = mysqlTable(
   "audit_logs",
   {

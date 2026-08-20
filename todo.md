@@ -168,4 +168,6 @@
 - [x] Add a per-user Developer permission matrix for individual Student and Teacher feature controls.
 - [x] Add an audited, read-only Developer “View As” preview that never impersonates a user or exposes private data.
 - [x] Add audited Select All and Reset to Default bulk controls to the Developer Student and Teacher permission matrices.
+- [x] Build a safe white-label Master Template Studio where Developer can create isolated client instance configurations, visually customize supported settings, preview them, and prepare a release without copying users, secrets, or live production data.
+- [x] Extend the studio for separate client-project provisioning manifests and release packages, while requiring platform-mediated final Publish/APK builds rather than autonomous in-app deployment.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

@@ -533,6 +533,63 @@ export const appRouter = router({
   }),
   developer: router({
     settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
+    templates: requireRoles(["developer"]).query(({ ctx }) => db.listMasterTemplates(ctx.user.id)),
+    clientProjects: requireRoles(["developer"]).query(() => db.listClientProjects()),
+    clientProject: requireRoles(["developer"]).input(z.object({ clientProjectId: z.number().int().positive() })).query(({ input }) => db.getClientProject(input.clientProjectId)),
+    createClientProject: requireRoles(["developer"]).input(z.object({
+      templateId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(160),
+      slug: z.string().trim().regex(/^[a-z0-9-]+$/).min(2).max(120),
+      appName: z.string().trim().min(2).max(80),
+      tagline: z.string().trim().max(160).optional(),
+      primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+      supportEmail: z.string().trim().email().max(320).optional().or(z.literal("")),
+    })).mutation(async ({ ctx, input }) => {
+      const clientProjectId = await db.createClientProject({ ...input, supportEmail: input.supportEmail || undefined, createdByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_client_project.created", entityType: "client_project", entityId: clientProjectId, metadata: { templateId: input.templateId, name: input.name, slug: input.slug, isolatedFromMasterData: true } });
+      return { clientProjectId };
+    }),
+    generateClientProjectBlueprint: requireRoles(["developer"]).input(z.object({ brief: z.string().trim().min(12).max(1600) })).mutation(async ({ ctx, input }) => {
+      const apiKey = process.env.GEMINI_API_KEY?.trim();
+      if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "AI configuration is not available because the server-side Gemini provider is not configured." });
+      try {
+        const client = new GoogleGenerativeAI(apiKey);
+        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a white-label education product configuration assistant. Return only valid JSON that follows the requested schema. Produce visual and feature configuration suggestions only. Never request, generate, infer, or include passwords, API keys, payment credentials, database information, existing users, private URLs, or release claims. Do not claim an APK was built or an app was published.", generationConfig: { maxOutputTokens: 1200, temperature: 0.35 } });
+        const result = await model.generateContent(`Create a practical client LMS configuration for this brief: ${input.brief}\nReturn exactly JSON: {"appName":"","tagline":"","primaryColor":"#112233","accentColor":"#AABBCC","features":{"courses":true,"assessments":true,"liveClasses":true,"shorts":true,"downloads":true,"aiDoubt":true,"aiQuiz":true},"studentTabs":["home"],"about":"","contact":""}. Use six-character #RRGGBB colours and no more than five tabs.`);
+        const raw = result.response.text().trim();
+        const jsonText = raw.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim() ?? raw;
+        const parsed = z.object({ appName: z.string().trim().min(2).max(80), tagline: z.string().trim().max(160), primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), features: z.object({ courses: z.boolean(), assessments: z.boolean(), liveClasses: z.boolean(), shorts: z.boolean(), downloads: z.boolean(), aiDoubt: z.boolean(), aiQuiz: z.boolean() }), studentTabs: z.array(z.enum(["home", "my_learning", "shorts", "downloads", "account", "explore"])).min(2).max(5), about: z.string().max(1200), contact: z.string().max(600) }).parse(JSON.parse(jsonText));
+        await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_client_project.blueprint_generated", entityType: "client_project_blueprint", metadata: { briefLength: input.brief.length, provider: "gemini", published: false } });
+        return parsed;
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Client project blueprint generation failed", error instanceof Error ? error.message : "unknown provider error");
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "AI configuration could not be generated right now. Please try again." });
+      }
+    }),
+    updateClientProject: requireRoles(["developer"]).input(z.object({
+      clientProjectId: z.number().int().positive(),
+      name: z.string().trim().min(2).max(160).optional(),
+      status: z.enum(["draft", "ready_for_review", "release_prepared", "archived"]).optional(),
+      branding: z.object({ appName: z.string().trim().min(2).max(80), tagline: z.string().trim().max(160), primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/), logoUrl: z.string().url().max(2048).nullable().optional() }).optional(),
+      featureProfile: z.object({ courses: z.boolean(), assessments: z.boolean(), liveClasses: z.boolean(), shorts: z.boolean(), downloads: z.boolean(), aiDoubt: z.boolean(), aiQuiz: z.boolean() }).optional(),
+      navigationProfile: z.object({ studentTabs: z.array(z.string().max(48)).max(8), staffAreas: z.array(z.string().max(48)).max(12), ownerAreas: z.array(z.string().max(48)).max(12) }).optional(),
+      publicPages: z.object({ supportEmail: z.string().email().max(320).or(z.literal("")), about: z.string().max(5000), contact: z.string().max(2000), privacyUrl: z.string().url().max(2048).or(z.literal("")), termsUrl: z.string().url().max(2048).or(z.literal("")) }).optional(),
+      previewUrl: z.string().url().max(2048).nullable().optional(),
+      externalProjectReference: z.string().trim().max(160).nullable().optional(),
+    }).refine((input) => Object.keys(input).length > 1, "Choose at least one client-project field to update.")).mutation(async ({ ctx, input }) => {
+      const { clientProjectId, ...updates } = input;
+      await db.updateClientProject({ clientProjectId, ...updates });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_client_project.updated", entityType: "client_project", entityId: clientProjectId, metadata: { fields: Object.keys(updates) } });
+      return { success: true as const };
+    }),
+    prepareClientProjectRelease: requireRoles(["developer"]).input(z.object({ clientProjectId: z.number().int().positive(), confirmation: z.literal("PREPARE") })).mutation(async ({ ctx, input }) => {
+      const prepared = await db.prepareClientProjectRelease({ clientProjectId: input.clientProjectId, preparedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "developer_client_project.release_prepared", entityType: "client_project", entityId: input.clientProjectId, metadata: { releaseId: prepared.releaseId, releaseVersion: prepared.releaseVersion, manualPlatformPublishRequired: true } });
+      return prepared;
+    }),
+    clientProjectReleases: requireRoles(["developer"]).input(z.object({ clientProjectId: z.number().int().positive() })).query(({ input }) => db.listClientProjectReleases(input.clientProjectId)),
     users: requireRoles(["developer"]).input(z.object({ search: z.string().trim().max(120).optional() }).optional()).query(({ input }) => db.listManagedUsers(input?.search)),
     updateUser: requireRoles(["developer"]).input(z.object({ userId: z.number().int().positive(), role: z.enum(["student", "teacher", "admin", "super_admin"]).optional(), status: z.enum(["active", "suspended"]).optional() })).mutation(async ({ ctx, input }) => {
       if (input.userId === ctx.user.id) throw new TRPCError({ code: "BAD_REQUEST", message: "Use your own account security flow for Developer access." });
