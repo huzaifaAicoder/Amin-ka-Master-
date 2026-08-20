@@ -159,4 +159,6 @@
 - [x] Add permission-controlled teacher review and export of selected AI Quiz questions into an unpublished draft test bank.
 - [x] Strengthen Student root screen-capture prevention and add regression coverage for root protection plus key advanced panel/route retention.
 - [ ] Physically verify screenshot and recording blocking in a standalone Android/iOS build; Expo/preview containers may not enforce native secure-window flags consistently.
+- [x] Add adaptive AI Quiz difficulty, timed practice, persisted score history, and a Student dashboard average-score widget without replacing the current review-safe quiz workflow.
+- [x] Run deterministic Android-layout and YouTube Shorts FlatList/WebView lifecycle QA, then document the remaining physical-device provider test.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

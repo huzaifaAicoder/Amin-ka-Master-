@@ -99,6 +99,13 @@
       "when": 1787203409321,
       "tag": "0013_parched_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1787204472864,
+      "tag": "0014_dark_vision",
+      "breakpoints": true
     }
   ]
 }

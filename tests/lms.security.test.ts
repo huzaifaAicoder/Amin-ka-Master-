@@ -120,7 +120,14 @@ describe("LMS security boundaries", () => {
     const staffCaller = appRouter.createCaller(createContext(admin));
     const studentCaller = appRouter.createCaller(createContext(student));
     await expect(staffCaller.student.askAi({ question: "Explain chain surveying" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(studentCaller.student.askAi({ question: "Explain chain surveying" })).resolves.toEqual(expect.objectContaining({ mode: expect.stringMatching(/^(gemini|fallback)$/), answer: expect.any(String) }));
+    const originalKey = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "";
+    try {
+      await expect(studentCaller.student.askAi({ question: "Explain chain surveying" })).resolves.toEqual(expect.objectContaining({ mode: "fallback", answer: expect.any(String) }));
+    } finally {
+      if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = originalKey;
+    }
   });
 
   it("rejects initial Super Admin setup without the private owner code", async () => {

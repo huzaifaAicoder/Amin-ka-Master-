@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 import {
+  aiQuizAttempts,
   aiQuizReviewSubmissions,
   appSettings,
   announcements,
@@ -1188,6 +1189,45 @@ export async function createAiQuizReviewSubmission(input: { submittedByUserId: n
   if (!database) throw new Error("Database is unavailable");
   const result = await database.insert(aiQuizReviewSubmissions).values(input);
   return Number(result[0].insertId);
+}
+
+export async function saveAiQuizAttempt(input: {
+  userId: number;
+  topic: string;
+  difficulty: "beginner" | "intermediate" | "advanced";
+  questionCount: number;
+  correctAnswers: number;
+  scorePercent: number;
+  durationSeconds: number;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(aiQuizAttempts).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function getStudentAiQuizStats(userId: number) {
+  const database = await getDb();
+  if (!database) return { averageScore: 0, totalAttempts: 0, lastDifficulty: null as "beginner" | "intermediate" | "advanced" | null, lastScore: null as number | null };
+  const [summary] = await database
+    .select({
+      totalAttempts: sql<number>`count(*)`,
+      averageScore: sql<number>`coalesce(round(avg(${aiQuizAttempts.scorePercent})), 0)`,
+    })
+    .from(aiQuizAttempts)
+    .where(eq(aiQuizAttempts.userId, userId));
+  const [lastAttempt] = await database
+    .select({ difficulty: aiQuizAttempts.difficulty, scorePercent: aiQuizAttempts.scorePercent })
+    .from(aiQuizAttempts)
+    .where(eq(aiQuizAttempts.userId, userId))
+    .orderBy(desc(aiQuizAttempts.createdAt), desc(aiQuizAttempts.id))
+    .limit(1);
+  return {
+    averageScore: Number(summary?.averageScore ?? 0),
+    totalAttempts: Number(summary?.totalAttempts ?? 0),
+    lastDifficulty: lastAttempt?.difficulty ?? null,
+    lastScore: lastAttempt ? Number(lastAttempt.scorePercent) : null,
+  };
 }
 
 export async function listAiQuizReviewSubmissions() {

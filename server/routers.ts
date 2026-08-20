@@ -499,6 +499,27 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_GATEWAY", message: "AI Quiz could not be generated right now. Please try again." });
       }
     }),
+    saveAiQuizAttempt: protectedProcedure.input(z.object({
+      topic: z.string().trim().min(2).max(160),
+      difficulty: z.enum(["beginner", "intermediate", "advanced"]),
+      questionCount: z.number().int().min(2).max(10),
+      correctAnswers: z.number().int().min(0).max(10),
+      scorePercent: z.number().int().min(0).max(100),
+      durationSeconds: z.number().int().min(0).max(60 * 60),
+    }).superRefine((value, ctx) => {
+      if (value.correctAnswers > value.questionCount) ctx.addIssue({ code: "custom", message: "Correct answer count cannot exceed question count.", path: ["correctAnswers"] });
+      const expectedScore = Math.round((value.correctAnswers / value.questionCount) * 100);
+      if (value.scorePercent !== expectedScore) ctx.addIssue({ code: "custom", message: "Quiz score does not match the submitted result.", path: ["scorePercent"] });
+    })).mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Students can save AI Quiz practice results." });
+      const attemptId = await db.saveAiQuizAttempt({ ...input, userId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "ai_quiz.attempt_saved", entityType: "ai_quiz_attempt", entityId: attemptId, metadata: { topic: input.topic, difficulty: input.difficulty, questionCount: input.questionCount, scorePercent: input.scorePercent, durationSeconds: input.durationSeconds } });
+      return { attemptId };
+    }),
+    aiQuizStats: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "AI Quiz analytics are available in the student learning experience." });
+      return db.getStudentAiQuizStats(ctx.user.id);
+    }),
     submitAiQuizForReview: protectedProcedure.input(aiQuizReviewSubmissionSchema).mutation(async ({ ctx, input }) => {
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Students can submit a private AI Quiz for teacher review." });
       const submissionId = await db.createAiQuizReviewSubmission({ ...input, submittedByUserId: ctx.user.id });

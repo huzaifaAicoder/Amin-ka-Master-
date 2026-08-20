@@ -16,7 +16,8 @@ export default function HomeScreen() {
   const coursesQuery = trpc.catalog.courses.useQuery();
   const learningQuery = trpc.student.learning.useQuery(undefined, { enabled: Boolean(user), retry: false });
   const liveQuery = trpc.student.liveClasses.useQuery(undefined, { enabled: Boolean(user), retry: false });
-  const { refreshing, onRefresh } = usePanelRefresh([categoriesQuery.refetch, settingsQuery.refetch, coursesQuery.refetch, learningQuery.refetch, liveQuery.refetch]);
+  const aiQuizStatsQuery = trpc.student.aiQuizStats.useQuery(undefined, { enabled: user?.role === "student", retry: false });
+  const { refreshing, onRefresh } = usePanelRefresh([categoriesQuery.refetch, settingsQuery.refetch, coursesQuery.refetch, learningQuery.refetch, liveQuery.refetch, aiQuizStatsQuery.refetch]);
   const activeLearning = learningQuery.data?.[0];
   const upcomingClass = liveQuery.data?.[0];
   const publicSettings = settingsQuery.data ?? {};
@@ -62,7 +63,8 @@ export default function HomeScreen() {
             <MaterialIcons name="chevron-right" size={24} color={COLORS.muted} />
           </Pressable>
         ) : null}
-        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>NEW STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Type a question and prepare for the upcoming AI assistant.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
+        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Doubt Solver" onPress={() => router.push("/ask-ai")} style={({ pressed }) => [styles.askAi, pressed && styles.pressed]}><IconCircle icon="auto-awesome" size={42} color={COLORS.saffron} background="rgba(255,255,255,0.13)" /><View style={styles.askAiCopy}><Text style={styles.askAiLabel}>STUDY TOOL</Text><Text style={styles.askAiTitle}>Ask AI · Doubt Solver</Text><Text style={styles.askAiBody}>Ask a course doubt, then practise it with a private AI Quiz.</Text></View><MaterialIcons name="arrow-forward" size={23} color={COLORS.white} /></Pressable> : null}
+        {user?.role === "student" ? <Pressable accessibilityRole="button" accessibilityLabel="Open AI Quiz" onPress={() => router.push("/ai-quiz")} style={({ pressed }) => [styles.quizAverage, pressed && styles.pressed]}><IconCircle icon="quiz" size={42} color={COLORS.indigo} background={COLORS.indigoSoft} /><View style={styles.quizAverageCopy}><Text style={styles.quizAverageLabel}>AI QUIZ AVERAGE</Text>{aiQuizStatsQuery.isLoading ? <Text style={styles.quizAverageTitle}>Loading practice history…</Text> : <><Text style={styles.quizAverageTitle}>{aiQuizStatsQuery.data?.totalAttempts ? `${aiQuizStatsQuery.data.averageScore}% average score` : "Start your first private quiz"}</Text><Text style={styles.quizAverageBody}>{aiQuizStatsQuery.data?.totalAttempts ? `${aiQuizStatsQuery.data.totalAttempts} completed practice ${aiQuizStatsQuery.data.totalAttempts === 1 ? "set" : "sets"} · adaptive difficulty ready` : "Timed practice with answers explained after submission."}</Text></>}</View><MaterialIcons name="arrow-forward" size={23} color={COLORS.indigo} /></Pressable> : null}
         <SectionHeading title="Study by topic" action="Explore" onPress={() => router.push("/explore")} />
         {categoriesQuery.isLoading ? <ActivityIndicator color={COLORS.indigo} /> : <FlatList horizontal showsHorizontalScrollIndicator={false} data={categoriesQuery.data ?? []} contentContainerStyle={styles.categories} keyExtractor={(item) => item.id.toString()} renderItem={({ item, index }) => <Pressable onPress={() => router.push(`/explore?category=${item.slug}`)} style={({ pressed }) => [styles.categoryCard, index % 2 === 1 && styles.categoryCardWarm, pressed && styles.pressed]}><MaterialIcons name={index % 2 === 0 ? "straighten" : "account-balance"} size={23} color={COLORS.indigo} /><Text style={styles.categoryText}>{item.name}</Text></Pressable>} />}
 
@@ -98,6 +100,11 @@ const styles = StyleSheet.create({
   askAiLabel: { color: COLORS.saffron, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
   askAiTitle: { color: COLORS.white, fontSize: 15, fontWeight: "900" },
   askAiBody: { color: "#D6DFF2", fontSize: 11, lineHeight: 16 },
+  quizAverage: { marginTop: 12, padding: 13, borderRadius: 19, backgroundColor: COLORS.white, borderWidth: 1, borderColor: "#C9D3EC", flexDirection: "row", alignItems: "center", gap: 10 },
+  quizAverageCopy: { flex: 1, gap: 2 },
+  quizAverageLabel: { color: COLORS.indigo, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
+  quizAverageTitle: { color: COLORS.ink, fontSize: 15, fontWeight: "900" },
+  quizAverageBody: { color: COLORS.muted, fontSize: 11, lineHeight: 16 },
   previewAdmin: { marginTop: 16, padding: 13, borderRadius: 19, backgroundColor: COLORS.indigo, flexDirection: "row", gap: 10, alignItems: "center" },
   previewCopy: { flex: 1, gap: 2 },
   previewLabel: { color: COLORS.saffron, fontSize: 10, fontWeight: "900", letterSpacing: 0.8 },
