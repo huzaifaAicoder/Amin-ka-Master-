@@ -24,6 +24,10 @@ The Uttar Pradesh Bhulekh domain `https://upbhulekh.gov.in/` was reached directl
 
 The converter always retains acre, hectare, square feet, and square metres as standard units. Bigha, Katha, and Dhur appear only when the Student selects a code-reviewed state/region system that defines them. The initial systems are a common Bihar reference (1 Bigha = 20 Katha = 400 Dhur), an Uttar Pradesh Pucca Bigha reference, and a metric-only fallback. The application never presents a single India-wide Bigha/Katha/Dhur conversion; a Student must verify local district or revenue-record practice before relying on any local-unit reference.
 
+The upgraded state-first selector lists all 28 States and 8 Union Territories. Every State/UT begins with a `Standard units only` profile for acre, hectare, square feet, and square metres. Bihar, Uttar Pradesh, Madhya Pradesh, and Rajasthan additionally offer a clearly labelled reference profile, which is never automatically selected and carries a district/tehsil confirmation warning. The supporting DILRMP material explains that land administration is a State List responsibility and varies by regional nomenclature, which is why a universal local-unit catalogue is intentionally not asserted. [1]
+
+[1] [Department of Land Resources, Government of India — DILRMP](https://dolr.gov.in/en/programmes-schemes/dilrmp-2/)
+
 ## Gemini Vision crop/adjust workflow
 
 Choosing an image opens the platform's native image picker or camera with its native Crop / Adjust step enabled. Only after this review does the app locally resize/compress the selected image to a bounded JPEG/Base64 payload and show a cropped preview. The selected bytes remain ephemeral client state, are sent only with the next Student question to the existing server-only Gemini boundary, and clear after sending or removal. The app does not create a gallery copy, remote image store, chat attachment record, telemetry record, or download artifact.

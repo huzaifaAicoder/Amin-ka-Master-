@@ -13,15 +13,34 @@ export const LAND_UNIT_LABELS: Record<LandUnit, string> = {
   acre: "Acre", hectare: "Hectare", square_feet: "Square feet", square_meters: "Square meter", bigha: "Bigha", katha: "Katha", dhur: "Dhur",
 };
 
-type UnitSystem = { id: string; state: string; title: string; note: string; squareMeters: Partial<Record<LandUnit, number>> };
+export type IndiaState = { code: string; name: string; kind: "state" | "union_territory" };
+export type UnitSystem = { id: string; stateCode: string; state: string; title: string; geography: string; note: string; squareMeters: Partial<Record<LandUnit, number>>; verification: "standard" | "district_confirmation_required" };
 
-/** Local units are deliberately region-scoped. Unsupported local units stay unavailable
- * rather than presenting a single India-wide conversion as authoritative. */
-export const LAND_UNIT_SYSTEMS: UnitSystem[] = [
-  { id: "bihar-common", state: "Bihar", title: "Common Bihar system", note: "1 Bigha = 20 Katha = 400 Dhur. Confirm district/revenue-record practice before field or legal use.", squareMeters: { bigha: 2_529.285264, katha: 126.4642632, dhur: 6.32321316 } },
-  { id: "up-pucca", state: "Uttar Pradesh", title: "Pucca Bigha reference", note: "Bigha practice can vary locally. Katha and Dhur are not assumed for this selection.", squareMeters: { bigha: 2_529.285264 } },
-  { id: "metric-only", state: "All regions", title: "Metric / standard units only", note: "Use this when your local Bigha, Katha, or Dhur definition is not listed. Add a verified local system before converting those units.", squareMeters: {} },
+/** Every State/UT is selectable. Standard measurement remains valid in every selection;
+ * traditional units are deliberately unavailable until an explicit local profile is chosen. */
+export const INDIA_STATES: IndiaState[] = [
+  { code: "AN", name: "Andaman and Nicobar Islands", kind: "union_territory" }, { code: "AP", name: "Andhra Pradesh", kind: "state" }, { code: "AR", name: "Arunachal Pradesh", kind: "state" }, { code: "AS", name: "Assam", kind: "state" }, { code: "BR", name: "Bihar", kind: "state" }, { code: "CH", name: "Chandigarh", kind: "union_territory" }, { code: "CT", name: "Chhattisgarh", kind: "state" }, { code: "DN", name: "Dadra and Nagar Haveli and Daman and Diu", kind: "union_territory" }, { code: "DL", name: "Delhi", kind: "union_territory" }, { code: "GA", name: "Goa", kind: "state" }, { code: "GJ", name: "Gujarat", kind: "state" }, { code: "HR", name: "Haryana", kind: "state" }, { code: "HP", name: "Himachal Pradesh", kind: "state" }, { code: "JK", name: "Jammu and Kashmir", kind: "union_territory" }, { code: "JH", name: "Jharkhand", kind: "state" }, { code: "KA", name: "Karnataka", kind: "state" }, { code: "KL", name: "Kerala", kind: "state" }, { code: "LA", name: "Ladakh", kind: "union_territory" }, { code: "LD", name: "Lakshadweep", kind: "union_territory" }, { code: "MP", name: "Madhya Pradesh", kind: "state" }, { code: "MH", name: "Maharashtra", kind: "state" }, { code: "MN", name: "Manipur", kind: "state" }, { code: "ML", name: "Meghalaya", kind: "state" }, { code: "MZ", name: "Mizoram", kind: "state" }, { code: "NL", name: "Nagaland", kind: "state" }, { code: "OD", name: "Odisha", kind: "state" }, { code: "PY", name: "Puducherry", kind: "union_territory" }, { code: "PB", name: "Punjab", kind: "state" }, { code: "RJ", name: "Rajasthan", kind: "state" }, { code: "SK", name: "Sikkim", kind: "state" }, { code: "TN", name: "Tamil Nadu", kind: "state" }, { code: "TS", name: "Telangana", kind: "state" }, { code: "TR", name: "Tripura", kind: "state" }, { code: "UP", name: "Uttar Pradesh", kind: "state" }, { code: "UK", name: "Uttarakhand", kind: "state" }, { code: "WB", name: "West Bengal", kind: "state" },
 ];
+
+const LOCAL_REFERENCE_SYSTEMS: UnitSystem[] = [
+  { id: "BR-bihar-common", stateCode: "BR", state: "Bihar", title: "Common Bihar Bigha/Katha/Dhur reference", geography: "Use only where the local revenue record confirms this convention", note: "1 Bigha = 20 Katha = 400 Dhur. This is a selectable local reference, not a Bihar-wide legal default.", squareMeters: { bigha: 2_529.285264, katha: 126.4642632, dhur: 6.32321316 }, verification: "district_confirmation_required" },
+  { id: "UP-pucca-bigha", stateCode: "UP", state: "Uttar Pradesh", title: "Pucca Bigha reference", geography: "Use only in a district/tehsil that confirms the Pucca Bigha convention", note: "Traditional UP Bigha practice can vary within the state. Katha and Dhur are intentionally unavailable in this profile.", squareMeters: { bigha: 2_529.285264 }, verification: "district_confirmation_required" },
+  { id: "MP-pucca-bigha", stateCode: "MP", state: "Madhya Pradesh", title: "Pucca Bigha reference", geography: "Use only in a district/tehsil that confirms the Pucca Bigha convention", note: "MP Bigha usage is locally variable. Katha and Dhur are intentionally unavailable in this profile.", squareMeters: { bigha: 2_529.285264 }, verification: "district_confirmation_required" },
+  { id: "RJ-pucca-bigha", stateCode: "RJ", state: "Rajasthan", title: "Pucca Bigha reference", geography: "Use only in a district/tehsil that confirms the Pucca Bigha convention", note: "Rajasthan Bigha/Biswa practice is locally variable. Katha and Dhur are intentionally unavailable in this profile.", squareMeters: { bigha: 2_529.285264 }, verification: "district_confirmation_required" },
+];
+
+const STANDARD_SYSTEMS: UnitSystem[] = INDIA_STATES.map((state) => ({ id: `${state.code}-standard`, stateCode: state.code, state: state.name, title: "Standard units only", geography: `${state.name} · all districts`, note: "Acre, hectare, square feet, and square metres are available. A verified local district profile is not yet catalogued for this selection.", squareMeters: {}, verification: "standard" }));
+
+/** Local systems must be actively selected; selecting a state always starts with its safe standard-unit profile. */
+export const LAND_UNIT_SYSTEMS: UnitSystem[] = [...STANDARD_SYSTEMS, ...LOCAL_REFERENCE_SYSTEMS];
+
+export function systemsForIndiaState(stateCode: string) {
+  return LAND_UNIT_SYSTEMS.filter((system) => system.stateCode === stateCode);
+}
+
+export function standardSystemForIndiaState(stateCode: string) {
+  return LAND_UNIT_SYSTEMS.find((system) => system.id === `${stateCode}-standard`) ?? LAND_UNIT_SYSTEMS.find((system) => system.id === "BR-standard")!;
+}
 
 function squareMetersPerUnit(unit: LandUnit, systemId: string) {
   const standard: Record<Exclude<LandUnit, "bigha" | "katha" | "dhur">, number> = { acre: SQ_METERS_PER_ACRE, hectare: 10_000, square_feet: 1 / SQ_METERS_TO_SQ_FEET, square_meters: 1 };

@@ -202,3 +202,5 @@
 - [x] Add feature-specific regression coverage, document reusable extension patterns, validate all retained systems, and prepare a tested repository update.
 - [x] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
 - [x] Add local-only failure records, per-item authorized retry, and title search to the protected Student Downloads library.
+- [x] Build a safe India-wide state-first land-unit selector with standard units everywhere and only source-verified local-unit systems by state/district.
+- [ ] Research, document, and add only verified district-specific UP, MP, and Rajasthan local-unit systems to the Amin Toolkit converter.

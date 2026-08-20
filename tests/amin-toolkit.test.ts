@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
-import { compassHeading, convertLandUnit, estimatePlotArea, isAllowedOfficialPortalUrl, supportedLandUnits } from "../lib/amin-toolkit";
+import { compassHeading, convertLandUnit, estimatePlotArea, INDIA_STATES, isAllowedOfficialPortalUrl, standardSystemForIndiaState, supportedLandUnits, systemsForIndiaState } from "../lib/amin-toolkit";
 
 const routerSource = readFileSync("server/routers.ts", "utf8");
 const askAiSource = readFileSync("app/ask-ai.tsx", "utf8");
@@ -50,14 +50,20 @@ describe("Amin Master Toolkit", () => {
     expect(askAiSource).toContain("not saved in your chat, downloads, or learning profile");
   });
 
-  it("converts local units only through an explicitly selected state system", () => {
-    expect(supportedLandUnits("bihar-common")).toEqual(expect.arrayContaining(["bigha", "katha", "dhur"]));
-    expect(supportedLandUnits("up-pucca")).toContain("bigha");
-    expect(supportedLandUnits("up-pucca")).not.toContain("katha");
-    expect(supportedLandUnits("metric-only")).not.toContain("bigha");
-    expect(convertLandUnit(1, "acre", "bigha", "bihar-common")).toBeCloseTo(1.6, 4);
-    expect(convertLandUnit(1, "acre", "bigha", "metric-only")).toBeNull();
-    expect(converterSource).toContain("Bigha, Katha, and Dhur are not universal across India");
+  it("provides a standard-units profile for every State/UT and local units only through an explicitly selected local profile", () => {
+    expect(INDIA_STATES).toHaveLength(36);
+    expect(INDIA_STATES.map((entry) => entry.code)).toEqual(expect.arrayContaining(["BR", "UP", "MP", "RJ", "TN", "MH", "JK"]));
+    for (const state of INDIA_STATES) expect(supportedLandUnits(standardSystemForIndiaState(state.code).id)).toEqual(expect.arrayContaining(["acre", "hectare", "square_feet", "square_meters"]));
+    expect(supportedLandUnits("BR-bihar-common")).toEqual(expect.arrayContaining(["bigha", "katha", "dhur"]));
+    expect(supportedLandUnits("UP-pucca-bigha")).toContain("bigha");
+    expect(supportedLandUnits("UP-pucca-bigha")).not.toContain("katha");
+    expect(supportedLandUnits(standardSystemForIndiaState("UP").id)).not.toContain("bigha");
+    expect(convertLandUnit(1, "acre", "bigha", "BR-bihar-common")).toBeCloseTo(1.6, 4);
+    expect(convertLandUnit(1, "acre", "bigha", standardSystemForIndiaState("BR").id)).toBeNull();
+    expect(systemsForIndiaState("RJ").map((entry) => entry.id)).toEqual(expect.arrayContaining(["RJ-standard", "RJ-pucca-bigha"]));
+    expect(converterSource).toContain("NO UNIVERSAL BIGHA");
+    expect(converterSource).toContain("State or Union Territory");
+    expect(converterSource).toContain("DISTRICT CHECK");
   });
 
   it("keeps saved GPS plots local and supports reopening without a server route", () => {
