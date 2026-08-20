@@ -36,6 +36,7 @@ const aiQuizQuestionSchema = z.object({
   explanation: z.string().trim().min(8).max(900),
 });
 const aiQuizResponseSchema = z.object({ questions: z.array(aiQuizQuestionSchema).min(2).max(10) });
+const aiQuizReviewSubmissionSchema = z.object({ topic: z.string().trim().min(2).max(160), difficulty: z.enum(["beginner", "intermediate", "advanced"]), language: z.enum(["English", "Hindi-English"]), questions: z.array(aiQuizQuestionSchema).min(2).max(10) });
 const ownerSetupSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name").max(160),
   email: z.string().trim().email().max(320).optional().or(z.literal("")),
@@ -498,6 +499,12 @@ export const appRouter = router({
         throw new TRPCError({ code: "BAD_GATEWAY", message: "AI Quiz could not be generated right now. Please try again." });
       }
     }),
+    submitAiQuizForReview: protectedProcedure.input(aiQuizReviewSubmissionSchema).mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Students can submit a private AI Quiz for teacher review." });
+      const submissionId = await db.createAiQuizReviewSubmission({ ...input, submittedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "ai_quiz.submitted_for_review", entityType: "ai_quiz_review_submission", entityId: submissionId, metadata: { questionCount: input.questions.length, topic: input.topic } });
+      return { submissionId };
+    }),
   }),
   developer: router({
     settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
@@ -712,6 +719,16 @@ export const appRouter = router({
       const questionId = await db.saveManagedQuestion(input);
       await db.writeAudit({ actorUserId: ctx.user.id, action: input.questionId ? "question.updated" : "question.created", entityType: "question", entityId: questionId, metadata: { testId: input.testId } });
       return { questionId };
+    }),
+    aiQuizReviewQueue: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      return db.listAiQuizReviewSubmissions();
+    }),
+    exportAiQuizReview: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ submissionId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
+      const result = await db.exportAiQuizReviewSubmission({ submissionId: input.submissionId, reviewedByUserId: ctx.user.id });
+      await db.writeAudit({ actorUserId: ctx.user.id, action: "ai_quiz.exported_to_draft_test", entityType: "ai_quiz_review_submission", entityId: input.submissionId, metadata: result });
+      return result;
     }),
     deleteQuestion: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive(), questionId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       await requireDelegatedPermission(ctx.user, "assessments.manage");

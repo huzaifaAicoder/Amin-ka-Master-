@@ -156,4 +156,5 @@
 - [ ] Complete the final consolidation feature matrix across all roles, routes, server procedures, schema, feature flags, and advanced checkpoint history.
 - [x] Verify whether AI attachments, AI Quiz, land/surveying utilities, case studies, and leaderboard flows already exist before implementing only confirmed gaps.
 - [x] Implement a server-validated AI Quiz generator with review-safe output, Student completion flow, and no automatic publishing to staff test banks.
+- [x] Add permission-controlled teacher review and export of selected AI Quiz questions into an unpublished draft test bank.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

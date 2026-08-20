@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, createHmac, randomBytes, randomInt, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 
 import {
+  aiQuizReviewSubmissions,
   appSettings,
   announcements,
   auditLogs,
@@ -1180,6 +1181,36 @@ export async function saveManagedQuestion(input: { questionId?: number; testId: 
   }
   const result = await database.insert(questions).values({ testId: input.testId, prompt: input.prompt, options: input.options, correctOptionIndex: input.correctOptionIndex, marks: input.marks, explanation: input.explanation, displayOrder: input.displayOrder });
   return Number(result[0].insertId);
+}
+
+export async function createAiQuizReviewSubmission(input: { submittedByUserId: number; topic: string; difficulty: "beginner" | "intermediate" | "advanced"; language: string; questions: Array<{ question: string; options: string[]; correctIndex: number; explanation: string }> }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const result = await database.insert(aiQuizReviewSubmissions).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function listAiQuizReviewSubmissions() {
+  const database = await getDb();
+  if (!database) return [];
+  return database.select({ submission: aiQuizReviewSubmissions, studentName: users.fullName, studentEmail: users.email }).from(aiQuizReviewSubmissions).leftJoin(users, eq(aiQuizReviewSubmissions.submittedByUserId, users.id)).orderBy(desc(aiQuizReviewSubmissions.createdAt));
+}
+
+export async function exportAiQuizReviewSubmission(input: { submissionId: number; reviewedByUserId: number }) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  return database.transaction(async (tx) => {
+    const [submission] = await tx.select().from(aiQuizReviewSubmissions).where(eq(aiQuizReviewSubmissions.id, input.submissionId)).limit(1);
+    if (!submission) throw new Error("AI Quiz submission was not found");
+    if (submission.status !== "pending") throw new Error("This AI Quiz submission has already been exported");
+    const items = submission.questions as Array<{ question: string; options: string[]; correctIndex: number; explanation: string }>;
+    if (!Array.isArray(items) || items.length < 2 || items.length > 10) throw new Error("AI Quiz submission is invalid");
+    const testResult = await tx.insert(tests).values({ title: `AI review — ${submission.topic}`, description: `Teacher-reviewed AI practice export · ${submission.difficulty} · ${submission.language}`, durationMinutes: Math.max(5, items.length * 2), passingMarks: 0, status: "draft", createdByUserId: input.reviewedByUserId });
+    const testId = Number(testResult[0].insertId);
+    await tx.insert(questions).values(items.map((item, displayOrder) => ({ testId, prompt: item.question, options: item.options, correctOptionIndex: item.correctIndex, marks: 1, explanation: item.explanation, displayOrder })));
+    await tx.update(aiQuizReviewSubmissions).set({ status: "exported", reviewedByUserId: input.reviewedByUserId, exportedTestId: testId }).where(eq(aiQuizReviewSubmissions.id, input.submissionId));
+    return { testId, questionCount: items.length };
+  });
 }
 
 export async function deleteManagedQuestion(questionId: number, testId: number) {

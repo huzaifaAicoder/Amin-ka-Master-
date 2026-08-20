@@ -445,6 +445,24 @@ export const questions = mysqlTable(
   (table) => [index("questions_test_order_idx").on(table.testId, table.displayOrder)],
 );
 
+export const aiQuizReviewSubmissions = mysqlTable(
+  "ai_quiz_review_submissions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    submittedByUserId: int("submittedByUserId").notNull(),
+    topic: varchar("topic", { length: 160 }).notNull(),
+    difficulty: mysqlEnum("aiQuizDifficulty", ["beginner", "intermediate", "advanced"]).notNull(),
+    language: varchar("language", { length: 32 }).notNull(),
+    questions: json("questions").notNull(),
+    status: mysqlEnum("aiQuizReviewStatus", ["pending", "exported"]).default("pending").notNull(),
+    reviewedByUserId: int("reviewedByUserId"),
+    exportedTestId: int("exportedTestId"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [index("ai_quiz_review_status_idx").on(table.status, table.createdAt), index("ai_quiz_review_student_idx").on(table.submittedByUserId)],
+);
+
 export const testAttempts = mysqlTable(
   "test_attempts",
   {
