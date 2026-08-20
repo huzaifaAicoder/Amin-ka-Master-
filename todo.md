@@ -193,4 +193,12 @@
 - [x] Adopt the permanent backward-compatibility and feature-preservation rule across project governance, requiring additive changes, safe migrations, pre-change dependency audits, and feature-specific regression reporting for all future work.
 - [x] Diagnose and safely fix Developer authentication-to-Control-Center navigation and Staff sign-in delay, timeout, error, session, and redirect handling without weakening passkeys, RBAC, or existing panels.
 - [x] Validate Developer and Staff authentication, authorization, navigation, and surrounding Student, media, AI, offline, white-label, and security regressions.
-- [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
+- [x] Extend the Amin Toolkit with a configurable State/Region-aware land-unit converter for acre, hectare, square feet, square meter, bigha, katha, and dhur without presenting a universal local-unit conversion.
+- [x] Extend the existing GPS area calculator with restart-safe saved plot history, custom plot names, and reopen/view behavior using the established local persistence model.
+- [x] Add a pre-upload crop/adjust/preview workflow to the existing local-only Gemini Vision image selection path without replacing AI chat, camera, upload, or server-only provider boundaries.
+- [x] Extend the allowlisted in-app land-record portal directory with verified official Uttar Pradesh, Madhya Pradesh, and Rajasthan portals while retaining Bihar and failure-safe WebView behavior.
+- [x] Extend the protected offline Downloads library with failure-safe per-item retry and local search over existing completed downloads without duplicating or corrupting private files.
+- [x] Extend approved Client Health telemetry with minimised authentication-latency aggregates and validate Staff/Developer passkey, session hydration, timeout, sign-out, and sign-in-again flows.
+- [x] Add feature-specific regression coverage, document reusable extension patterns, validate all retained systems, and prepare a tested repository update.
+- [x] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.
+- [x] Add local-only failure records, per-item authorized retry, and title search to the protected Student Downloads library.

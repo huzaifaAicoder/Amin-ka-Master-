@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, IconCircle, Tag } from "@/components/lms-ui";
@@ -27,6 +28,7 @@ export default function AskAiScreen() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedImage, setSelectedImage] = useState<SelectedStudyImage | null>(null);
+  const [preparingImage, setPreparingImage] = useState(false);
   const composerInputRef = useRef<TextInput>(null);
   const askMutation = trpc.student.askAi.useMutation();
   const threadRef = useRef<ScrollView>(null);
@@ -79,21 +81,23 @@ export default function AskAiScreen() {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (permission.status !== "granted") return Alert.alert("Camera permission needed", "Allow camera access to photograph a map or document for this study question.");
       }
+      setPreparingImage(true);
       const result = source === "camera"
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 0.55 })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], base64: true, quality: 0.55 });
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 1, allowsEditing: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], base64: true, quality: 1, allowsEditing: true });
       if (result.canceled) return;
       const asset = result.assets[0];
-      const mimeType = asset.mimeType === "image/png" || asset.mimeType === "image/webp" ? asset.mimeType : "image/jpeg";
       if (!asset.base64) return Alert.alert("Image unavailable", "This image could not be prepared. Try another JPG, PNG, or WebP image.");
-      if (asset.base64.length > MAX_VISION_IMAGE_BASE64) return Alert.alert("Choose a smaller image", "Use a clearer, smaller map or document image so it can be analysed securely.");
-      setSelectedImage({ uri: asset.uri, base64: asset.base64, mimeType });
+      const sourceUri = Platform.OS === "web" ? `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}` : asset.uri;
+      const prepared = await ImageManipulator.manipulateAsync(sourceUri, [{ resize: { width: 1_600 } }], { compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+      if (!prepared.base64 || prepared.base64.length > MAX_VISION_IMAGE_BASE64) return Alert.alert("Choose a smaller image", "Use a clearer, smaller map or document image so it can be analysed securely.");
+      setSelectedImage({ uri: prepared.uri, base64: prepared.base64, mimeType: "image/jpeg" });
     } catch {
       Alert.alert("Image not attached", "The image picker could not open. Please try again.");
-    }
+    } finally { setPreparingImage(false); }
   };
 
-  const chooseImageSource = () => Alert.alert("Add map or document image", "The image is sent only with this AI question and is not saved in your chat, downloads, or learning profile.", [{ text: "Cancel", style: "cancel" }, { text: "Take photo", onPress: () => void attachImage("camera") }, { text: "Choose from library", onPress: () => void attachImage("library") }]);
+  const chooseImageSource = () => Alert.alert("Add map or document image", "After selection, use the native Crop / Adjust step to focus on the needed part. The cropped image is sent only with this AI question and is not saved in your chat, downloads, or learning profile.", [{ text: "Cancel", style: "cancel" }, { text: "Take photo", onPress: () => void attachImage("camera") }, { text: "Choose from library", onPress: () => void attachImage("library") }]);
 
   if (!enabled) return <ScreenContainer className="items-center justify-center px-5"><Text style={styles.denied}>Sign in with a Student account to use the Doubt Solver.</Text></ScreenContainer>;
   return <ScreenContainer className="px-5" edges={["top", "bottom", "left", "right"]}>
@@ -105,8 +109,8 @@ export default function AskAiScreen() {
         {messages.length === 0 ? <View style={styles.empty}><IconCircle icon="psychology" size={52} color={COLORS.indigo} background={COLORS.indigoSoft} /><Text style={styles.emptyTitle}>What are you stuck on?</Text><Text style={styles.emptyBody}>Ask about a surveying concept, calculation, revenue record, or exam question. Gemini answers stay behind the authenticated server boundary.</Text><View style={styles.suggestions}><Text style={styles.suggestion}>“How do I calculate chain survey error?”</Text><Text style={styles.suggestion}>“Explain plot measurement in simple Hindi-English.”</Text></View></View> : messages.map((message) => <View key={message.id} style={[styles.bubble, message.role === "student" ? styles.studentBubble : styles.aiBubble]}><Text style={[styles.bubbleLabel, message.role === "student" && styles.studentLabel]}>{message.role === "student" ? "YOU" : "DOUBT SOLVER"}</Text><Text style={[styles.bubbleText, message.role === "student" && styles.studentText]}>{message.body}</Text>{message.placeholder ? <Text style={styles.placeholderNote}>Fallback response · provider unavailable</Text> : null}{message.role === "assistant" && message.suggestions?.length ? <View style={styles.followUps}><Text style={styles.followUpLabel}>CONTINUE LEARNING</Text><View style={styles.followUpRow}>{message.suggestions.map((prompt) => <Pressable key={prompt} accessibilityRole="button" accessibilityLabel={`Ask follow-up: ${prompt}`} disabled={askMutation.isPending} onPress={() => chooseFollowUp(prompt)} style={({ pressed }) => [styles.followUpChip, (pressed || askMutation.isPending) && styles.pressed]}><Text style={styles.followUpText}>{prompt}</Text></Pressable>)}</View></View> : null}</View>)}
         {askMutation.isPending ? <View accessibilityRole="progressbar" accessibilityLabel="Gemini is preparing an answer" accessibilityLiveRegion="polite" style={[styles.bubble, styles.aiBubble, styles.thinking]}><View style={styles.typingAvatar}><MaterialIcons name="auto-awesome" size={15} color={COLORS.indigo} /></View><View style={styles.typingCopy}><Text style={styles.typingLabel}>GEMINI IS THINKING</Text><View style={styles.dotRow}><Animated.View style={[styles.typingDot, { opacity: typingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 1] }), transform: [{ translateY: typingPulse.interpolate({ inputRange: [0, 1], outputRange: [0, -3] }) }] }]} /><Animated.View style={[styles.typingDot, { opacity: typingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0.85] }) }]} /><Animated.View style={[styles.typingDot, { opacity: typingPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }), transform: [{ translateY: typingPulse.interpolate({ inputRange: [0, 1], outputRange: [-3, 0] }) }] }]} /></View></View></View> : null}
       </ScrollView>
-      {selectedImage ? <View style={styles.imageDraft}><Image source={{ uri: selectedImage.uri }} style={styles.imageThumb} /><View style={{ flex: 1 }}><Text style={styles.imageDraftTitle}>Image ready for analysis</Text><Text style={styles.imageDraftBody}>Sent only with your next question; it is not stored in chat history.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Remove selected image" onPress={() => setSelectedImage(null)} style={styles.removeImage}><MaterialIcons name="close" size={18} color={COLORS.indigo} /></Pressable></View> : null}
-      <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Attach a map or document image" disabled={askMutation.isPending} onPress={chooseImageSource} style={({ pressed }) => [styles.attach, (pressed || askMutation.isPending) && styles.pressed]}><MaterialIcons name="add-a-photo" size={21} color={COLORS.indigo} /></Pressable><TextInput ref={composerInputRef} value={question} onChangeText={setQuestion} editable={!askMutation.isPending} placeholder="Type your doubt…" placeholderTextColor="#98A2B3" multiline style={styles.input} textAlignVertical="top" maxLength={1500} /><Pressable accessibilityRole="button" accessibilityLabel="Send question to Doubt Solver" disabled={askMutation.isPending} onPress={() => void sendQuestion()} style={({ pressed }) => [styles.send, (pressed || askMutation.isPending) && styles.pressed]}>{askMutation.isPending ? <ActivityIndicator size="small" color={COLORS.white} /> : <MaterialIcons name="send" size={21} color={COLORS.white} />}</Pressable></View>
+      {selectedImage ? <View style={styles.imageDraft}><Image source={{ uri: selectedImage.uri }} style={styles.imageThumb} /><View style={{ flex: 1 }}><Text style={styles.imageDraftTitle}>Cropped preview ready</Text><Text style={styles.imageDraftBody}>Sent only with your next question; it is not stored in chat history.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Remove selected image" onPress={() => setSelectedImage(null)} style={styles.removeImage}><MaterialIcons name="close" size={18} color={COLORS.indigo} /></Pressable></View> : null}
+      <View style={styles.composer}><Pressable accessibilityRole="button" accessibilityLabel="Attach and crop a map or document image" disabled={askMutation.isPending || preparingImage} onPress={chooseImageSource} style={({ pressed }) => [styles.attach, (pressed || askMutation.isPending || preparingImage) && styles.pressed]}>{preparingImage ? <ActivityIndicator size="small" color={COLORS.indigo} /> : <MaterialIcons name="add-a-photo" size={21} color={COLORS.indigo} />}</Pressable><TextInput ref={composerInputRef} value={question} onChangeText={setQuestion} editable={!askMutation.isPending && !preparingImage} placeholder="Type your doubt…" placeholderTextColor="#98A2B3" multiline style={styles.input} textAlignVertical="top" maxLength={1500} /><Pressable accessibilityRole="button" accessibilityLabel="Send question to Doubt Solver" disabled={askMutation.isPending || preparingImage} onPress={() => void sendQuestion()} style={({ pressed }) => [styles.send, (pressed || askMutation.isPending || preparingImage) && styles.pressed]}>{askMutation.isPending ? <ActivityIndicator size="small" color={COLORS.white} /> : <MaterialIcons name="send" size={21} color={COLORS.white} />}</Pressable></View>
     </KeyboardAvoidingView>
   </ScreenContainer>;
 }

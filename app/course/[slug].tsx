@@ -1,5 +1,4 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import * as FileSystem from "expo-file-system/legacy";
 import * as ScreenCapture from "expo-screen-capture";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect } from "react";
@@ -8,6 +7,7 @@ import { Alert, ActivityIndicator, Linking, Platform, Pressable, ScrollView, Sty
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, IconCircle, OutlineButton, PrimaryButton, Tag, formatPrice } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
+import { clearOfflineDownloadFailure, downloadAuthorizedOfflineResource, recordOfflineDownloadFailure } from "@/lib/offline-resources";
 import { trpc } from "@/lib/trpc";
 
 export default function CourseDetailScreen() {
@@ -55,19 +55,13 @@ export default function CourseDetailScreen() {
         Alert.alert("Native app required", "Private offline resources are available in the Android or iOS app. Browser handoff is intentionally disabled.");
         return;
       }
-      const documentDirectory = FileSystem.documentDirectory;
-      if (!documentDirectory) throw new Error("Your device does not provide private app storage.");
-      const resourceType = issued.resource.resourceType === "video" ? "video" : "pdf";
-      if (resourceType !== expectedType) throw new Error("The requested resource type changed. Refresh the course and try again.");
-      const extension = resourceType === "video" ? (issued.resource.mimeType?.includes("webm") ? "webm" : issued.resource.mimeType?.includes("quicktime") ? "mov" : "mp4") : "pdf";
-      const safeFileName = `${title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 80) || "course-resource"}.${extension}`;
-      const privateFolder = `${documentDirectory}protected-resources/`;
-      await FileSystem.makeDirectoryAsync(privateFolder, { intermediates: true });
-      const targetUri = `${privateFolder}${Date.now()}-${safeFileName}`;
-      await FileSystem.downloadAsync(issued.signedUrl, targetUri);
-      router.push((resourceType === "pdf" ? { pathname: "/pdf-reader", params: { uri: targetUri, title } } : { pathname: "/offline-media", params: { uri: targetUri, title } }) as never);
+      const completed = await downloadAuthorizedOfflineResource(issued, title, expectedType);
+      await clearOfflineDownloadFailure(resourceId);
+      router.push((completed.kind === "pdf" ? { pathname: "/pdf-reader", params: { uri: completed.uri, title } } : { pathname: "/offline-media", params: { uri: completed.uri, title } }) as never);
     } catch (error) {
-      Alert.alert("Offline download unavailable", error instanceof Error ? error.message : "Please check your connection and try again.");
+      const message = error instanceof Error ? error.message : "Please check your connection and try again.";
+      await recordOfflineDownloadFailure({ resourceId, title, kind: expectedType, message });
+      Alert.alert("Offline download unavailable", `${message}\n\nYou can retry this item safely from Downloads.`);
     }
   };
 

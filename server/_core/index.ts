@@ -33,7 +33,8 @@ function isAllowedCorsOrigin(origin: string) {
   }
 }
 
-function telemetryRouteGroup(path: string): "trpc" | "media_upload" | "health" | "storage" | "other" {
+function telemetryRouteGroup(path: string): "auth" | "trpc" | "media_upload" | "health" | "storage" | "other" {
+  if (path.startsWith("/api/auth")) return "auth";
   if (path.startsWith("/api/trpc")) return "trpc";
   if (path.startsWith("/api/media-upload")) return "media_upload";
   if (path.startsWith("/api/health")) return "health";

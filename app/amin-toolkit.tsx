@@ -7,6 +7,7 @@ import { COLORS, IconCircle, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
 
 const tools = [
+  { icon: "swap-horiz" as const, title: "Land Unit Converter", body: "Convert standard units and region-configured Bigha, Katha, or Dhur definitions.", route: "/toolkit/unit-converter" },
   { icon: "square-foot" as const, title: "GPS Area Calculator", body: "Walk a plot boundary and estimate local area in m², sq ft, and acres.", route: "/toolkit/gps-area" },
   { icon: "account-balance" as const, title: "State Land Records", body: "Open reviewed official government land-record portals inside the app.", route: "/toolkit/land-records" },
   { icon: "explore" as const, title: "Digital Compass", body: "Use your device magnetometer for practical direction plotting.", route: "/toolkit/compass" },

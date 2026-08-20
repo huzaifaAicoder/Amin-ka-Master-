@@ -69,6 +69,24 @@ const developerLoginSchema = z.object({
   developerPasskey: z.string().min(1).max(256),
 });
 
+function authTelemetryStatus(error: unknown) {
+  if (!(error instanceof TRPCError)) return 500;
+  if (error.code === "UNAUTHORIZED") return 401;
+  if (error.code === "FORBIDDEN") return 403;
+  if (error.code === "BAD_REQUEST") return 400;
+  if (error.code === "CONFLICT") return 409;
+  return 500;
+}
+
+/** Records only one fixed `auth` hourly aggregate after Staff/Student or Developer authentication completes. It deliberately excludes identity, portal, passkey, password, route, message, and all request input. */
+async function measureAuthenticationLatency<T>(action: () => Promise<T>) {
+  const startedAt = Date.now();
+  let statusCode = 200;
+  try { return await action(); }
+  catch (error) { statusCode = authTelemetryStatus(error); throw error; }
+  finally { void db.recordApiLatencyMeasurement({ routeGroup: "auth", statusCode, durationMs: Date.now() - startedAt }).catch(() => undefined); }
+}
+
 const optionalUrl = z.string().trim().url().max(2048).optional().or(z.literal(""));
 const moneySchema = z.union([
   z.number().finite().nonnegative(),
@@ -241,13 +259,13 @@ export const appRouter = router({
       const session = await db.createSession(result.user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(result.user), session };
     }),
-    developerLogin: publicProcedure.input(developerLoginSchema).mutation(async ({ input, ctx }) => {
+    developerLogin: publicProcedure.input(developerLoginSchema).mutation(({ input, ctx }) => measureAuthenticationLatency(async () => {
       if (!verifyDeveloperPortalPasskey(input.developerPasskey)) throw new TRPCError({ code: "UNAUTHORIZED", message: "The Developer Passkey is incorrect." });
       const user = await db.authenticateCredentialUser(input.email, input.password);
       if (!user || user.role !== "developer") throw new TRPCError({ code: "UNAUTHORIZED", message: "The developer email or password is incorrect." });
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
-    }),
+    })),
     register: publicProcedure.input(credentialSchema).mutation(async ({ input, ctx }) => {
       const user = await db.registerCredentialUser({
         fullName: input.fullName,
@@ -259,7 +277,7 @@ export const appRouter = router({
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
     }),
-    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128), portal: z.enum(["student", "staff"]), staffPasskey: z.string().min(1).max(256).optional() })).mutation(async ({ input, ctx }) => {
+    login: publicProcedure.input(z.object({ identity: z.string().trim().min(3).max(320), password: z.string().min(1).max(128), portal: z.enum(["student", "staff"]), staffPasskey: z.string().min(1).max(256).optional() })).mutation(({ input, ctx }) => measureAuthenticationLatency(async () => {
       const user = await db.authenticateCredentialUser(input.identity, input.password);
       if (!user) throw new Error("Incorrect credentials or inactive account");
       if (input.portal === "student" && user.role !== "student") {
@@ -283,7 +301,7 @@ export const appRouter = router({
       }
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
       return { user: safeUser(user), session };
-    }),
+    })),
     requestPasswordReset: publicProcedure.input(passwordResetIdentitySchema).mutation(async ({ input }) => {
       if (!isOtpDeliveryConfigured()) return { accepted: true as const, delivery: "unconfigured" as const };
       const user = await db.getUserByIdentity(input.identity);
@@ -744,6 +762,7 @@ export const appRouter = router({
       guardianReportsEnabled: z.boolean().optional(),
       aminToolkitEnabled: z.boolean().optional(),
       telemetryApiLatencyEnabled: z.boolean().optional(),
+      telemetryAuthLatencyEnabled: z.boolean().optional(),
       telemetryCrashReportingEnabled: z.boolean().optional(),
       interfaceLanguageDefault: z.enum(["english", "hindi", "bilingual"]).optional(),
       developerName: z.string().trim().max(160).optional(),
@@ -776,6 +795,7 @@ export const appRouter = router({
         ...(input.guardianReportsEnabled !== undefined ? { "feature.guardian_reports_enabled": input.guardianReportsEnabled } : {}),
         ...(input.aminToolkitEnabled !== undefined ? { "feature.amin_toolkit_enabled": input.aminToolkitEnabled } : {}),
         ...(input.telemetryApiLatencyEnabled !== undefined ? { "telemetry.api_latency_enabled": input.telemetryApiLatencyEnabled } : {}),
+        ...(input.telemetryAuthLatencyEnabled !== undefined ? { "telemetry.auth_latency_enabled": input.telemetryAuthLatencyEnabled } : {}),
         ...(input.telemetryCrashReportingEnabled !== undefined ? { "telemetry.crash_reporting_enabled": input.telemetryCrashReportingEnabled } : {}),
         ...(input.interfaceLanguageDefault !== undefined ? { "platform.interface_language_default": input.interfaceLanguageDefault } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),

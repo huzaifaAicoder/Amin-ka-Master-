@@ -27,10 +27,12 @@ describe("Privacy-approved telemetry regression guard", () => {
     const portal = read("app/dev-portal.tsx");
     expect(db).toContain("TELEMETRY_RETENTION_DAYS = 30");
     expect(db).toContain("telemetry.api_latency_enabled");
+    expect(db).toContain("telemetry.auth_latency_enabled");
     expect(db).toContain("telemetry.crash_reporting_enabled");
     expect(router).toContain("telemetry: router");
     expect(router).toContain("config: protectedProcedure");
     expect(portal).toContain("Aggregate API latency telemetry");
+    expect(portal).toContain("Aggregate authentication latency telemetry");
     expect(portal).toContain("Aggregate crash telemetry");
   });
 
@@ -39,10 +41,24 @@ describe("Privacy-approved telemetry regression guard", () => {
     const reporter = read("components/telemetry-reporter.tsx");
     expect(server).toContain("function telemetryRouteGroup");
     expect(server).toContain("recordApiLatencyMeasurement");
+    expect(server).toContain('return "auth"');
     expect(server).toContain("receives a path, operation name, identity, header, payload, or request body.");
     expect(reporter).toContain("unhandled_error");
     expect(reporter).toContain("unhandled_rejection");
     expect(reporter).not.toContain("error.message");
     expect(reporter).not.toContain("error.stack");
+  });
+
+  it("keeps authentication timing in the existing aggregate route group without credential or identity fields", () => {
+    const db = read("server/db.ts");
+    const router = read("server/routers.ts");
+    const portal = read("app/dev-portal.tsx");
+    expect(db).toContain('routeGroup: "auth"');
+    expect(db).toContain("authLatencyEnabled");
+    expect(router).toContain("measureAuthenticationLatency");
+    expect(router).toContain("Developer Passkey");
+    expect(router).not.toContain("input.developerPasskey, statusCode");
+    expect(portal).toContain("Authentication latency collection");
+    expect(portal).toContain("Average auth latency");
   });
 });

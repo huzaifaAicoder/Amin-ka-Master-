@@ -1978,18 +1978,18 @@ const MANAGED_SETTINGS = [
  "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
  "platform.registration_enabled", "platform.maintenance_enabled",
  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
- "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
-  "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
+ "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
+ "telemetry.api_latency_enabled", "telemetry.auth_latency_enabled", "telemetry.crash_reporting_enabled",
+ "support.support_email", "support.support_phone", "support.office_info", "support.help_intro",
   "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const DEVELOPER_SETTING_KEYS = [
  "brand.app_name", "brand.tagline", "brand.contact_email", "brand.contact_phone", "brand.whatsapp", "brand.theme_primary", "brand.theme_accent",
  "platform.maintenance_enabled",
  "platform.student_access_enabled", "platform.staff_access_enabled", "platform.owner_access_enabled",
-  "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
- "telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled",
-  "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
+ "feature.courses_enabled", "feature.assessments_enabled", "feature.live_classes_enabled", "feature.shorts_enabled", "feature.downloads_enabled", "feature.ai_doubt_enabled", "feature.ai_quiz_enabled", "feature.study_coach_enabled", "feature.learning_operations_enabled", "feature.guardian_reports_enabled", "feature.amin_toolkit_enabled",
+ "telemetry.api_latency_enabled", "telemetry.auth_latency_enabled", "telemetry.crash_reporting_enabled",
+ "developer.name", "developer.role", "developer.project_info", "developer.contact", "developer.copyright",
 ] as const;
 const OWNER_SETTING_KEYS = [
   "homepage.hero_title", "homepage.hero_subtitle", "homepage.hero_cta", "homepage.show_live",
@@ -2033,13 +2033,13 @@ export async function saveManagedSettings(actorUserId: number, values: Partial<R
 export async function saveDeveloperManagedSettings(actorUserId: number, values: Partial<Record<(typeof DEVELOPER_SETTING_KEYS)[number], unknown>>) {
   const scoped = Object.fromEntries(Object.entries(values).filter(([key]) => DEVELOPER_SETTING_KEYS.includes(key as (typeof DEVELOPER_SETTING_KEYS)[number])));
   await saveManagedSettings(actorUserId, scoped as Partial<Record<ManagedSettingKey, unknown>>);
-  if ("telemetry.api_latency_enabled" in scoped || "telemetry.crash_reporting_enabled" in scoped) telemetryConfigurationCache = null;
+  if ("telemetry.api_latency_enabled" in scoped || "telemetry.auth_latency_enabled" in scoped || "telemetry.crash_reporting_enabled" in scoped) telemetryConfigurationCache = null;
 }
 
-const TELEMETRY_SETTING_KEYS = ["telemetry.api_latency_enabled", "telemetry.crash_reporting_enabled"] as const satisfies readonly ManagedSettingKey[];
+const TELEMETRY_SETTING_KEYS = ["telemetry.api_latency_enabled", "telemetry.auth_latency_enabled", "telemetry.crash_reporting_enabled"] as const satisfies readonly ManagedSettingKey[];
 const TELEMETRY_RETENTION_DAYS = 30;
 const TELEMETRY_CONFIGURATION_CACHE_MS = 60_000;
-let telemetryConfigurationCache: { expiresAt: number; value: { apiLatencyEnabled: boolean; crashReportingEnabled: boolean } } | null = null;
+let telemetryConfigurationCache: { expiresAt: number; value: { apiLatencyEnabled: boolean; authLatencyEnabled: boolean; crashReportingEnabled: boolean } } | null = null;
 let lastTelemetryPruneAt = 0;
 
 function telemetryHour(date = new Date()) {
@@ -2055,7 +2055,7 @@ function telemetryDuration(durationMs: number) {
 export async function getTelemetryConfiguration() {
   if (telemetryConfigurationCache && telemetryConfigurationCache.expiresAt > Date.now()) return telemetryConfigurationCache.value;
   const settings = await getSettingsByKeys(TELEMETRY_SETTING_KEYS);
-  const value = { apiLatencyEnabled: settings["telemetry.api_latency_enabled"] === true, crashReportingEnabled: settings["telemetry.crash_reporting_enabled"] === true };
+  const value = { apiLatencyEnabled: settings["telemetry.api_latency_enabled"] === true, authLatencyEnabled: settings["telemetry.auth_latency_enabled"] === true, crashReportingEnabled: settings["telemetry.crash_reporting_enabled"] === true };
   telemetryConfigurationCache = { expiresAt: Date.now() + TELEMETRY_CONFIGURATION_CACHE_MS, value };
   return value;
 }
@@ -2070,10 +2070,10 @@ async function pruneTelemetryBuckets(database: NonNullable<Awaited<ReturnType<ty
   ]);
 }
 
-/** Stores one hourly aggregate only; callers may provide fixed route groups, never request paths or payload data. */
-export async function recordApiLatencyMeasurement(input: { routeGroup: "trpc" | "media_upload" | "health" | "storage" | "other"; statusCode: number; durationMs: number }) {
+/** Stores one hourly aggregate only; callers may provide fixed route groups, never request paths or payload data. Authentication measurements use a dedicated Developer switch and never carry a login identity or credential outcome detail. */
+export async function recordApiLatencyMeasurement(input: { routeGroup: "auth" | "trpc" | "media_upload" | "health" | "storage" | "other"; statusCode: number; durationMs: number }) {
   const configuration = await getTelemetryConfiguration();
-  if (!configuration.apiLatencyEnabled) return;
+  if (input.routeGroup === "auth" ? !configuration.authLatencyEnabled : !configuration.apiLatencyEnabled) return;
   const database = await getDb();
   if (!database) return;
   const durationMs = telemetryDuration(input.durationMs);
@@ -2296,7 +2296,7 @@ export async function getDeveloperClientHealth() {
   const empty = {
     aggregateUsage: { activeUsersLast30Days: 0, totalUsers: 0, publishedCourses: 0, publishedShorts: 0 },
     clientProjects: [] as Array<{ clientProjectId: number; name: string; status: string; updatedAt: Date; enabledFeatureCount: number; latestReleaseStatus: string | null; releaseReady: boolean }>,
-    observability: { apiLatency: { collectionEnabled: false, windowHours: 24, requestCount: 0, averageDurationMs: null as number | null, maxDurationMs: null as number | null }, crashReporting: { collectionEnabled: false, windowHours: 24, crashCount: 0 }, storageMetering: "not_instrumented" as const },
+    observability: { apiLatency: { collectionEnabled: false, windowHours: 24, requestCount: 0, averageDurationMs: null as number | null, maxDurationMs: null as number | null }, authLatency: { collectionEnabled: false, windowHours: 24, requestCount: 0, averageDurationMs: null as number | null, maxDurationMs: null as number | null }, crashReporting: { collectionEnabled: false, windowHours: 24, crashCount: 0 }, storageMetering: "not_instrumented" as const },
   };
   if (!database) return empty;
   const since = new Date(Date.now() - 30 * GROWTH_SUITE_DAY_MS);
@@ -2312,9 +2312,14 @@ export async function getDeveloperClientHealth() {
     database.select().from(telemetryApiLatencyBuckets).where(gte(telemetryApiLatencyBuckets.bucketStartedAt, telemetrySince)),
     database.select().from(telemetryCrashBuckets).where(gte(telemetryCrashBuckets.bucketStartedAt, telemetrySince)),
   ]);
-  const requestCount = latencyBuckets.reduce((total, bucket) => total + bucket.requestCount, 0);
-  const totalDurationMs = latencyBuckets.reduce((total, bucket) => total + bucket.totalDurationMs, 0);
-  const maxDurationMs = latencyBuckets.reduce((maximum, bucket) => Math.max(maximum, bucket.maxDurationMs), 0);
+  const apiLatencyBuckets = latencyBuckets.filter((bucket) => bucket.routeGroup !== "auth");
+  const authLatencyBuckets = latencyBuckets.filter((bucket) => bucket.routeGroup === "auth");
+  const requestCount = apiLatencyBuckets.reduce((total, bucket) => total + bucket.requestCount, 0);
+  const totalDurationMs = apiLatencyBuckets.reduce((total, bucket) => total + bucket.totalDurationMs, 0);
+  const maxDurationMs = apiLatencyBuckets.reduce((maximum, bucket) => Math.max(maximum, bucket.maxDurationMs), 0);
+  const authRequestCount = authLatencyBuckets.reduce((total, bucket) => total + bucket.requestCount, 0);
+  const authTotalDurationMs = authLatencyBuckets.reduce((total, bucket) => total + bucket.totalDurationMs, 0);
+  const authMaxDurationMs = authLatencyBuckets.reduce((maximum, bucket) => Math.max(maximum, bucket.maxDurationMs), 0);
   const crashCount = crashBuckets.reduce((total, bucket) => total + bucket.crashCount, 0);
   const latestReleaseByProject = new Map<number, typeof releases[number]>();
   for (const release of releases) if (!latestReleaseByProject.has(release.clientProjectId)) latestReleaseByProject.set(release.clientProjectId, release);
@@ -2326,7 +2331,7 @@ export async function getDeveloperClientHealth() {
       const enabledFeatureCount = Object.values(featureProfile).filter((value) => value === true).length;
       return { clientProjectId: project.id, name: project.name, status: project.status, updatedAt: project.updatedAt, enabledFeatureCount, latestReleaseStatus: latestRelease?.status ?? null, releaseReady: project.status === "release_prepared" || latestRelease?.status === "prepared" || latestRelease?.status === "submitted" || latestRelease?.status === "provisioned" };
     }),
-    observability: { apiLatency: { collectionEnabled: configuration.apiLatencyEnabled, windowHours: 24, requestCount, averageDurationMs: requestCount ? Math.round(totalDurationMs / requestCount) : null, maxDurationMs: requestCount ? maxDurationMs : null }, crashReporting: { collectionEnabled: configuration.crashReportingEnabled, windowHours: 24, crashCount }, storageMetering: "not_instrumented" as const },
+    observability: { apiLatency: { collectionEnabled: configuration.apiLatencyEnabled, windowHours: 24, requestCount, averageDurationMs: requestCount ? Math.round(totalDurationMs / requestCount) : null, maxDurationMs: requestCount ? maxDurationMs : null }, authLatency: { collectionEnabled: configuration.authLatencyEnabled, windowHours: 24, requestCount: authRequestCount, averageDurationMs: authRequestCount ? Math.round(authTotalDurationMs / authRequestCount) : null, maxDurationMs: authRequestCount ? authMaxDurationMs : null }, crashReporting: { collectionEnabled: configuration.crashReportingEnabled, windowHours: 24, crashCount }, storageMetering: "not_instrumented" as const },
   };
 }
 
