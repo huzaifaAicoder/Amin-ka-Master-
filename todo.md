@@ -153,3 +153,7 @@
 - [ ] Validate authenticated Student offline-video download/viewing and YouTube/Instagram fallback behavior with automated evidence plus physical Android/iOS checks where available.
 - [x] Apply the YouTube-specific browser/mobile embed configuration repair while preserving working Instagram playback and provider fallback behavior.
 - [ ] Re-test the repaired YouTube Short on the reported Android device and capture the exact provider error if playback still fails.
+- [ ] Complete the final consolidation feature matrix across all roles, routes, server procedures, schema, feature flags, and advanced checkpoint history.
+- [x] Verify whether AI attachments, AI Quiz, land/surveying utilities, case studies, and leaderboard flows already exist before implementing only confirmed gaps.
+- [x] Implement a server-validated AI Quiz generator with review-safe output, Student completion flow, and no automatic publishing to staff test banks.
+- [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

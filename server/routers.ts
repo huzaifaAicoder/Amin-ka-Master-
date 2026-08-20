@@ -29,6 +29,13 @@ const resetPasswordSchema = z.object({
   resetToken: z.string().min(32).max(256),
   password: z.string().min(8, "Password must be at least 8 characters").max(128),
 });
+const aiQuizQuestionSchema = z.object({
+  question: z.string().trim().min(8).max(600),
+  options: z.array(z.string().trim().min(1).max(300)).length(4),
+  correctIndex: z.number().int().min(0).max(3),
+  explanation: z.string().trim().min(8).max(900),
+});
+const aiQuizResponseSchema = z.object({ questions: z.array(aiQuizQuestionSchema).min(2).max(10) });
 const ownerSetupSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name").max(160),
   email: z.string().trim().email().max(320).optional().or(z.literal("")),
@@ -464,6 +471,31 @@ export const appRouter = router({
       } catch (error) {
         console.error("Gemini Doubt Solver request failed", error instanceof Error ? error.message : "unknown provider error");
         return { answer: "I could not reach the AI tutor right now. Please check the relevant lesson notes and try again.", mode: "fallback" as const, question: input.question };
+      }
+    }),
+    generateAiQuiz: protectedProcedure.input(z.object({
+      topic: z.string().trim().min(2, "Enter a topic").max(160),
+      difficulty: z.enum(["beginner", "intermediate", "advanced"]),
+      questionCount: z.number().int().min(2).max(10),
+      language: z.enum(["English", "Hindi-English"]).default("Hindi-English"),
+    })).mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "AI Quiz is available in the student learning experience." });
+      const apiKey = process.env.GEMINI_API_KEY?.trim();
+      if (!apiKey) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "AI Quiz is not configured right now. Please try again later." });
+      try {
+        const client = new GoogleGenerativeAI(apiKey);
+        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You create safe educational multiple-choice practice only for Amin Ka Master. Focus on Indian land measurement, surveying, revenue records, and exam preparation. Return valid JSON only. Never present generated content as an official exam or publish it to a staff question bank.", generationConfig: { maxOutputTokens: 3600, temperature: 0.2 } });
+        const prompt = `Create exactly ${input.questionCount} ${input.difficulty} multiple-choice practice questions about ${input.topic}. Use ${input.language}. Return exactly this JSON shape: {"questions":[{"question":"...","options":["...","...","...","..."],"correctIndex":0,"explanation":"..."}]}. Each question must have exactly four distinct plausible options, one correct zero-based index, and a concise educational explanation.`;
+        const result = await model.generateContent(prompt);
+        const raw = result.response.text().trim();
+        const match = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const parsed = aiQuizResponseSchema.parse(JSON.parse(match?.[1] ?? raw));
+        if (parsed.questions.length !== input.questionCount) throw new Error("Gemini returned an incomplete quiz");
+        return { ...parsed, topic: input.topic, difficulty: input.difficulty, language: input.language, mode: "gemini" as const };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        console.error("Gemini AI Quiz request failed", error instanceof Error ? error.message : "unknown provider error");
+        throw new TRPCError({ code: "BAD_GATEWAY", message: "AI Quiz could not be generated right now. Please try again." });
       }
     }),
   }),
