@@ -570,6 +570,13 @@ export const appRouter = router({
       return { submissionId };
     }),
   }),
+  telemetry: router({
+    config: protectedProcedure.query(() => db.getTelemetryConfiguration()),
+    reportCrash: protectedProcedure.input(z.object({ platform: z.enum(["android", "ios", "web", "unknown"]), routeGroup: z.enum(["auth", "student", "staff", "developer", "other"]), errorClass: z.enum(["unhandled_error", "unhandled_rejection", "react_render"]) })).mutation(async ({ input }) => {
+      await db.recordCrashMeasurement(input);
+      return { accepted: true as const };
+    }),
+  }),
   developer: router({
     settings: requireRoles(["developer"]).query(() => db.getDeveloperManagedSettings()),
     templates: requireRoles(["developer"]).query(({ ctx }) => db.listMasterTemplates(ctx.user.id)),
@@ -734,6 +741,8 @@ export const appRouter = router({
       studyCoachEnabled: z.boolean().optional(),
       learningOperationsEnabled: z.boolean().optional(),
       guardianReportsEnabled: z.boolean().optional(),
+      telemetryApiLatencyEnabled: z.boolean().optional(),
+      telemetryCrashReportingEnabled: z.boolean().optional(),
       interfaceLanguageDefault: z.enum(["english", "hindi", "bilingual"]).optional(),
       developerName: z.string().trim().max(160).optional(),
       developerRole: z.string().trim().max(160).optional(),
@@ -763,6 +772,8 @@ export const appRouter = router({
         ...(input.studyCoachEnabled !== undefined ? { "feature.study_coach_enabled": input.studyCoachEnabled } : {}),
         ...(input.learningOperationsEnabled !== undefined ? { "feature.learning_operations_enabled": input.learningOperationsEnabled } : {}),
         ...(input.guardianReportsEnabled !== undefined ? { "feature.guardian_reports_enabled": input.guardianReportsEnabled } : {}),
+        ...(input.telemetryApiLatencyEnabled !== undefined ? { "telemetry.api_latency_enabled": input.telemetryApiLatencyEnabled } : {}),
+        ...(input.telemetryCrashReportingEnabled !== undefined ? { "telemetry.crash_reporting_enabled": input.telemetryCrashReportingEnabled } : {}),
         ...(input.interfaceLanguageDefault !== undefined ? { "platform.interface_language_default": input.interfaceLanguageDefault } : {}),
         ...(input.developerName !== undefined ? { "developer.name": input.developerName } : {}),
         ...(input.developerRole !== undefined ? { "developer.role": input.developerRole } : {}),

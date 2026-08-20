@@ -744,6 +744,41 @@ export const auditLogs = mysqlTable(
   (table) => [index("audit_logs_actor_time_idx").on(table.actorUserId, table.createdAt)],
 );
 
+/** Privacy-minimised hourly latency aggregates. No request path, user, payload,
+ * IP address, device identifier, or request body is stored. */
+export const telemetryApiLatencyBuckets = mysqlTable(
+  "telemetry_api_latency_buckets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    bucketStartedAt: timestamp("bucketStartedAt").notNull(),
+    routeGroup: varchar("routeGroup", { length: 32 }).notNull(),
+    statusClass: varchar("statusClass", { length: 8 }).notNull(),
+    requestCount: int("requestCount").default(0).notNull(),
+    totalDurationMs: int("totalDurationMs").default(0).notNull(),
+    maxDurationMs: int("maxDurationMs").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("telemetry_latency_bucket_group_status_uq").on(table.bucketStartedAt, table.routeGroup, table.statusClass), index("telemetry_latency_bucket_time_idx").on(table.bucketStartedAt)],
+);
+
+/** Privacy-minimised hourly crash aggregates. The client reports only fixed
+ * platform, route-group, and error-class categories—never an error message or stack. */
+export const telemetryCrashBuckets = mysqlTable(
+  "telemetry_crash_buckets",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    bucketStartedAt: timestamp("bucketStartedAt").notNull(),
+    platform: varchar("platform", { length: 12 }).notNull(),
+    routeGroup: varchar("routeGroup", { length: 32 }).notNull(),
+    errorClass: varchar("errorClass", { length: 32 }).notNull(),
+    crashCount: int("crashCount").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => [uniqueIndex("telemetry_crash_bucket_platform_route_class_uq").on(table.bucketStartedAt, table.platform, table.routeGroup, table.errorClass), index("telemetry_crash_bucket_time_idx").on(table.bucketStartedAt)],
+);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Course = typeof courses.$inferSelect;

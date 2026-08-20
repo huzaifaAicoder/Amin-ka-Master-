@@ -16,4 +16,6 @@ Business Intelligence intentionally reports only stored order and payment-readin
 
 ## Privacy-approved operational telemetry
 
-The Client Health dashboard currently reports only persisted aggregate usage and configuration/release signals. It intentionally labels crash reporting, API latency, storage metering, and performance telemetry as uninstrumented. Before adding telemetry, the product should define the purpose, retention, opt-in/consent model where applicable, data minimisation, access controls, and deletion process. No simulated latency, crash, or storage values should be shown before that instrumentation is implemented and validated.
+The Developer can now explicitly enable aggregate API latency and aggregate crash telemetry from Root Control. API data is bucketed hourly by a fixed endpoint group and status class; crash data is bucketed hourly by fixed platform, route-group, and error-class categories. The system does not store user IDs, device identifiers, IP addresses, raw paths, tRPC operation names, request bodies, headers, error messages, stack traces, Student content, files, or credentials. Buckets are automatically removed after 30 days.
+
+Crash reporting begins only for authenticated sessions after the Developer enables it. API instrumentation begins only after the Developer enables it. Private-storage metering and device performance telemetry remain uninstrumented. No simulated latency, crash, storage, or performance values are shown.

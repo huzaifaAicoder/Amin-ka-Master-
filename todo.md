@@ -183,4 +183,5 @@
 - [x] Add Student coaching extensions for revision reminders, streak milestones, downloadable study reports, and opt-in study plan notices while preserving existing courses, AI Quiz, and downloads workflows.
 - [x] Add an opt-in Parent/Guardian Progress Reports foundation with Student-controlled consent, privacy-minimised aggregate reports, authorized staff/owner delivery, and audit records.
 - [x] Perform deterministic mobile-readiness validation for Study Coach protected PDF storage, internal-reader routing, and opt-in notification flows; document native-device, Razorpay/UPI, and privacy-approved telemetry boundaries.
+- [x] Implement a Developer-controlled privacy-approved telemetry foundation for minimised API latency aggregates and application crash events, with strict exclusion of Student content, identifiers, credentials, files, and raw requests.
 - [ ] Reconcile offline download state/search/retry requirements without replacing the proven private-storage and capture-protection flows.

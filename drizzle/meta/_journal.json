@@ -134,6 +134,13 @@
       "when": 1787222688079,
       "tag": "0018_tense_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1787223967366,
+      "tag": "0019_safe_mantis",
+      "breakpoints": true
     }
   ]
 }

@@ -8,7 +8,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { getSessionUser, getStudentShortUploadAccess, hasAnyPermission } from "../db";
+import { getSessionUser, getStudentShortUploadAccess, hasAnyPermission, recordApiLatencyMeasurement } from "../db";
 import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -31,6 +31,14 @@ function isAllowedCorsOrigin(origin: string) {
   } catch {
     return false;
   }
+}
+
+function telemetryRouteGroup(path: string): "trpc" | "media_upload" | "health" | "storage" | "other" {
+  if (path.startsWith("/api/trpc")) return "trpc";
+  if (path.startsWith("/api/media-upload")) return "media_upload";
+  if (path.startsWith("/api/health")) return "health";
+  if (path.startsWith("/api/storage")) return "storage";
+  return "other";
 }
 
 async function findAvailablePort(startPort: number = 3000): Promise<number> {
@@ -72,6 +80,17 @@ async function startServer() {
 
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Aggregate-only telemetry. The recorder receives fixed categories and never
+  // receives a path, operation name, identity, header, payload, or request body.
+  app.use((req, res, next) => {
+    const startedAt = Date.now();
+    const routeGroup = telemetryRouteGroup(req.path);
+    res.once("finish", () => {
+      void recordApiLatencyMeasurement({ routeGroup, statusCode: res.statusCode, durationMs: Date.now() - startedAt }).catch(() => undefined);
+    });
+    next();
+  });
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
