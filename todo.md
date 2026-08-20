@@ -127,3 +127,4 @@
 - [x] Securely configure and validate the user-supplied Gemini API key for the optional server-side Doubt Solver integration; never expose it in client code or logs.
 - [x] Improve the Gemini Doubt Solver with an accessible typing indicator and a clear, automatically scrolling chat history.
 - [x] Correct external Shorts inline WebView rendering and prevent provider URLs from entering private download logic.
+- [x] Add a dedicated native share action beside inline external Shorts media.
