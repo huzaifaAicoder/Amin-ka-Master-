@@ -145,5 +145,8 @@
 - [x] Compare current source against the verified advanced checkpoints and recover the Student UI, Shorts, offline Downloads, AI, and Developer Portal exposure that diverged from the preview.
 - [ ] Audit Student offline downloads and YouTube/Instagram Shorts playback end to end, fix verified regressions, and record physical-device/provider limitations.
 - [x] Restrict external Shorts WebView mounting to the active feed item to reduce stale playback and overlapping embedded players.
-- [ ] Restore authorized managed-video offline download support without weakening enrollment, publication, or private-storage checks.
+- [x] Restore authorized managed-video offline download support without weakening enrollment, publication, or private-storage checks.
 - [x] Add a graceful provider-aware error fallback with retry and link-sharing actions for failed external Shorts embeds.
+- [x] Create an evidence-based current-versus-advanced-checkpoint feature inventory across authentication, roles, Student, Owner, Developer, AI, courses, tests, media, downloads, security, and navigation.
+- [x] Reconcile the best verified advanced and current implementations without rollback or destructive replacement.
+- [ ] Perform documented P0 end-to-end QA for role boundaries, offline resources, Shorts, AI, courses, tests, live classes, and navigation.

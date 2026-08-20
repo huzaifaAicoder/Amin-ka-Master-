@@ -89,9 +89,6 @@ const mediaReferenceSchema = z.object({
 const moduleResourceSchema = mediaReferenceSchema.safeExtend({
   resourceId: z.number().int().positive().optional(), moduleId: z.number().int().positive(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), resourceType: z.enum(["video", "pdf"]), isPublished: z.boolean(), downloadAllowed: z.boolean().default(false), displayOrder: z.number().int().min(0).max(10000),
 }).superRefine((value, ctx) => {
-  if (value.downloadAllowed && value.resourceType !== "pdf") {
-    ctx.addIssue({ code: "custom", message: "Only PDF module resources can be made downloadable", path: ["downloadAllowed"] });
-  }
 });
 const freePlaylistSchema = z.object({
   playlistId: z.number().int().positive().optional(), title: z.string().trim().min(3).max(220), description: z.string().trim().max(10000).optional(), thumbnailUrl: optionalUrl, isPublished: z.boolean(), displayOrder: z.number().int().min(0).max(10000),
@@ -351,7 +348,7 @@ export const appRouter = router({
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
       const result = await db.getAuthorizedResourceDownload(ctx.user.id, input.resourceId);
       if (result.status === "not_enrolled") throw new TRPCError({ code: "FORBIDDEN", message: "An active course enrollment is required to download this material." });
-      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This PDF is unavailable for download." });
+      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This approved course resource is unavailable for offline download." });
       return result;
     }),
     lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
