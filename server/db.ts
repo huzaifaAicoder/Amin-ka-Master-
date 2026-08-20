@@ -788,7 +788,7 @@ export async function getAuthorizedResourceDownload(userId: number, resourceId: 
   return {
     status: "authorized" as const,
     signedUrl,
-    resource: { id: row.resource.id, title: row.resource.title, mimeType: row.resource.mimeType ?? "application/pdf" },
+    resource: { id: row.resource.id, title: row.resource.title, resourceType: row.resource.resourceType, mimeType: row.resource.mimeType ?? "application/pdf" },
   };
 }
 
