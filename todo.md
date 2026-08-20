@@ -207,3 +207,5 @@
 - [x] Repair the undefined `auth` route redirect, compass sensor UI lag, and AI Doubt Solver keyboard overlap without replacing existing authentication, Toolkit, or Vision flows.
 - [ ] Research, document, and add only verified district-specific UP, MP, and Rajasthan local-unit systems to the Amin Toolkit converter.
 - [x] Apply the attached additive UX instruction set: Home translation control, AI chat image preview refinement, and State/District search without regressing current routes, RBAC, or backend flows.
+- [x] Add reviewed district-reference cards, private recent-conversion PDF export, and pinch-to-zoom to the existing AI image preview without weakening source or privacy boundaries.
+- [x] Upgrade the existing AI Quiz and assessment experience with additive modern timed-test, submit, results, review, and history improvements while preserving server-derived scoring and staff controls.

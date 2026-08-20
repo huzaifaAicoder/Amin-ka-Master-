@@ -13,16 +13,20 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
     expect(schema).toContain('"ai_quiz_attempts"');
     expect(database).toContain("export async function saveAiQuizAttempt");
     expect(database).toContain("export async function getStudentAiQuizStats");
+    expect(database).toContain("export async function listStudentAiQuizAttempts");
     expect(database).toContain("where(eq(aiQuizAttempts.userId, userId))");
     expect(routers).toContain("saveAiQuizAttempt: protectedProcedure");
     expect(routers).toContain("aiQuizStats: protectedProcedure");
+    expect(routers).toContain("aiQuizHistory: protectedProcedure");
     expect(routers).toContain('"Only Students can save AI Quiz practice results."');
     expect(routers).toContain('"AI Quiz analytics are available in the student learning experience."');
   });
 
   it("keeps the timed Gemini practice flow separate from explicit teacher-review submission", () => {
     const screen = readProjectFile("app/ai-quiz.tsx");
-    expect(screen).toContain("const QUIZ_SECONDS = 10 * 60");
+    expect(screen).toContain("const QUIZ_PROFILES");
+    expect(screen).toContain("questionCount: 10");
+    expect(screen).toContain("seconds: 25 * 60");
     expect(screen).toContain("setInterval");
     expect(screen).toContain("finishQuizRef.current(true)");
     expect(screen).toContain("saveAttemptMutation.mutateAsync");
@@ -37,6 +41,8 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
     expect(screen).toContain("Save detailed PDF for offline review");
     expect(screen).toContain("Print.printToFileAsync");
     expect(screen).toContain("protected-resources/");
+    expect(screen).toContain("Question navigator");
+    expect(screen).toContain("Recent AI practice");
   });
 
   it("retains the Student dashboard average widget and Android-conscious YouTube feed constraints", () => {

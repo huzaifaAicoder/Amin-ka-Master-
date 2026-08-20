@@ -1253,6 +1253,23 @@ export async function getStudentAiQuizStats(userId: number) {
   };
 }
 
+/** Aggregate-only Student quiz history. Questions, answers, AI explanations, and provider content are intentionally not retained here. */
+export async function listStudentAiQuizAttempts(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database.select({
+    id: aiQuizAttempts.id,
+    topic: aiQuizAttempts.topic,
+    difficulty: aiQuizAttempts.difficulty,
+    questionCount: aiQuizAttempts.questionCount,
+    correctAnswers: aiQuizAttempts.correctAnswers,
+    scorePercent: aiQuizAttempts.scorePercent,
+    durationSeconds: aiQuizAttempts.durationSeconds,
+    createdAt: aiQuizAttempts.createdAt,
+  }).from(aiQuizAttempts).where(eq(aiQuizAttempts.userId, userId)).orderBy(desc(aiQuizAttempts.createdAt), desc(aiQuizAttempts.id)).limit(12);
+  return rows.map((row) => ({ ...row, scorePercent: Number(row.scorePercent) }));
+}
+
 const GROWTH_SUITE_DAY_MS = 24 * 60 * 60 * 1000;
 
 function calendarDayKey(value: Date) {

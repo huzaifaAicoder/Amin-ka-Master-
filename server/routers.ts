@@ -548,6 +548,10 @@ export const appRouter = router({
       if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "AI Quiz analytics are available in the student learning experience." });
       return db.getStudentAiQuizStats(ctx.user.id);
     }),
+    aiQuizHistory: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "AI Quiz history is available in the student learning experience." });
+      return db.listStudentAiQuizAttempts(ctx.user.id);
+    }),
     studyCoach: protectedProcedure.query(async ({ ctx }) => {
       requireStudentAccess(ctx.user.role);
       await requireGrowthSuiteFeature("feature.study_coach_enabled");
