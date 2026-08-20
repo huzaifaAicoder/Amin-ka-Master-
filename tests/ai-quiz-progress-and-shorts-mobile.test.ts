@@ -34,6 +34,9 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
     expect(screen).toContain("YOUR ANSWER");
     expect(screen).toContain("CORRECT ANSWER");
     expect(screen).toContain("AI EXPLANATION");
+    expect(screen).toContain("Save detailed PDF for offline review");
+    expect(screen).toContain("Print.printToFileAsync");
+    expect(screen).toContain("protected-resources/");
   });
 
   it("retains the Student dashboard average widget and Android-conscious YouTube feed constraints", () => {
