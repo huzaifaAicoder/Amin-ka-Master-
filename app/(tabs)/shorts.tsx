@@ -15,6 +15,8 @@ import { getYouTubeEmbedUrl } from "@/lib/youtube";
 import { usePanelRefresh } from "@/hooks/use-panel-refresh";
 import { downloadAuthorizedOfflineResource, recordOfflineDownloadFailure } from "@/lib/offline-resources";
 import { inferReelsSubject, REELS_SUBJECTS, type ReelsSubject } from "@/lib/reels-catalogue";
+import { useLmsSession } from "@/lib/lms-session";
+import { recordLearningSeconds } from "@/lib/study-planner";
 
 const { height: viewportHeight } = Dimensions.get("window");
 type ShortItem = { id: number; title: string; description: string | null; videoUrl: string; thumbnailUrl?: string | null; sourceType: "managed" | "youtube" | "instagram"; likeCount: number; commentCount: number; isLiked: boolean; isSaved: boolean; };
@@ -24,6 +26,7 @@ function haptic(style: Haptics.ImpactFeedbackStyle = Haptics.ImpactFeedbackStyle
 function ShortsCaptureGuard() { useEffect(() => { if (Platform.OS === "web") return; const key = "student-shorts"; void ScreenCapture.preventScreenCaptureAsync(key).catch(() => undefined); return () => { void ScreenCapture.allowScreenCaptureAsync(key).catch(() => undefined); }; }, []); return null; }
 
 export default function ShortsScreen() {
+  const { user } = useLmsSession();
   const shortsQuery = trpc.student.shorts.useQuery(undefined, { retry: 1, staleTime: 60_000 });
   const submissionsQuery = trpc.student.myShortSubmissions.useQuery(undefined, { retry: 1, staleTime: 30_000 });
   const uploadAccessQuery = trpc.student.shortUploadAccess.useQuery(undefined, { retry: 1, staleTime: 30_000 });
@@ -36,11 +39,20 @@ export default function ShortsScreen() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const items = shortsQuery.data ?? [];
   const filteredItems = subject === "All" ? items : items.filter((item) => inferReelsSubject(item.title, item.description) === subject);
+  const activeShortId = filteredItems[activeIndex]?.id;
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const next = viewableItems[0]?.index;
     if (typeof next === "number") setActiveIndex(next);
   }).current;
+  useEffect(() => {
+    if (!activeShortId || user?.role !== "student") return;
+    const startedAt = Date.now();
+    return () => {
+      const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+      if (elapsedSeconds >= 30) void recordLearningSeconds(user.id, elapsedSeconds, "Shorts");
+    };
+  }, [activeShortId, user?.id, user?.role]);
   const likeMutation = trpc.student.toggleShortLike.useMutation({
     onMutate: async ({ shortId }) => { await utils.student.shorts.cancel(); const previous = utils.student.shorts.getData(); utils.student.shorts.setData(undefined, (current) => current?.map((short) => short.id === shortId ? { ...short, isLiked: !short.isLiked, likeCount: Math.max(0, short.likeCount + (short.isLiked ? -1 : 1)) } : short)); return { previous }; },
     onError: (_error, _input, context) => { if (context?.previous) utils.student.shorts.setData(undefined, context.previous); haptic(Haptics.ImpactFeedbackStyle.Medium); },

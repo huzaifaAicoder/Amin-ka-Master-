@@ -10,6 +10,9 @@ describe("Wellbeing and authenticated role QA boundaries", () => {
     expect(planner).toContain("typeof existing === \"number\"");
     expect(planner).toContain("category: WellbeingCategory = \"Lectures\"");
     expect(planner).toContain("loadWellbeingBreakdown");
+    expect(read("app/lesson/[lessonId].tsx")).toContain('recordLearningSeconds(user.id, elapsedSeconds, "Notes")');
+    expect(read("app/test/[testId].tsx")).toContain('recordLearningSeconds(user.id, data.elapsedSeconds, "Tests")');
+    expect(read("app/(tabs)/shorts.tsx")).toContain('recordLearningSeconds(user.id, elapsedSeconds, "Shorts")');
     expect(screen).toContain("Today by activity");
     expect(screen).toContain("category detail begins when category-aware sessions are recorded");
   });
@@ -23,5 +26,6 @@ describe("Wellbeing and authenticated role QA boundaries", () => {
     expect(runbook).toContain("Staff sign-in plus Staff Passkey");
     expect(runbook).toContain("Owner sign-in plus Owner code/passkey");
     expect(runbook).toContain("Developer sign-in plus server-verified Developer Passkey");
+    expect(runbook).toContain("Performance Insights verification");
   });
 });

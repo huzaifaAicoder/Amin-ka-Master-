@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as ScreenCapture from "expo-screen-capture";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -24,6 +24,14 @@ export default function LessonScreen() {
   const bookmarkMutation = trpc.student.toggleBookmark.useMutation({ onSuccess: () => void lessonQuery.refetch() });
   const noteMutation = trpc.student.saveNote.useMutation({ onSuccess: () => void lessonQuery.refetch() });
   const [note, setNote] = useState("");
+  const noteSessionStartedAt = useRef<number | null>(null);
+
+  const recordNoteSession = () => {
+    if (noteSessionStartedAt.current === null || user?.role !== "student") return;
+    const elapsedSeconds = Math.floor((Date.now() - noteSessionStartedAt.current) / 1000);
+    noteSessionStartedAt.current = null;
+    if (elapsedSeconds >= 30) void recordLearningSeconds(user.id, elapsedSeconds, "Notes");
+  };
 
   useEffect(() => setNote(authorizedData?.note?.body ?? ""), [authorizedData?.note?.body]);
   useEffect(() => {
@@ -85,7 +93,7 @@ export default function LessonScreen() {
         <Text style={styles.sectionTitle}>Resources</Text>
         {authorizedData.resources.length ? <View style={styles.resources}>{authorizedData.resources.map((resource) => <Pressable key={resource.id} accessibilityRole="link" onPress={() => void openResource(resource.externalUrl)} style={({ pressed }) => [styles.resourceRow, pressed && styles.pressed]}><IconCircle icon={resource.resourceType === "pdf" ? "picture-as-pdf" : resource.resourceType === "link" ? "link" : "description"} size={38} /><View style={{ flex: 1 }}><Text style={styles.resourceTitle}>{resource.title}</Text><Text style={styles.resourceType}>{resource.resourceType.toUpperCase()}</Text></View><MaterialIcons name="open-in-new" size={22} color={COLORS.indigo} /></Pressable>)}</View> : <Card style={styles.noResource}><Text style={styles.noResourceText}>No extra resources have been published for this lesson.</Text></Card>}
         <Text style={styles.sectionTitle}>My private notes</Text>
-        <TextInput value={note} onChangeText={setNote} multiline placeholder="Write a takeaway, formula or question for later…" placeholderTextColor="#98A2B3" style={styles.noteInput} textAlignVertical="top" maxLength={6000} />
+        <TextInput value={note} onChangeText={setNote} onFocus={() => { noteSessionStartedAt.current = Date.now(); }} onBlur={recordNoteSession} multiline placeholder="Write a takeaway, formula or question for later…" placeholderTextColor="#98A2B3" style={styles.noteInput} textAlignVertical="top" maxLength={6000} />
         <Pressable onPress={saveNote} disabled={noteMutation.isPending} style={({ pressed }) => [styles.saveNote, (pressed || noteMutation.isPending) && styles.pressed]}><MaterialIcons name="save" size={18} color={COLORS.indigo} /><Text style={styles.saveNoteText}>{noteMutation.isPending ? "Saving…" : "Save private note"}</Text></Pressable>
         <View style={styles.navigation}><Pressable disabled={!previous} onPress={() => previous && router.replace(`/lesson/${previous.id}`)} style={({ pressed }) => [styles.navButton, !previous && styles.navDisabled, pressed && previous && styles.pressed]}><MaterialIcons name="arrow-back" size={18} color={COLORS.indigo} /><Text style={styles.navText}>Previous</Text></Pressable><Pressable disabled={!next} onPress={() => next && router.replace(`/lesson/${next.id}`)} style={({ pressed }) => [styles.navButton, !next && styles.navDisabled, pressed && next && styles.pressed]}><Text style={styles.navText}>Next</Text><MaterialIcons name="arrow-forward" size={18} color={COLORS.indigo} /></Pressable></View>
       </ScrollView>

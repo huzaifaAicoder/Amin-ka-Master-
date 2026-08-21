@@ -11,10 +11,22 @@ This runbook covers the two remaining follow-up checks: verifying that real less
 | 1 | Student | Open Account → Digital Wellbeing, record the initial Today and Last 7 days values. | The screen loads privately and shows zero or existing local totals without fabricated numbers. |
 | 2 | Student | Open an authorized lesson and remain on the active lesson screen for at least 35 seconds. Background the app, return, then exit the lesson. | The existing lesson lifecycle records the bounded interval under the Lectures category. |
 | 3 | Student | Reopen Digital Wellbeing and pull to refresh. | Today increases by approximately the supported active interval; the Lectures row shows the recorded time. Short intervals under the 30-second threshold are not recorded. |
-| 4 | Student | Open Study Coach and tap the Weekly learning time graph. | The graph navigates to the same Wellbeing Details route and shows the same local totals. |
-| 5 | Student | Sign out and sign in again on the same device. | Local wellbeing data remains available for the same Student account; no staff-facing endpoint receives it. |
+| 4 | Student | Focus a private lesson note for at least 35 seconds, then tap outside the editor. | The bounded active interval is added under Notes. Text content itself is never copied into Wellbeing data. |
+| 5 | Student | Complete or time-expire a protected timed test with at least 30 seconds elapsed. | The server-confirmed elapsed duration is added once under Tests after a final result is received. |
+| 6 | Student | Keep one active Short on screen for at least 35 seconds, then swipe to the next Short or leave the feed. | The bounded active interval is added under Shorts. Background or off-screen items do not add time. |
+| 7 | Student | Open Study Coach and tap the Weekly learning time graph. | The graph navigates to the same Wellbeing Details route and shows the same local totals. |
+| 8 | Student | Sign out and sign in again on the same device. | Local wellbeing data remains available for the same Student account; no staff-facing endpoint receives it. |
 
-Existing historical numeric records remain readable as Lectures for backward compatibility. Notes, Shorts, Tests, and Other remain zero until category-aware activity sources are deliberately instrumented; the UI does not invent category minutes.
+Existing historical numeric records remain readable as Lectures for backward compatibility. Notes, Tests, and Shorts increase only after their documented activity thresholds are met; the UI never invents category minutes. Other remains available for future explicitly instrumented local activities.
+
+## Performance Insights verification
+
+| Step | Role | Action | Expected result |
+|---|---|---|---|
+| 1 | Student | Sign in and open Home → Performance Insights. | The screen is available only to Students and reads current course progress, completed timed-test results, AI Quiz aggregate, and Study Coach data from their existing protected sources. |
+| 2 | Student | Pull to refresh, then open Test History and AI Quiz from the screen. | The screen remains responsive; the links open the existing protected routes and no performance data is written by simply viewing Insights. |
+| 3 | Teacher/Admin, Owner, Developer | Attempt the `/performance` route after authenticated sign-in. | The screen returns the Student-only message and does not expose another learner’s course, test, or AI Quiz data. |
+| 4 | Student on Android and iOS | Repeat the first two steps after a completed lesson or test. | Metrics reflect the existing server-backed records after refresh. Record device, OS, route, and observed values; do not mark GREEN from browser-only evidence. |
 
 ## Authenticated role matrix
 

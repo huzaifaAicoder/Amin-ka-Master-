@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import { ScreenContainer } from "@/components/screen-container";
 import { COLORS, EmptyState, PrimaryButton, Tag } from "@/components/lms-ui";
 import { useLmsSession } from "@/lib/lms-session";
+import { recordLearningSeconds } from "@/lib/study-planner";
 import { trpc } from "@/lib/trpc";
 
 type Question = { id: number; prompt: string; options: unknown; marks: number };
@@ -51,10 +52,11 @@ export default function TestAttemptScreen() {
       const data = await submitMutation.mutateAsync({ attemptId: attempt.attemptId, answers: attempt.questions.map((question) => ({ questionId: question.id, selectedOptionIndex: answers[question.id] ?? null })) });
       if (data.status === "in_progress") throw new Error("This assessment is still in progress.");
       setResult({ ...data, status: data.status === "expired" ? "expired" : "submitted" });
+      if (user?.role === "student") void recordLearningSeconds(user.id, data.elapsedSeconds, "Tests");
     } catch (error) {
       Alert.alert("Unable to submit", error instanceof Error ? error.message : "Your attempt was not submitted. Please try again.");
     }
-  }, [answers, attempt, submitMutation]);
+  }, [answers, attempt, submitMutation, user?.id, user?.role]);
   useEffect(() => {
     if (!attempt || result || remainingSeconds !== 0 || submitMutation.isPending || autoSubmitting.current) return;
     autoSubmitting.current = true;

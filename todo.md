@@ -239,3 +239,7 @@
 
 - [x] Review the Mega Platform Upgrade instructions, inventory all equivalent existing functionality, and implement only verified missing or regressed capabilities phase by phase.
 - [x] Add an authenticated Student Performance Insights view using existing learning, assessment, AI Quiz, and Study Coach data without creating a duplicate analytics system.
+
+- [x] Add category-aware private wellbeing tracking for Notes, Tests, and Shorts while preserving existing Lecture records.
+- [x] Improve course-learning responsiveness for desktop and large-screen web without changing the mobile course flow.
+- [x] Extend authenticated Android/iOS QA guidance and regression coverage for Student Performance Insights.
