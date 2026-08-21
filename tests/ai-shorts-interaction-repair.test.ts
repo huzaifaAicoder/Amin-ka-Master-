@@ -11,6 +11,15 @@ describe("AI keyboard and Reels interaction repair", () => {
     expect(ai).toContain("onFocus={scrollToLatest}");
   });
 
+  it("shows an accessible, elapsed typing state while an AI answer is pending", () => {
+    const ai = read("app/ask-ai.tsx");
+    expect(ai).toContain("const [waitingSeconds, setWaitingSeconds] = useState(0)");
+    expect(ai).toContain("const waitingStage = waitingSeconds < 5");
+    expect(ai).toContain("Gemini is preparing an answer. ${waitingStage}. ${waitingSeconds} seconds elapsed.");
+    expect(ai).toContain("<ActivityIndicator size=\"small\" color={COLORS.indigo} />");
+    expect(ai).toContain("<Text style={styles.elapsedText}>{waitingSeconds}s</Text>");
+  });
+
   it("uses a runtime full-page measurement and active-item tracking for one Reel at a time", () => {
     const shorts = read("app/(tabs)/shorts.tsx");
     expect(shorts).toContain("const { height: windowHeight } = useWindowDimensions()");
