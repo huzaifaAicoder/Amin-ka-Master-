@@ -214,3 +214,11 @@
 
 - [x] Apply the attached High-Performance Reels Engine and Student Reels Hub upgrade additively: optimized autoplay feed, refresh, social action bar, focused YouTube loading, and categorized liked/saved/offline hub.
 - [x] Preserve existing Shorts, social, authorized download, capture-protection, navigation, and role-boundary behavior while validating the Reels upgrade.
+
+- [ ] Add Reels subject filtering, Reels Hub sorting, and truthful offline-storage indicators without duplicating social/download state.
+- [ ] Add focused Android/iOS Reels validation guidance and regression coverage for filters, sorting, managed downloads, and protected playback.
+
+- [x] Add a local subject filter to the existing Shorts feed with keyword-inference labels and an explicit All option.
+- [x] Add Reels Hub Recent/Name/Size sorting over existing Liked, Saved, and Offline collections.
+- [x] Add a truthful private-storage usage indicator based only on completed protected offline files.
+- [x] Add focused Reels follow-up regression coverage and a native Android/iOS validation runbook.
