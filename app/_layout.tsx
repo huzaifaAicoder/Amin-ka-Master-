@@ -40,7 +40,10 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const isAuthRoute = rootSegment === "auth" || rootSegment === "oauth";
   const isDeveloperRoute = rootSegment === "dev-portal" || rootSegment === "view-as";
   const isStaffRoute = rootSegment === "operations";
-  const isStudentPortalRoute = rootSegment === "(tabs)" || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions" || rootSegment === "study-coach" || rootSegment === "guardian-reports" || rootSegment === "amin-toolkit" || rootSegment === "toolkit";
+  // Account contains a deliberately role-aware Staff/Owner surface. All other Student tabs
+  // remain protected from non-Student sessions by the existing redirect below.
+  const isStudentTabRoute = rootSegment === "(tabs)" && segments[1] !== "account";
+  const isStudentPortalRoute = isStudentTabRoute || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions" || rootSegment === "study-coach" || rootSegment === "guardian-reports" || rootSegment === "amin-toolkit" || rootSegment === "toolkit";
   const controls = controlsQuery.data;
   const studentOverrides = studentOverridesQuery.data;
   const networkState = Network.useNetworkState();

@@ -264,3 +264,9 @@
 - [x] Add Hindi and bilingual translations for the existing AI waiting-stage labels using the saved Student interface-language preference.
 
 - [x] Review the newly attached instructions, inventory equivalent existing functionality, and implement only verified missing or regressed capabilities under the permanent project rule.
+
+- [x] Complete the latest full recovery audit by comparing current routes, source, history, role controls, APIs, and data boundaries against previously working systems.
+- [x] Verify and restore only confirmed Student navigation, learning, offline, AI, Toolkit, Shorts, test, live, notification, and wellbeing regressions.
+- [x] Verify and restore only confirmed Staff, Owner, Developer, navigation, and RBAC regressions without weakening server-side permissions.
+- [x] Verify database/API preservation, regression coverage, security boundaries, preview behavior, and documented native-device limitations for the full recovery audit.
+- [x] Restore the existing Staff and Owner Account surface that is currently blocked by the broad Student-tab route guard, while keeping Student learning routes inaccessible to non-Students.
