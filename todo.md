@@ -260,3 +260,5 @@
 - [x] Repair safe Shorts share and authorized managed-download actions while preserving external-media restrictions and protected storage.
 
 - [x] Enhance the existing AI response waiting state with an accessible typing animation and clear progress feedback without changing chat or image behavior.
+
+- [x] Add Hindi and bilingual translations for the existing AI waiting-stage labels using the saved Student interface-language preference.

@@ -15,9 +15,13 @@ describe("AI keyboard and Reels interaction repair", () => {
     const ai = read("app/ask-ai.tsx");
     expect(ai).toContain("const [waitingSeconds, setWaitingSeconds] = useState(0)");
     expect(ai).toContain("const waitingStage = waitingSeconds < 5");
-    expect(ai).toContain("Gemini is preparing an answer. ${waitingStage}. ${waitingSeconds} seconds elapsed.");
+    expect(ai).toContain("const { label } = useLanguagePreference()");
+    expect(ai).toContain('label("Reading your question", "आपका प्रश्न पढ़ रहे हैं")');
+    expect(ai).toContain('label("Preparing a clear answer", "स्पष्ट उत्तर तैयार कर रहे हैं")');
+    expect(ai).toContain('label("GEMINI IS THINKING", "जेमिनी सोच रहा है")');
+    expect(ai).toContain("accessibilityValue={{ text: elapsedLabel }}");
     expect(ai).toContain("<ActivityIndicator size=\"small\" color={COLORS.indigo} />");
-    expect(ai).toContain("<Text style={styles.elapsedText}>{waitingSeconds}s</Text>");
+    expect(ai).toContain("<Text style={styles.elapsedText}>{elapsedLabel}</Text>");
   });
 
   it("uses a runtime full-page measurement and active-item tracking for one Reel at a time", () => {
