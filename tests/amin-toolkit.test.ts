@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 
 import { compassHeading, convertLandUnit, estimatePlotArea, INDIA_STATES, isAllowedOfficialPortalUrl, standardSystemForIndiaState, supportedLandUnits, systemsForIndiaState } from "../lib/amin-toolkit";
+import { parseIgodDistrictHtml } from "../server/india-district-directory";
 
 const routerSource = readFileSync("server/routers.ts", "utf8");
 const askAiSource = readFileSync("app/ask-ai.tsx", "utf8");
@@ -54,17 +55,27 @@ describe("Amin Master Toolkit", () => {
   it("provides a standard-units profile for every State/UT and local units only through an explicitly selected local profile", () => {
     expect(INDIA_STATES).toHaveLength(36);
     expect(INDIA_STATES.map((entry) => entry.code)).toEqual(expect.arrayContaining(["BR", "UP", "MP", "RJ", "TN", "MH", "JK"]));
-    for (const state of INDIA_STATES) expect(supportedLandUnits(standardSystemForIndiaState(state.code).id)).toEqual(expect.arrayContaining(["acre", "hectare", "square_feet", "square_meters"]));
+    for (const state of INDIA_STATES) expect(supportedLandUnits(standardSystemForIndiaState(state.code).id)).toEqual(expect.arrayContaining(["acre", "hectare", "square_feet", "square_meters", "square_yards", "are", "cent", "decimal", "guntha"]));
     expect(supportedLandUnits("BR-bihar-common")).toEqual(expect.arrayContaining(["bigha", "katha", "dhur"]));
     expect(supportedLandUnits("UP-pucca-bigha")).toContain("bigha");
     expect(supportedLandUnits("UP-pucca-bigha")).not.toContain("katha");
     expect(supportedLandUnits(standardSystemForIndiaState("UP").id)).not.toContain("bigha");
     expect(convertLandUnit(1, "acre", "bigha", "BR-bihar-common")).toBeCloseTo(1.6, 4);
+    expect(convertLandUnit(1, "acre", "decimal", standardSystemForIndiaState("BR").id)).toBeCloseTo(100, 6);
+    expect(convertLandUnit(1, "acre", "guntha", standardSystemForIndiaState("BR").id)).toBeCloseTo(40, 6);
     expect(convertLandUnit(1, "acre", "bigha", standardSystemForIndiaState("BR").id)).toBeNull();
     expect(systemsForIndiaState("RJ").map((entry) => entry.id)).toEqual(expect.arrayContaining(["RJ-standard", "RJ-pucca-bigha"]));
     expect(converterSource).toContain("NO UNIVERSAL BIGHA");
     expect(converterSource).toContain("State or Union Territory");
     expect(converterSource).toContain("DISTRICT CHECK");
+    expect(converterSource).toContain("districtDirectory.useQuery");
+    expect(converterSource).toContain("Search the official district directory");
+    expect(routerSource).toContain("districtDirectory: studentProcedure");
+  });
+
+  it("parses the official selected-State district directory safely before presenting dropdown choices", () => {
+    const html = '<a class="search-title"> Patna <span>external</span></a><a class="search-title">Gaya</a>';
+    expect(parseIgodDistrictHtml(html)).toEqual(["Patna external", "Gaya"]);
   });
 
   it("keeps saved GPS plots local and supports reopening without a server route", () => {

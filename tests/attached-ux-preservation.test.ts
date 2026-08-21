@@ -10,7 +10,8 @@ describe("Attached sequential UX instruction preservation", () => {
     const portal = read("app/dev-portal.tsx");
     expect(portal).toContain('accessibilityLabel="Return to previous screen"');
     expect(portal).toContain("hitSlop={12}");
-    expect(portal).toContain("onPress={() => router.back()}");
+    expect(portal).toContain('const returnToEntry = () => { if (router.canGoBack()) router.back(); else router.replace("/"); }');
+    expect(portal).toContain("onPress={returnToEntry}");
     expect(portal).toContain("server-only Developer Passkey");
     expect(portal).toContain("Password must be at least 12 characters long.");
   });

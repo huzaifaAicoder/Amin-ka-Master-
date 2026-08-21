@@ -9,11 +9,11 @@ const RECENT_CONVERSIONS_KEY = "amin-toolkit.recent-conversions.v1";
 
 export type GeoPoint = { latitude: number; longitude: number; accuracy?: number | null };
 export type SavedPlot = { id: string; name: string; points: GeoPoint[]; createdAt: string };
-export type LandUnit = "acre" | "hectare" | "square_feet" | "square_meters" | "bigha" | "katha" | "dhur";
+export type LandUnit = "acre" | "hectare" | "square_feet" | "square_meters" | "square_yards" | "are" | "cent" | "decimal" | "guntha" | "bigha" | "katha" | "dhur";
 export type RecentConversion = { id: string; stateCode: string; systemId: string; districtOrTehsil: string; amount: number; from: LandUnit; to: LandUnit; createdAt: string };
 
 export const LAND_UNIT_LABELS: Record<LandUnit, string> = {
-  acre: "Acre", hectare: "Hectare", square_feet: "Square feet", square_meters: "Square meter", bigha: "Bigha", katha: "Katha", dhur: "Dhur",
+  acre: "Acre", hectare: "Hectare", square_feet: "Square feet", square_meters: "Square metre", square_yards: "Square yard", are: "Are", cent: "Cent", decimal: "Decimal", guntha: "Guntha", bigha: "Bigha", katha: "Katha", dhur: "Dhur",
 };
 
 export type IndiaState = { code: string; name: string; kind: "state" | "union_territory" };
@@ -32,7 +32,7 @@ const LOCAL_REFERENCE_SYSTEMS: UnitSystem[] = [
   { id: "RJ-pucca-bigha", stateCode: "RJ", state: "Rajasthan", title: "Pucca Bigha reference", geography: "Use only in a district/tehsil that confirms the Pucca Bigha convention", note: "Rajasthan Bigha/Biswa practice is locally variable. Katha and Dhur are intentionally unavailable in this profile.", squareMeters: { bigha: 2_529.285264 }, verification: "district_confirmation_required" },
 ];
 
-const STANDARD_SYSTEMS: UnitSystem[] = INDIA_STATES.map((state) => ({ id: `${state.code}-standard`, stateCode: state.code, state: state.name, title: "Standard units only", geography: `${state.name} · all districts`, note: "Acre, hectare, square feet, and square metres are available. A verified local district profile is not yet catalogued for this selection.", squareMeters: {}, verification: "standard" }));
+const STANDARD_SYSTEMS: UnitSystem[] = INDIA_STATES.map((state) => ({ id: `${state.code}-standard`, stateCode: state.code, state: state.name, title: "Standard units only", geography: `${state.name} · all districts`, note: "Acre, hectare, square feet, square metres, square yards, are, cent, decimal, and guntha are available as fixed area references. A verified local district profile is not yet catalogued for this selection.", squareMeters: {}, verification: "standard" }));
 
 /** Local systems must be actively selected; selecting a state always starts with its safe standard-unit profile. */
 export const LAND_UNIT_SYSTEMS: UnitSystem[] = [...STANDARD_SYSTEMS, ...LOCAL_REFERENCE_SYSTEMS];
@@ -46,8 +46,9 @@ export function standardSystemForIndiaState(stateCode: string) {
 }
 
 function squareMetersPerUnit(unit: LandUnit, systemId: string) {
-  const standard: Record<Exclude<LandUnit, "bigha" | "katha" | "dhur">, number> = { acre: SQ_METERS_PER_ACRE, hectare: 10_000, square_feet: 1 / SQ_METERS_TO_SQ_FEET, square_meters: 1 };
-  if (unit in standard) return standard[unit as keyof typeof standard];
+  const standard: Partial<Record<LandUnit, number>> = { acre: SQ_METERS_PER_ACRE, hectare: 10_000, square_feet: 1 / SQ_METERS_TO_SQ_FEET, square_meters: 1, square_yards: 0.83612736, are: 100, cent: SQ_METERS_PER_ACRE / 100, decimal: SQ_METERS_PER_ACRE / 100, guntha: SQ_METERS_PER_ACRE / 40 };
+  const standardValue = standard[unit];
+  if (standardValue !== undefined) return standardValue;
   return LAND_UNIT_SYSTEMS.find((system) => system.id === systemId)?.squareMeters[unit] ?? null;
 }
 

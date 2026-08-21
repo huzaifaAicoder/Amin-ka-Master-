@@ -9,6 +9,7 @@ import { isDeveloperPortalConfigured, verifyDeveloperPortalPasskey } from "./dev
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
 import { verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
+import { getOfficialDistrictDirectory, IGOD_DISTRICT_DIRECTORY_SOURCE } from "./india-district-directory";
 import { ownerProcedure, protectedProcedure, publicProcedure, requireRoles, router, studentProcedure } from "./_core/trpc";
 import * as db from "./db";
 
@@ -365,6 +366,7 @@ export const appRouter = router({
   }),
   student: router({
     featureOverrides: studentProcedure.query(({ ctx }) => db.getStudentFeatureOverrides(ctx.user.id)),
+    districtDirectory: studentProcedure.input(z.object({ stateCode: z.string().regex(/^[A-Z]{2}$/) })).query(async ({ input }) => ({ sourceUrl: IGOD_DISTRICT_DIRECTORY_SOURCE, districts: await getOfficialDistrictDirectory(input.stateCode) })),
     enrollFree: studentProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
     learning: studentProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
     certificates: studentProcedure.query(({ ctx }) => db.listMyCertificates(ctx.user.id)),

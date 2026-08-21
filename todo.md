@@ -286,3 +286,5 @@
 - [x] Verify and preserve the existing AI Doubt Solver typing indicator and clear chat-history control without duplicating chat state.
 - [x] Validate the Reels buffering and AI chat feedback update and refresh the normal preview branch. GitHub main replacement was declined because the histories are unrelated.
 - [x] Add a retry action that appears only after managed or external Shorts/Reels video playback fails following buffering.
+- [x] Complete and validate Batch 1 Reels modernization only: assess smooth paging, interaction actions, download triggers, and focus-aware playback without replacing existing working media behavior. Existing FlatList paging, active-only auto-play, tap pause, Like/Comment/Share/Save/Download, managed-download authorization, provider retry, and capture protection were preserved; no duplicate rebuild was warranted.
+- [x] Complete and validate Batch 2 only: extend the existing conversion library where verified unit gaps remain and make selected-state district search/dropdown behavior explicit without replacing current state data.
