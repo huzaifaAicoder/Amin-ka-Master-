@@ -222,3 +222,5 @@
 - [x] Add Reels Hub Recent/Name/Size sorting over existing Liked, Saved, and Offline collections.
 - [x] Add a truthful private-storage usage indicator based only on completed protected offline files.
 - [x] Add focused Reels follow-up regression coverage and a native Android/iOS validation runbook.
+
+- [x] Diagnose and repair the preview hang shown as “Loading preview, please wait…” without removing or replacing existing application features.
