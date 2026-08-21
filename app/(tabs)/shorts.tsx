@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useEvent } from "expo";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ScreenCapture from "expo-screen-capture";
@@ -105,11 +106,12 @@ export default function ShortsScreen() {
 
 function ManagedShortPage({ pageHeight, item, active, onLike, onSave, onShare, onComments, onDownload, downloading, liking, saving }: { pageHeight: number; item: ShortItem; active: boolean; onLike: () => void; onSave: () => void; onShare: () => void; onComments: () => void; onDownload: () => void; downloading: boolean; liking: boolean; saving: boolean }) {
   const player = useVideoPlayer(item.videoUrl, (video) => { video.loop = true; });
+  const { status } = useEvent(player, "statusChange", { status: player.status });
   const [playing, setPlaying] = useState(false);
   const flash = useRef(new Animated.Value(0)).current;
   useEffect(() => { if (active) { player.play(); setPlaying(true); } else { player.pause(); setPlaying(false); } }, [active, player]);
   const toggle = () => { const next = !playing; if (next) player.play(); else player.pause(); setPlaying(next); haptic(); flash.setValue(1); Animated.timing(flash, { toValue: 0, duration: 560, useNativeDriver: true }).start(); };
-  return <View style={[styles.page, { height: pageHeight }]}><VideoView style={styles.video} player={player} nativeControls={false} contentFit="cover" surfaceType="textureView" /><Pressable accessibilityLabel={playing ? "Pause Short" : "Play Short"} onPress={toggle} style={StyleSheet.absoluteFill}><Animated.View pointerEvents="none" style={[styles.playFlash, { opacity: flash }]}><MaterialIcons name={playing ? "pause" : "play-arrow"} size={48} color={COLORS.white} /></Animated.View></Pressable><ShortCopy item={item} /><SocialActions item={item} onLike={onLike} onSave={onSave} onShare={onShare} onComments={onComments} onDownload={onDownload} downloading={downloading} liking={liking} saving={saving} /></View>;
+  return <View style={[styles.page, { height: pageHeight }]}><VideoView style={styles.video} player={player} nativeControls={false} contentFit="cover" surfaceType="textureView" />{active && status === "loading" ? <ReelBufferingOverlay label="Buffering Short…" /> : null}<Pressable accessibilityLabel={playing ? "Pause Short" : "Play Short"} onPress={toggle} style={StyleSheet.absoluteFill}><Animated.View pointerEvents="none" style={[styles.playFlash, { opacity: flash }]}><MaterialIcons name={playing ? "pause" : "play-arrow"} size={48} color={COLORS.white} /></Animated.View></Pressable><ShortCopy item={item} /><SocialActions item={item} onLike={onLike} onSave={onSave} onShare={onShare} onComments={onComments} onDownload={onDownload} downloading={downloading} liking={liking} saving={saving} /></View>;
 }
 
 function ExternalShortPage({ pageHeight, item, active, onLike, onSave, onShare, onComments, liking, saving }: { pageHeight: number; item: ShortItem; active: boolean; onLike: () => void; onSave: () => void; onShare: () => void; onComments: () => void; liking: boolean; saving: boolean }) {
@@ -124,6 +126,10 @@ function ExternalShortPage({ pageHeight, item, active, onLike, onSave, onShare, 
 }
 
 function getYouTubeThumbnailUrl(url: string) { const embed = getYouTubeEmbedUrl(url); const match = embed?.match(/\/embed\/([^?]+)/); return match ? `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg` : null; }
+
+function ReelBufferingOverlay({ label }: { label: string }) { return <View pointerEvents="none" accessibilityLiveRegion="polite" accessibilityLabel={label} style={bufferingStyles.overlay}><ActivityIndicator color={COLORS.white} /><Text style={bufferingStyles.label}>{label}</Text></View>; }
+
+const bufferingStyles = StyleSheet.create({ overlay: { position: "absolute", left: "50%", top: "50%", transform: [{ translateX: -76 }, { translateY: -28 }], minWidth: 152, minHeight: 56, borderRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, backgroundColor: "rgba(15,23,42,0.78)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", zIndex: 8 }, label: { color: COLORS.white, fontSize: 12, fontWeight: "800" } });
 
 
 function ShortCopy({ item }: { item: ShortItem }) { return <View pointerEvents="none" style={styles.gradient}><Text style={styles.eyebrow}>AMIN KA MASTER · QUICK LEARN</Text><Text style={styles.shortTitle}>{item.title}</Text>{item.description ? <Text style={styles.shortDescription}>{item.description}</Text> : null}</View>; }

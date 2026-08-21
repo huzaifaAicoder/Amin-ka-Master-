@@ -282,3 +282,6 @@
 - [x] Fix Developer login back navigation with a safe can-go-back fallback to the entry route.
 - [x] Restore AI Doubt Solver keyboard avoidance so the complete composer remains above the native keyboard.
 - [x] Harden YouTube Shorts/Reels WebView playback settings for supported inline embeds and validate the exact provider configuration.
+- [x] Add buffering-state loading feedback to the existing Shorts/Reels players.
+- [x] Verify and preserve the existing AI Doubt Solver typing indicator and clear chat-history control without duplicating chat state.
+- [ ] Validate the Reels buffering and AI chat feedback update, then merge the verified state into GitHub main and refresh the main preview.
