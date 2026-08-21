@@ -262,3 +262,5 @@
 - [x] Enhance the existing AI response waiting state with an accessible typing animation and clear progress feedback without changing chat or image behavior.
 
 - [x] Add Hindi and bilingual translations for the existing AI waiting-stage labels using the saved Student interface-language preference.
+
+- [x] Review the newly attached instructions, inventory equivalent existing functionality, and implement only verified missing or regressed capabilities under the permanent project rule.
