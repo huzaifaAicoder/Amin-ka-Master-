@@ -9,6 +9,9 @@ describe("isolated preview feedback enhancements", () => {
     const player = read("components/external-media-player.tsx");
     expect(shorts).toContain('useEvent(player, "statusChange"');
     expect(shorts).toContain("Buffering Short…");
+    expect(shorts).toContain('status === "error"');
+    expect(shorts).toContain("Retry Short playback");
+    expect(shorts).toContain("player.replaceAsync(item.videoUrl)");
     expect(shorts).toContain("pagingEnabled");
     expect(player).toContain("ProviderLoadingOverlay");
     expect(player).toContain("onLoadEnd={() => setLoading(false)}");

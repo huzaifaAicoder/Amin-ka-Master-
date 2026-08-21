@@ -284,4 +284,5 @@
 - [x] Harden YouTube Shorts/Reels WebView playback settings for supported inline embeds and validate the exact provider configuration.
 - [x] Add buffering-state loading feedback to the existing Shorts/Reels players.
 - [x] Verify and preserve the existing AI Doubt Solver typing indicator and clear chat-history control without duplicating chat state.
-- [ ] Validate the Reels buffering and AI chat feedback update, then merge the verified state into GitHub main and refresh the main preview.
+- [x] Validate the Reels buffering and AI chat feedback update and refresh the normal preview branch. GitHub main replacement was declined because the histories are unrelated.
+- [x] Add a retry action that appears only after managed or external Shorts/Reels video playback fails following buffering.
