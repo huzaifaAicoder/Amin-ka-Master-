@@ -278,3 +278,7 @@
 - [x] Repair the verified Developer Portal Student Shorts-upload control so it updates the server-backed `canUploadShorts` permission rather than the unrelated Shorts visibility override.
 - [x] Investigate and safely reconcile the verified orphaned enrollment, lesson-progress, and test-attempt rows without resetting the database or deleting valid user data.
 - [x] Restore the existing Developer Control Center’s complete mobile tab navigation and feature discoverability, preserving all root controls and cross-role boundaries.
+- [x] Forensically compare the claimed pre–August 20 10:00 PM baseline against the current project, restore only verified lost systems if necessary, preserve Reels improvements, and safely push the verified state to GitHub. (Cancelled by user before any rollback or GitHub push.)
+- [x] Fix Developer login back navigation with a safe can-go-back fallback to the entry route.
+- [x] Restore AI Doubt Solver keyboard avoidance so the complete composer remains above the native keyboard.
+- [x] Harden YouTube Shorts/Reels WebView playback settings for supported inline embeds and validate the exact provider configuration.
