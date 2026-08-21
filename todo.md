@@ -248,5 +248,9 @@
 - [x] Add a desktop-only lesson-player curriculum sidebar without changing mobile lesson playback or authorization.
 - [x] Extend authenticated Android/iOS QA guidance and regression coverage for Wellbeing category bars and desktop lesson navigation.
 
-- [ ] Diagnose and repair the preview shell delay shown as “Loading preview, please wait…” without removing existing features.
+- [x] Diagnose and repair the preview shell delay shown as “Loading preview, please wait…” without removing existing features.
 - [x] Verify and repair the existing Student interface-language toggle and translation behavior without changing protected learning content or navigation.
+
+- [x] Refresh and recheck the managed preview connection after bundle completion.
+- [x] Validate the Student English/Hindi/bilingual language-toggle behavior with authenticated-flow regression coverage.
+- [x] Continue the managed preview-tunnel diagnosis without changing feature behavior or replacing the existing preview architecture.

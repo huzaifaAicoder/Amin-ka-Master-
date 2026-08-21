@@ -35,6 +35,15 @@ Existing historical numeric records remain readable as Lectures for backward com
 | 3 | Teacher/Admin, Owner, Developer | Attempt the `/performance` route after authenticated sign-in. | The screen returns the Student-only message and does not expose another learner’s course, test, or AI Quiz data. |
 | 4 | Student on Android and iOS | Repeat the first two steps after a completed lesson or test. | Metrics reflect the existing server-backed records after refresh. Record device, OS, route, and observed values; do not mark GREEN from browser-only evidence. |
 
+## Student interface-language verification
+
+| Step | Role | Action | Expected result |
+|---|---|---|---|
+| 1 | Student | Sign in and open Home. Tap the language control showing `EN`, `हि`, or `EN/हि`. | The language state cycles English → Hindi → bilingual and the control immediately shows the active mode. |
+| 2 | Student | In each mode, review the Home header, Continue Learning label, AI Doubt Solver card, Study by Topic heading, and Featured Courses heading. | English presents English labels, Hindi presents Hindi labels, and bilingual presents both labels. Course titles, learner names, teacher-entered content, and protected content are not machine-translated or changed. |
+| 3 | Student | Close and reopen the application, then sign out and sign back in on the same device. | The selected interface language persists locally on the device without creating a staff-visible student-profile field. |
+| 4 | Teacher/Admin, Owner, Developer | Open their existing dashboards after a Student changes language. | Their routes, role controls, and business content remain unchanged. |
+
 ## Desktop lesson curriculum verification
 
 | Step | Role | Action | Expected result |
@@ -54,4 +63,4 @@ Existing historical numeric records remain readable as Lectures for backward com
 
 ## QA evidence status
 
-Automated source and regression validation is completed in the project test suite. Physical Android/iOS execution requires the user’s authenticated device sessions and should be recorded as GREEN only after each row is manually observed. Any provider, permission, storage, keyboard, or capture failure should be recorded with the device model, OS version, route, and a reproducible step rather than replaced with mock success.
+Automated source and regression validation is completed in the project test suite. Physical Android/iOS execution requires the user’s authenticated device sessions and should be recorded as GREEN only after each row is manually observed. Any provider, permission, storage, keyboard, capture, or language-persistence failure should be recorded with the device model, OS version, route, and a reproducible step rather than replaced with mock success.
