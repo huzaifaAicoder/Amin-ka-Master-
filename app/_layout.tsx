@@ -32,7 +32,7 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
 function AuthenticationGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useLmsSession();
-  const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { enabled: Boolean(user && user.role !== "developer"), retry: false });
+  const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { enabled: Boolean(user && user.role !== "developer"), retry: false, staleTime: 60_000, gcTime: 5 * 60_000, refetchOnWindowFocus: false });
   const studentOverridesQuery = trpc.student.featureOverrides.useQuery(undefined, { enabled: user?.role === "student", retry: false });
   const router = useRouter();
   const segments = useSegments();

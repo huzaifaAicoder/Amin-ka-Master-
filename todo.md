@@ -226,3 +226,10 @@
 - [x] Diagnose and repair the preview hang shown as “Loading preview, please wait…” without removing or replacing existing application features.
 
 - [x] Restart and verify the development server after the reported outage.
+
+- [x] Calibrate strict Developer > Owner > Teacher/Admin/Staff > Student role hierarchy without removing existing dashboards.
+- [x] Make the Student AI Doubt Solver universal and verify Gemini image payload delivery.
+- [x] Preserve and harden the AI chat keyboard-safe layout with active image preview.
+- [x] Make Digital Wellbeing interactive with a local-data Wellbeing Details screen.
+- [x] Add a lightweight preview/startup performance improvement without weakening development behavior.
+- [x] Complete a feature-recovery and navigation/RBAC regression audit from the attached instruction files.

@@ -35,7 +35,7 @@ export default function LessonScreen() {
   useEffect(() => {
     if (!authorizedLessonId || user?.role !== "student") return;
     let active = true; let startedAt = Date.now();
-    const flush = () => { if (!active) return; const seconds = Math.floor((Date.now() - startedAt) / 1000); startedAt = Date.now(); if (seconds >= 30) void recordLearningSeconds(user.id, seconds); };
+    const flush = () => { if (!active) return; const seconds = Math.floor((Date.now() - startedAt) / 1000); startedAt = Date.now(); if (seconds >= 30) void recordLearningSeconds(user.id, seconds, "Lectures"); };
     const subscription = AppState.addEventListener("change", (nextState) => { if (nextState === "active" && !active) { active = true; startedAt = Date.now(); } else if (nextState !== "active" && active) { flush(); active = false; } });
     return () => { flush(); subscription.remove(); };
   }, [authorizedLessonId, user?.id, user?.role]);

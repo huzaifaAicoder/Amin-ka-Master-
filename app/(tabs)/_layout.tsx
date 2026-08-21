@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { retry: false });
+  const controlsQuery = trpc.catalog.uiSettings.useQuery(undefined, { retry: false, staleTime: 60_000, gcTime: 5 * 60_000, refetchOnWindowFocus: false });
   const flag = (key: string) => typeof controlsQuery.data?.[key as keyof typeof controlsQuery.data] === "boolean" ? Boolean(controlsQuery.data?.[key as keyof typeof controlsQuery.data]) : true;
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;

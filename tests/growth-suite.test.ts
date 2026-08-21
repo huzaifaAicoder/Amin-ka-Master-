@@ -11,7 +11,7 @@ describe("Unified Learning Operations & Growth Suite regression guard", () => {
     expect(router).toContain("studyCoach: protectedProcedure");
     expect(router).toContain("requireStudentAccess(ctx.user.role)");
     expect(router).toContain("learningOperations: requireRoles([\"teacher\", \"admin\", \"super_admin\"])");
-    expect(router).toContain("businessIntelligence: requireRoles([\"super_admin\"])");
+    expect(router).toContain("businessIntelligence: ownerProcedure");
     expect(router).toContain("clientHealth: requireRoles([\"developer\"])");
     expect(router).toContain("requireGrowthSuiteFeature");
   });

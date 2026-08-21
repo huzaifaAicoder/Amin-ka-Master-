@@ -5,6 +5,8 @@ const learningTimeKey = (userId: number) => `amin-ka-master.learning-time.${user
 
 export type ManualStudyTask = { id: string; title: string; detail: string; completed: boolean; createdAt: string; updatedAt: string };
 export type WeeklyLearningTime = { dayKey: string; label: string; seconds: number };
+export type WellbeingCategory = "Lectures" | "Notes" | "Shorts" | "Tests" | "Other";
+export type WellbeingBreakdown = { category: WellbeingCategory; seconds: number };
 
 const dateKey = (date: Date) => date.toISOString().slice(0, 10);
 const dayLabel = (date: Date) => date.toLocaleDateString("en-IN", { weekday: "short" });
@@ -28,12 +30,17 @@ export async function upsertManualStudyTask(userId: number, input: { id?: string
 
 export async function removeManualStudyTask(userId: number, id: string) { return saveManualStudyTasks(userId, (await loadManualStudyTasks(userId)).filter((task) => task.id !== id)); }
 
-export async function recordLearningSeconds(userId: number, seconds: number) {
+export async function recordLearningSeconds(userId: number, seconds: number, category: WellbeingCategory = "Lectures") {
   const bounded = Math.min(Math.max(Math.round(seconds), 0), 10_800); if (bounded < 30) return;
-  try { const value = await AsyncStorage.getItem(learningTimeKey(userId)); const parsed = value ? JSON.parse(value) : {}; const key = dateKey(new Date()); const next = { ...(parsed && typeof parsed === "object" ? parsed : {}), [key]: Math.min(Number((parsed as Record<string, number>)?.[key] ?? 0) + bounded, 86_400) }; await AsyncStorage.setItem(learningTimeKey(userId), JSON.stringify(next)); } catch { /* Local wellbeing data is optional; never block lesson delivery. */ }
+  try { const value = await AsyncStorage.getItem(learningTimeKey(userId)); const parsed = value ? JSON.parse(value) : {}; const key = dateKey(new Date()); const existing = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>)[key] : 0; const day = typeof existing === "number" ? { total: existing, categories: { Lectures: existing } as Partial<Record<WellbeingCategory, number>> } : (existing && typeof existing === "object" ? existing as { total?: number; categories?: Partial<Record<WellbeingCategory, number>> } : { total: 0, categories: {} }); const nextDay = { total: Math.min(Number(day.total ?? 0) + bounded, 86_400), categories: { ...(day.categories ?? {}), [category]: Math.min(Number(day.categories?.[category] ?? 0) + bounded, 86_400) } }; await AsyncStorage.setItem(learningTimeKey(userId), JSON.stringify({ ...(parsed && typeof parsed === "object" ? parsed : {}), [key]: nextDay })); } catch { /* Local wellbeing data is optional; never block lesson delivery. */ }
 }
 
 export async function loadWeeklyLearningTime(userId: number): Promise<WeeklyLearningTime[]> {
-  let stored: Record<string, number> = {}; try { const value = await AsyncStorage.getItem(learningTimeKey(userId)); const parsed = value ? JSON.parse(value) : {}; if (parsed && typeof parsed === "object") stored = parsed; } catch { /* Return zero history below. */ }
-  return Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); const key = dateKey(date); return { dayKey: key, label: dayLabel(date), seconds: Math.max(0, Number(stored[key] ?? 0)) }; });
+  let stored: Record<string, unknown> = {}; try { const value = await AsyncStorage.getItem(learningTimeKey(userId)); const parsed = value ? JSON.parse(value) : {}; if (parsed && typeof parsed === "object") stored = parsed; } catch { /* Return zero history below. */ }
+  return Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); const key = dateKey(date); const entry = stored[key]; const seconds = typeof entry === "number" ? entry : entry && typeof entry === "object" ? Number((entry as { total?: number }).total ?? 0) : 0; return { dayKey: key, label: dayLabel(date), seconds: Math.max(0, seconds) }; });
+}
+
+export async function loadWellbeingBreakdown(userId: number, day = new Date()): Promise<WellbeingBreakdown[]> {
+  const categories: WellbeingCategory[] = ["Lectures", "Notes", "Shorts", "Tests", "Other"];
+  try { const value = await AsyncStorage.getItem(learningTimeKey(userId)); const parsed = value ? JSON.parse(value) : {}; const entry = parsed?.[dateKey(day)]; const categoryData = entry && typeof entry === "object" && (entry as { categories?: unknown }).categories && typeof (entry as { categories?: unknown }).categories === "object" ? (entry as { categories: Partial<Record<WellbeingCategory, number>> }).categories : typeof entry === "number" ? { Lectures: entry } : {}; return categories.map((category) => ({ category, seconds: Math.max(0, Number(categoryData[category] ?? 0)) })); } catch { return categories.map((category) => ({ category, seconds: 0 })); }
 }

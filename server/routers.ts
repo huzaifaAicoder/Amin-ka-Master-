@@ -9,7 +9,7 @@ import { isDeveloperPortalConfigured, verifyDeveloperPortalPasskey } from "./dev
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
 import { verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
-import { protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
+import { ownerProcedure, protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
 import * as db from "./db";
 
 const mobileSchema = z.string().trim().regex(/^\+?[0-9][0-9\-\s]{7,20}$/, "Enter a valid mobile number");
@@ -499,8 +499,8 @@ export const appRouter = router({
       if (!apiKey) return { answer: "AI is temporarily in study mode. Please review the lesson notes and try again shortly.", mode: "fallback" as const, question: input.question };
       try {
         const client = new GoogleGenerativeAI(apiKey);
-        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a helpful and strict educational tutor for Amin Ka Master, focused on Indian land measurement, surveying, revenue records, and exam preparation. Answer educational questions clearly, show steps when useful, and politely refuse non-educational requests. When a Student supplies an image, describe only visible educational details, state uncertainty clearly, and never present your answer as an official land-record verification, legal conclusion, or certified survey.", generationConfig: { maxOutputTokens: 900, temperature: 0.3 } });
-        const prompt = input.image ? [{ text: `${input.question}\n\nThe attached image is provided only for educational analysis. Do not identify people or make legal, ownership, or official-record claims.` }, { inlineData: { data: input.image.base64, mimeType: input.image.mimeType } }] : input.question;
+        const model = client.getGenerativeModel({ model: "gemini-flash-lite-latest", systemInstruction: "You are a Universal Helpful Assistant for Amin Ka Master. Help Students with general knowledge, mathematics, science, writing, exam preparation, Indian land measurement, surveying, revenue records, and practical study questions. Answer clearly and safely, show steps when useful, ask a brief clarifying question when needed, and politely refuse unsafe or disallowed requests. When a Student supplies an image, analyze the inline image together with the question, describe only visible details relevant to the request, state uncertainty clearly, and never present your answer as official land-record verification, legal advice, ownership proof, or a certified survey.", generationConfig: { maxOutputTokens: 900, temperature: 0.3 } });
+        const prompt = input.image ? [{ text: `${input.question}\n\nAn image is attached as inline base64 data. Use both the text and image to answer. If the image is unclear, say what cannot be determined. Do not identify people or make legal, ownership, or official-record claims.` }, { inlineData: { data: input.image.base64.replace(/^data:[^;]+;base64,/, ""), mimeType: input.image.mimeType } }] : input.question;
         const result = await model.generateContent(prompt);
         const answer = result.response.text().trim();
         if (!answer) throw new Error("Gemini returned an empty response");
@@ -857,7 +857,7 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "guardian_report.share_initiated", entityType: "guardian_report", entityId: input.studentUserId, metadata: { notificationId, contactMethod: report.guardianContact.includes("@") ? "email" : "mobile" } });
       return { notificationId };
     }),
-    businessIntelligence: requireRoles(["super_admin"]).query(() => db.getOwnerBusinessIntelligence()),
+    businessIntelligence: ownerProcedure.query(() => db.getOwnerBusinessIntelligence()),
     courses: requireRoles(["teacher", "admin", "super_admin"]).query(async ({ ctx }) => {
       await requireAnyDelegatedPermission(ctx.user, ["courses.manage", "course_content.manage"]);
       return db.listOperationsCourses();
@@ -1042,8 +1042,8 @@ export const appRouter = router({
       await db.writeAudit({ actorUserId: ctx.user.id, action: "live_class.status_changed", entityType: "live_class", entityId: input.liveClassId, metadata: { status: input.status } });
       return { success: true } as const;
     }),
-    masterSettings: requireRoles(["super_admin"]).query(() => db.getOwnerManagedSettings()),
-    saveMasterSettings: requireRoles(["super_admin"]).input(z.object({
+    masterSettings: ownerProcedure.query(() => db.getOwnerManagedSettings()),
+    saveMasterSettings: ownerProcedure.input(z.object({
       appName: z.string().trim().min(2).max(80).optional(), tagline: z.string().trim().max(160).optional(), contactEmail: z.string().trim().email().max(320).optional(), contactPhone: z.string().trim().max(40).optional(), whatsapp: z.string().trim().max(40).optional(), heroTitle: z.string().trim().max(220).optional(), heroSubtitle: z.string().trim().max(500).optional(), heroCta: z.string().trim().max(80).optional(), showLive: z.boolean().optional(), registrationEnabled: z.boolean().optional(), maintenanceEnabled: z.boolean().optional(), supportEmail: z.string().trim().email().max(320).optional().or(z.literal("")), supportPhone: z.string().trim().max(40).optional(), officeInfo: z.string().trim().max(500).optional(), helpIntro: z.string().trim().max(500).optional(), developerName: z.string().trim().max(160).optional(), developerRole: z.string().trim().max(160).optional(), developerProjectInfo: z.string().trim().max(600).optional(), developerContact: z.string().trim().max(320).optional(), developerCopyright: z.string().trim().max(240).optional(),
     })).mutation(async ({ ctx, input }) => {
       const values = {

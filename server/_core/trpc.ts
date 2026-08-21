@@ -37,6 +37,8 @@ export const requireRoles = (roles: Array<"developer" | "teacher" | "admin" | "s
     }),
   );
 
+export const ownerProcedure = requireRoles(["super_admin"]);
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async (opts) => {
     const { ctx, next } = opts;
