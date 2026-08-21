@@ -254,3 +254,7 @@
 - [x] Refresh and recheck the managed preview connection after bundle completion.
 - [x] Validate the Student English/Hindi/bilingual language-toggle behavior with authenticated-flow regression coverage.
 - [x] Continue the managed preview-tunnel diagnosis without changing feature behavior or replacing the existing preview architecture.
+
+- [x] Repair AI Doubt Solver input focus and keyboard avoidance without changing the existing image and chat workflow.
+- [x] Repair the Shorts feed so one full-viewport Reel is active at a time with smooth paging and no attached long-page layout.
+- [x] Repair safe Shorts share and authorized managed-download actions while preserving external-media restrictions and protected storage.
