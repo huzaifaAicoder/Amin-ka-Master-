@@ -3,7 +3,7 @@ import * as ScreenCapture from "expo-screen-capture";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { Card, COLORS, EmptyState, IconCircle, PrimaryButton, Tag } from "@/components/lms-ui";
@@ -15,6 +15,8 @@ export default function LessonScreen() {
   const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
   const router = useRouter();
   const { user } = useLmsSession();
+  const { width } = useWindowDimensions();
+  const desktopLayout = Platform.OS === "web" && width >= 1000;
   const id = Number(lessonId);
   const lessonQuery = trpc.student.lesson.useQuery({ lessonId: id }, { enabled: Boolean(user && Number.isInteger(id) && id > 0), retry: false });
   const authorizedData = lessonQuery.data?.authorized ? lessonQuery.data : undefined;
@@ -85,9 +87,7 @@ export default function LessonScreen() {
         <Text style={styles.courseName}>{course.title.toUpperCase()}</Text>
         <Text style={styles.title}>{lesson.title}</Text>
         <View style={styles.meta}><Tag label={lesson.contentType.toUpperCase()} tone="indigo" /><Text style={styles.metaText}>{Math.ceil(lesson.durationSeconds / 60)} min lesson</Text>{completed ? <Tag label="COMPLETE" tone="green" /> : null}</View>
-        {Platform.OS !== "web" ? <Text style={styles.captureNotice}>Screen capture deterrence is active for authorized lesson content on supported devices.</Text> : null}
-        {lesson.contentType === "video" && lesson.contentUrl ? <LessonVideoPlayer source={lesson.contentUrl} /> : <View style={styles.player}><View style={styles.playerGrid}><MaterialIcons name={lesson.contentType === "video" ? "play-circle-filled" : "menu-book"} size={55} color={COLORS.saffron} /></View><Text style={styles.playerLabel}>{lesson.contentType === "video" ? "This video has not been published with a playback URL yet." : "Lesson reading"}</Text></View>}
-        <Text style={styles.description}>{lesson.description ?? "Study the lesson and record your key takeaways below."}</Text>
+        <View style={[styles.playerRow, desktopLayout && styles.playerRowDesktop]}><View style={styles.playerColumn}>{Platform.OS !== "web" ? <Text style={styles.captureNotice}>Screen capture deterrence is active for authorized lesson content on supported devices.</Text> : null}{lesson.contentType === "video" && lesson.contentUrl ? <LessonVideoPlayer source={lesson.contentUrl} /> : <View style={styles.player}><View style={styles.playerGrid}><MaterialIcons name={lesson.contentType === "video" ? "play-circle-filled" : "menu-book"} size={55} color={COLORS.saffron} /></View><Text style={styles.playerLabel}>{lesson.contentType === "video" ? "This video has not been published with a playback URL yet." : "Lesson reading"}</Text></View>}<Text style={styles.description}>{lesson.description ?? "Study the lesson and record your key takeaways below."}</Text></View>{desktopLayout ? <LessonCurriculum lessons={sequence} currentLessonId={lesson.id} onOpen={(targetId) => router.replace(`/lesson/${targetId}`)} /> : null}</View>
         {lesson.contentType !== "video" ? <Card style={styles.readingCard}><Text style={styles.readingTitle}>Lesson material</Text><Text style={styles.readingText}>{lesson.contentUrl ? "Open the published lesson material, then record your own field notes below." : "The teacher has not added a reading or document link for this lesson yet."}</Text>{lesson.contentUrl ? <Pressable accessibilityRole="link" onPress={() => void openResource(lesson.contentUrl)} style={({ pressed }) => [styles.openMaterial, pressed && styles.pressed]}><MaterialIcons name="open-in-new" size={17} color={COLORS.indigo} /><Text style={styles.openMaterialText}>Open lesson material</Text></Pressable> : null}</Card> : null}
         <PrimaryButton label={completed ? "Lesson completed" : progressMutation.isPending ? "Saving progress…" : "Mark complete"} icon={completed ? "check-circle" : "check"} onPress={complete} disabled={completed || progressMutation.isPending} />
         <Text style={styles.sectionTitle}>Resources</Text>
@@ -109,8 +109,12 @@ function LessonVideoPlayer({ source }: { source: string }) {
   return <View style={styles.videoShell}><VideoView style={styles.video} player={player} nativeControls allowsFullscreen allowsPictureInPicture contentFit="contain" surfaceType="textureView" /></View>;
 }
 
+function LessonCurriculum({ lessons, currentLessonId, onOpen }: { lessons: { id: number; title: string }[]; currentLessonId: number; onOpen: (lessonId: number) => void }) {
+  return <View style={styles.curriculum}><View style={styles.curriculumHeader}><MaterialIcons name="format-list-bulleted" size={18} color={COLORS.indigo} /><Text style={styles.curriculumTitle}>Course curriculum</Text></View><Text style={styles.curriculumSub}>{lessons.length} lesson{lessons.length === 1 ? "" : "s"} in this course</Text><ScrollView style={styles.curriculumList} nestedScrollEnabled showsVerticalScrollIndicator={false}>{lessons.map((item, index) => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: item.id === currentLessonId }} onPress={() => item.id !== currentLessonId && onOpen(item.id)} style={({ pressed }) => [styles.curriculumItem, item.id === currentLessonId && styles.curriculumItemActive, pressed && item.id !== currentLessonId && styles.pressed]}><Text style={[styles.curriculumNumber, item.id === currentLessonId && styles.curriculumNumberActive]}>{index + 1}</Text><Text numberOfLines={2} style={[styles.curriculumText, item.id === currentLessonId && styles.curriculumTextActive]}>{item.title}</Text>{item.id === currentLessonId ? <MaterialIcons name="play-circle" size={18} color={COLORS.indigo} /> : null}</Pressable>)}</ScrollView></View>;
+}
+
 const styles = StyleSheet.create({
-  content: { paddingTop: 10, paddingBottom: 34 },
+  content: { paddingTop: 10, paddingBottom: 34, width: "100%" },
   center: { flex: 1, justifyContent: "center" },
   topbar: { flexDirection: "row", justifyContent: "space-between", marginBottom: 21 },
   iconButton: { width: 42, height: 42, backgroundColor: COLORS.indigoSoft, borderRadius: 14, alignItems: "center", justifyContent: "center" },
@@ -118,7 +122,7 @@ const styles = StyleSheet.create({
   title: { color: COLORS.ink, fontSize: 27, lineHeight: 34, fontWeight: "800", marginTop: 7 },
   meta: { marginTop: 12, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   metaText: { color: COLORS.muted, fontSize: 12 },
-  captureNotice: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 8 },
+  playerRow: { gap: 14 }, playerRowDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 20 }, playerColumn: { flex: 1, minWidth: 0 }, captureNotice: { color: COLORS.muted, fontSize: 11, lineHeight: 16, marginTop: 8 },
   player: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20, justifyContent: "center", alignItems: "center" },
   videoShell: { height: 210, borderRadius: 22, overflow: "hidden", backgroundColor: COLORS.indigo, marginTop: 20 },
   video: { width: "100%", height: "100%" },
@@ -144,5 +148,5 @@ const styles = StyleSheet.create({
   navButton: { flex: 1, minHeight: 45, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
   navDisabled: { opacity: 0.35 },
   navText: { color: COLORS.indigo, fontWeight: "800", fontSize: 13 },
-  pressed: { opacity: 0.74, transform: [{ scale: 0.985 }] },
+  curriculum: { width: 300, maxHeight: 330, marginTop: 20, padding: 13, borderRadius: 18, borderWidth: 1, borderColor: "#C9D5F2", backgroundColor: "#F8FAFF" }, curriculumHeader: { flexDirection: "row", alignItems: "center", gap: 7 }, curriculumTitle: { color: COLORS.ink, fontSize: 14, fontWeight: "900" }, curriculumSub: { color: COLORS.muted, fontSize: 11, marginTop: 4, marginBottom: 8 }, curriculumList: { maxHeight: 240 }, curriculumItem: { minHeight: 47, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: 8 }, curriculumItemActive: { backgroundColor: COLORS.indigoSoft }, curriculumNumber: { width: 19, color: COLORS.muted, fontSize: 11, fontWeight: "900", textAlign: "center" }, curriculumNumberActive: { color: COLORS.indigo }, curriculumText: { flex: 1, color: COLORS.ink, fontSize: 11, lineHeight: 15, fontWeight: "700" }, curriculumTextActive: { color: COLORS.indigo, fontWeight: "900" }, pressed: { opacity: 0.74, transform: [{ scale: 0.985 }] },
 });

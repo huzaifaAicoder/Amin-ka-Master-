@@ -243,3 +243,7 @@
 - [x] Add category-aware private wellbeing tracking for Notes, Tests, and Shorts while preserving existing Lecture records.
 - [x] Improve course-learning responsiveness for desktop and large-screen web without changing the mobile course flow.
 - [x] Extend authenticated Android/iOS QA guidance and regression coverage for Student Performance Insights.
+
+- [x] Add truthful visual activity-category bars to the existing private Wellbeing Details screen.
+- [x] Add a desktop-only lesson-player curriculum sidebar without changing mobile lesson playback or authorization.
+- [x] Extend authenticated Android/iOS QA guidance and regression coverage for Wellbeing category bars and desktop lesson navigation.

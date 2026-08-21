@@ -17,6 +17,13 @@ This runbook covers the two remaining follow-up checks: verifying that real less
 | 7 | Student | Open Study Coach and tap the Weekly learning time graph. | The graph navigates to the same Wellbeing Details route and shows the same local totals. |
 | 8 | Student | Sign out and sign in again on the same device. | Local wellbeing data remains available for the same Student account; no staff-facing endpoint receives it. |
 
+### Visual category bars
+
+| Step | Role | Action | Expected result |
+|---|---|---|---|
+| 1 | Student | After at least two supported categories have recorded time, open Account → Digital Wellbeing. | Each category displays its exact formatted time and a proportional bar relative to the largest category for that day. Zero categories show an empty bar and no fabricated duration. |
+| 2 | Student | Pull to refresh after a new supported activity interval ends. | The existing local breakdown reloads and the affected bar changes with the exact category total. No network request or Staff-facing data is created. |
+
 Existing historical numeric records remain readable as Lectures for backward compatibility. Notes, Tests, and Shorts increase only after their documented activity thresholds are met; the UI never invents category minutes. Other remains available for future explicitly instrumented local activities.
 
 ## Performance Insights verification
@@ -27,6 +34,14 @@ Existing historical numeric records remain readable as Lectures for backward com
 | 2 | Student | Pull to refresh, then open Test History and AI Quiz from the screen. | The screen remains responsive; the links open the existing protected routes and no performance data is written by simply viewing Insights. |
 | 3 | Teacher/Admin, Owner, Developer | Attempt the `/performance` route after authenticated sign-in. | The screen returns the Student-only message and does not expose another learner’s course, test, or AI Quiz data. |
 | 4 | Student on Android and iOS | Repeat the first two steps after a completed lesson or test. | Metrics reflect the existing server-backed records after refresh. Record device, OS, route, and observed values; do not mark GREEN from browser-only evidence. |
+
+## Desktop lesson curriculum verification
+
+| Step | Role | Action | Expected result |
+|---|---|---|---|
+| 1 | Student | On a desktop browser at 1000px or wider, open an authorized lesson with multiple lessons in its course. | A Course curriculum panel appears beside the player, identifies the active lesson, and lists the existing ordered course sequence. |
+| 2 | Student | Select a different lesson in the sidebar. | The app opens the existing authorized lesson route; access checks, protected media, notes, and progress remain unchanged. |
+| 3 | Student | Repeat below 1000px and on Android/iOS. | The sidebar is absent and the original single-column mobile lesson flow remains available. |
 
 ## Authenticated role matrix
 

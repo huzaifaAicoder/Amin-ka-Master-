@@ -19,4 +19,16 @@ describe("Mega Upgrade follow-ups", () => {
     expect(course).toContain("authorized-course-");
     expect(course).toContain("downloadAuthorizedOfflineResource");
   });
+
+  it("keeps Wellbeing category bars and lesson curriculum navigation scoped to real local data and desktop web", () => {
+    const wellbeing = read("app/wellbeing-details.tsx");
+    const lesson = read("app/lesson/[lessonId].tsx");
+    const runbook = read("docs/authenticated-role-qa-runbook.md");
+    expect(wellbeing).toContain("largestCategorySeconds");
+    expect(wellbeing).toContain("categoryTrack");
+    expect(lesson).toContain('Platform.OS === "web" && width >= 1000');
+    expect(lesson).toContain("LessonCurriculum");
+    expect(lesson).toContain("authorized-lesson-");
+    expect(runbook).toContain("Desktop lesson curriculum verification");
+  });
 });
