@@ -233,3 +233,6 @@
 - [x] Make Digital Wellbeing interactive with a local-data Wellbeing Details screen.
 - [x] Add a lightweight preview/startup performance improvement without weakening development behavior.
 - [x] Complete a feature-recovery and navigation/RBAC regression audit from the attached instruction files.
+
+- [x] Verify Digital Wellbeing category records after real lesson activity and confirm the details screen reflects them truthfully.
+- [x] Prepare and execute the strongest available authenticated Android/iOS role-by-role QA pass, documenting any physical-device boundaries.
