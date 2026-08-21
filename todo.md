@@ -247,3 +247,6 @@
 - [x] Add truthful visual activity-category bars to the existing private Wellbeing Details screen.
 - [x] Add a desktop-only lesson-player curriculum sidebar without changing mobile lesson playback or authorization.
 - [x] Extend authenticated Android/iOS QA guidance and regression coverage for Wellbeing category bars and desktop lesson navigation.
+
+- [ ] Diagnose and repair the preview shell delay shown as “Loading preview, please wait…” without removing existing features.
+- [x] Verify and repair the existing Student interface-language toggle and translation behavior without changing protected learning content or navigation.
