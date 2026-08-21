@@ -236,3 +236,6 @@
 
 - [x] Verify Digital Wellbeing category records after real lesson activity and confirm the details screen reflects them truthfully.
 - [x] Prepare and execute the strongest available authenticated Android/iOS role-by-role QA pass, documenting any physical-device boundaries.
+
+- [x] Review the Mega Platform Upgrade instructions, inventory all equivalent existing functionality, and implement only verified missing or regressed capabilities phase by phase.
+- [x] Add an authenticated Student Performance Insights view using existing learning, assessment, AI Quiz, and Study Coach data without creating a duplicate analytics system.
