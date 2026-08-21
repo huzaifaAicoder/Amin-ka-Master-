@@ -25,11 +25,13 @@ describe("Production hardening regression guard", () => {
   it("retains offline Student routing, provider-aware YouTube safeguards, and bounded Shorts virtualization", () => {
     const rootLayout = read("app/_layout.tsx");
     const shorts = read("app/(tabs)/shorts.tsx");
+    const externalPlayer = read("components/external-media-player.tsx");
     const youtube = read("lib/youtube.ts");
     expect(rootLayout).toContain("Network.useNetworkState()");
     expect(rootLayout).toContain("offlineStudent");
     expect(rootLayout).toContain('router.replace("/downloads")');
-    for (const value of ['windowSize={3}', 'maxToRenderPerBatch={2}', 'updateCellsBatchingPeriod={50}', 'removeClippedSubviews={Platform.OS === "android"}', 'Referer: "https://www.youtube.com/"']) expect(shorts).toContain(value);
+    for (const value of ['windowSize={3}', 'maxToRenderPerBatch={2}', 'updateCellsBatchingPeriod={50}', 'removeClippedSubviews={Platform.OS === "android"}']) expect(shorts).toContain(value);
+    expect(externalPlayer).toContain('Referer: "https://www.youtube.com/"');
     expect(youtube).toContain("enablejsapi=1");
     expect(youtube).toContain("origin=https%3A%2F%2Fwww.youtube.com");
   });

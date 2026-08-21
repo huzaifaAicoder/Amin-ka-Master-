@@ -2,12 +2,12 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as ScreenCapture from "expo-screen-capture";
-import { createElement, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, FlatList, Image, Modal, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, Text, TextInput, View, useWindowDimensions, type ViewToken } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { WebView } from "react-native-webview";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { ExternalMediaPlayer, getExternalMediaEmbedUrl } from "@/components/external-media-player";
 import { COLORS, EmptyState, PrimaryButton } from "@/components/lms-ui";
 import { uploadLearningMedia } from "@/lib/media-upload";
 import { trpc } from "@/lib/trpc";
@@ -114,35 +114,17 @@ function ManagedShortPage({ pageHeight, item, active, onLike, onSave, onShare, o
 
 function ExternalShortPage({ pageHeight, item, active, onLike, onSave, onShare, onComments, liking, saving }: { pageHeight: number; item: ShortItem; active: boolean; onLike: () => void; onSave: () => void; onShare: () => void; onComments: () => void; liking: boolean; saving: boolean }) {
   const label = item.sourceType === "youtube" ? "YouTube" : "Instagram";
-  const parsedEmbedUrl = getExternalEmbedUrl(item.sourceType, item.videoUrl) ?? item.videoUrl;
+  const parsedEmbedUrl = getExternalMediaEmbedUrl(item.sourceType === "youtube" ? "youtube" : "instagram", item.videoUrl) ?? item.videoUrl;
   const [embedFailed, setEmbedFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const thumbnailUrl = item.sourceType === "youtube" ? getYouTubeThumbnailUrl(item.videoUrl) : item.thumbnailUrl ?? null;
   useEffect(() => { if (!active) setEmbedFailed(false); }, [active, parsedEmbedUrl]);
-  const isProviderNavigation = (url: string) => item.sourceType === "youtube"
-    ? /(^https:\/\/(www\.)?(youtube\.com|youtube-nocookie\.com|youtu\.be)\/)/i.test(url)
-    : /^https:\/\/(www\.)?instagram\.com\//i.test(url);
   const retryEmbed = () => { setEmbedFailed(false); setRetryKey((value) => value + 1); };
-  return <View style={[styles.page, styles.externalPage, { height: pageHeight }]}><View style={styles.sourceWatermark}><MaterialIcons name={item.sourceType === "youtube" ? "smart-display" : "play-circle-filled"} size={14} color={COLORS.saffron} /><Text style={styles.sourceWatermarkText}>SOURCE: {label.toUpperCase()}</Text></View>{!active && thumbnailUrl ? <Image source={{ uri: thumbnailUrl }} style={styles.externalThumbnail} resizeMode="cover" /> : null}{active && !embedFailed ? <ExternalEmbedPlayer key={`${item.id}-${retryKey}`} sourceType={item.sourceType === "youtube" ? "youtube" : "instagram"} uri={parsedEmbedUrl} isProviderNavigation={isProviderNavigation} onFailure={() => setEmbedFailed(true)} /> : embedFailed ? <View accessibilityLiveRegion="polite" style={styles.externalFallback}><View style={styles.externalIcon}><MaterialIcons name="play-disabled" size={38} color={COLORS.saffron} /></View><Text style={styles.externalTitle}>{label} playback is unavailable</Text><Text style={styles.externalCopy}>This provider did not allow inline playback on this device. The Short and its learning actions are still available.</Text><Pressable accessibilityRole="button" onPress={retryEmbed} style={({ pressed }) => [styles.engagementButton, pressed && styles.engagementButtonPressed]}><MaterialIcons name="refresh" size={18} color={COLORS.white} /><Text style={styles.engagementLabel}>Retry</Text></Pressable></View> : <View style={styles.externalWebView} />}<ShortCopy item={item} /><Pressable accessibilityRole="button" accessibilityLabel={`Share ${label} link`} onPress={onShare} style={({ pressed }) => [styles.externalOpen, pressed && styles.engagementButtonPressed]}><MaterialIcons name="share" size={15} color={COLORS.white} /><Text style={styles.externalOpenText}>Share link</Text></Pressable><SocialActions item={item} onLike={onLike} onSave={onSave} onShare={onShare} onComments={onComments} liking={liking} saving={saving} /></View>;
-}
-
-function ExternalEmbedPlayer({ sourceType, uri, isProviderNavigation, onFailure }: { sourceType: "youtube" | "instagram"; uri: string; isProviderNavigation: (url: string) => boolean; onFailure: () => void }) {
-  if (Platform.OS === "web") {
-    return createElement("iframe", { src: uri, title: `${sourceType} Short`, allow: "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture", allowFullScreen: true, onError: onFailure, style: { width: "100%", height: "100%", border: "0", backgroundColor: "#101A32" } });
-  }
-  const isYouTube = sourceType === "youtube";
-  return <WebView source={{ uri, headers: isYouTube ? { Referer: "https://www.youtube.com/", Origin: "https://www.youtube.com" } : undefined }} style={styles.externalWebView} javaScriptEnabled domStorageEnabled thirdPartyCookiesEnabled allowsFullscreenVideo allowsInlineMediaPlayback mediaPlaybackRequiresUserAction={false} setSupportMultipleWindows={false} userAgent={isYouTube ? "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36" : undefined} onShouldStartLoadWithRequest={(request) => isProviderNavigation(request.url)} onError={onFailure} onHttpError={onFailure} injectedJavaScript={isYouTube ? undefined : `document.addEventListener('click', function(event) { var link = event.target && event.target.closest && event.target.closest('a'); if (link) event.preventDefault(); }, true); true;`} />;
+  return <View style={[styles.page, styles.externalPage, { height: pageHeight }]}><View style={styles.sourceWatermark}><MaterialIcons name={item.sourceType === "youtube" ? "smart-display" : "play-circle-filled"} size={14} color={COLORS.saffron} /><Text style={styles.sourceWatermarkText}>SOURCE: {label.toUpperCase()}</Text></View>{!active && thumbnailUrl ? <Image source={{ uri: thumbnailUrl }} style={styles.externalThumbnail} resizeMode="cover" /> : null}{active && !embedFailed ? <ExternalMediaPlayer key={`${item.id}-${retryKey}`} sourceType={item.sourceType === "youtube" ? "youtube" : "instagram"} uri={parsedEmbedUrl} onFailure={() => setEmbedFailed(true)} style={styles.externalWebView} /> : embedFailed ? <View accessibilityLiveRegion="polite" style={styles.externalFallback}><View style={styles.externalIcon}><MaterialIcons name="play-disabled" size={38} color={COLORS.saffron} /></View><Text style={styles.externalTitle}>{label} playback is unavailable</Text><Text style={styles.externalCopy}>This provider did not allow inline playback on this device. The Short and its learning actions are still available.</Text><Pressable accessibilityRole="button" onPress={retryEmbed} style={({ pressed }) => [styles.engagementButton, pressed && styles.engagementButtonPressed]}><MaterialIcons name="refresh" size={18} color={COLORS.white} /><Text style={styles.engagementLabel}>Retry</Text></Pressable></View> : <View style={styles.externalWebView} />}<ShortCopy item={item} /><Pressable accessibilityRole="button" accessibilityLabel={`Share ${label} link`} onPress={onShare} style={({ pressed }) => [styles.externalOpen, pressed && styles.engagementButtonPressed]}><MaterialIcons name="share" size={15} color={COLORS.white} /><Text style={styles.externalOpenText}>Share link</Text></Pressable><SocialActions item={item} onLike={onLike} onSave={onSave} onShare={onShare} onComments={onComments} liking={liking} saving={saving} /></View>;
 }
 
 function getYouTubeThumbnailUrl(url: string) { const embed = getYouTubeEmbedUrl(url); const match = embed?.match(/\/embed\/([^?]+)/); return match ? `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg` : null; }
 
-function getExternalEmbedUrl(sourceType: ShortItem["sourceType"], url: string) {
-  if (sourceType === "youtube") {
-    return getYouTubeEmbedUrl(url);
-  }
-  const match = url.match(/instagram\.com\/(?:reel|p)\/([^/?#]+)/i);
-  return match ? `https://www.instagram.com/${url.includes("/p/") ? "p" : "reel"}/${match[1]}/embed/captioned/` : null;
-}
 
 function ShortCopy({ item }: { item: ShortItem }) { return <View pointerEvents="none" style={styles.gradient}><Text style={styles.eyebrow}>AMIN KA MASTER · QUICK LEARN</Text><Text style={styles.shortTitle}>{item.title}</Text>{item.description ? <Text style={styles.shortDescription}>{item.description}</Text> : null}</View>; }
 function SocialActions({ item, onLike, onSave, onShare, onComments, onDownload, downloading = false, liking, saving }: { item: ShortItem; onLike: () => void; onSave: () => void; onShare: () => void; onComments: () => void; onDownload?: () => void; downloading?: boolean; liking: boolean; saving: boolean }) { const canDownload = item.sourceType === "managed" && Platform.OS !== "web" && Boolean(onDownload); return <View style={styles.actions}><EngagementButton icon={item.isLiked ? "favorite" : "favorite-border"} label={item.likeCount ? String(item.likeCount) : "Like"} selected={item.isLiked} onPress={onLike} disabled={liking} /><EngagementButton icon="chat-bubble-outline" label={item.commentCount ? String(item.commentCount) : "Comment"} onPress={onComments} /><EngagementButton icon="share" label="Share" onPress={onShare} /><EngagementButton icon={item.isSaved ? "bookmark" : "bookmark-border"} label={item.isSaved ? "Saved" : "Save"} selected={item.isSaved} onPress={onSave} disabled={saving} />{canDownload ? <EngagementButton icon={downloading ? "downloading" : "download"} label={downloading ? "Saving" : "Download"} onPress={onDownload!} disabled={downloading} /> : null}</View>; }

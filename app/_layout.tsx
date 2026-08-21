@@ -43,7 +43,7 @@ function AuthenticationGate({ children }: { children: React.ReactNode }) {
   // Account contains a deliberately role-aware Staff/Owner surface. All other Student tabs
   // remain protected from non-Student sessions by the existing redirect below.
   const isStudentTabRoute = rootSegment === "(tabs)" && segments[1] !== "account";
-  const isStudentPortalRoute = isStudentTabRoute || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions" || rootSegment === "study-coach" || rootSegment === "guardian-reports" || rootSegment === "amin-toolkit" || rootSegment === "toolkit";
+  const isStudentPortalRoute = isStudentTabRoute || rootSegment === "course" || rootSegment === "lesson" || rootSegment === "tests" || rootSegment === "test" || rootSegment === "test-history" || rootSegment === "live" || rootSegment === "notifications" || rootSegment === "sessions" || rootSegment === "study-coach" || rootSegment === "guardian-reports" || rootSegment === "amin-toolkit" || rootSegment === "toolkit" || rootSegment === "ask-ai" || rootSegment === "ai-quiz" || rootSegment === "performance" || rootSegment === "reels-hub" || rootSegment === "saved-shorts" || rootSegment === "free-playlists" || rootSegment === "certificate" || rootSegment === "offline-media" || rootSegment === "pdf-reader" || rootSegment === "wellbeing-details";
   const controls = controlsQuery.data;
   const studentOverrides = studentOverridesQuery.data;
   const networkState = Network.useNetworkState();

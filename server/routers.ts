@@ -9,7 +9,7 @@ import { isDeveloperPortalConfigured, verifyDeveloperPortalPasskey } from "./dev
 import { deliverPasswordResetOtp, isOtpDeliveryConfigured } from "./otp-delivery";
 import { verifyOwnerSetupCode } from "./owner-setup";
 import { verifyStaffPasskeyBootstrap } from "./staff-passkey";
-import { ownerProcedure, protectedProcedure, publicProcedure, requireRoles, router } from "./_core/trpc";
+import { ownerProcedure, protectedProcedure, publicProcedure, requireRoles, router, studentProcedure } from "./_core/trpc";
 import * as db from "./db";
 
 const mobileSchema = z.string().trim().regex(/^\+?[0-9][0-9\-\s]{7,20}$/, "Enter a valid mobile number");
@@ -289,14 +289,12 @@ export const appRouter = router({
       if (user.role === "developer") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Developer accounts must use the private Developer Portal." });
       }
+      if (user.role === "super_admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Owner accounts must use the Owner Portal and Private Owner Passkey/Code." });
+      }
       if (input.portal === "staff") {
         if (!input.staffPasskey) throw new TRPCError({ code: "UNAUTHORIZED", message: "A valid Staff Passkey is required for Staff / Admin Login." });
-        let staffPasskeyValid = await db.verifyActiveStaffPasskey(input.staffPasskey);
-        if (!staffPasskeyValid && user.role === "super_admin" && verifyStaffPasskeyBootstrap(input.staffPasskey)) {
-          const bootstrap = await db.bootstrapStaffPasskey(user.id, input.staffPasskey);
-          staffPasskeyValid = bootstrap.created || await db.verifyActiveStaffPasskey(input.staffPasskey);
-          if (staffPasskeyValid) await db.writeAudit({ actorUserId: user.id, action: "staff_passkey.bootstrapped", entityType: "staff_passkey", metadata: { source: "server_bootstrap" } });
-        }
+        const staffPasskeyValid = await db.verifyActiveStaffPasskey(input.staffPasskey);
         if (!staffPasskeyValid) throw new TRPCError({ code: "UNAUTHORIZED", message: "The Staff Passkey is invalid or has been rotated." });
       }
       const session = await db.createSession(user.id, ctx.req.headers["user-agent"]);
@@ -366,51 +364,46 @@ export const appRouter = router({
     }),
   }),
   student: router({
-    featureOverrides: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "student") return {};
-      return db.getStudentFeatureOverrides(ctx.user.id);
-    }),
-    enrollFree: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
-    learning: protectedProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
-    certificates: protectedProcedure.query(({ ctx }) => db.listMyCertificates(ctx.user.id)),
-    certificate: protectedProcedure.input(z.object({ certificateId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    featureOverrides: studentProcedure.query(({ ctx }) => db.getStudentFeatureOverrides(ctx.user.id)),
+    enrollFree: studentProcedure.input(z.object({ courseId: z.number().int().positive() })).mutation(({ ctx, input }) => db.createFreeEnrollment(ctx.user.id, input.courseId)),
+    learning: studentProcedure.query(({ ctx }) => db.listMyLearning(ctx.user.id)),
+    certificates: studentProcedure.query(({ ctx }) => db.listMyCertificates(ctx.user.id)),
+    certificate: studentProcedure.input(z.object({ certificateId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const certificate = await db.getMyCertificate(ctx.user.id, input.certificateId);
       if (!certificate) throw new TRPCError({ code: "NOT_FOUND", message: "Certificate was not found." });
       return certificate;
     }),
-    courseLearning: protectedProcedure.input(z.object({ courseId: z.number().int().positive() })).query(({ ctx, input }) => db.getCourseLearning(ctx.user.id, input.courseId)),
-    requestResourceDownload: protectedProcedure.input(z.object({ resourceId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only enrolled student accounts can download course materials." });
+    courseLearning: studentProcedure.input(z.object({ courseId: z.number().int().positive() })).query(({ ctx, input }) => db.getCourseLearning(ctx.user.id, input.courseId)),
+    requestResourceDownload: studentProcedure.input(z.object({ resourceId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const result = await db.getAuthorizedResourceDownload(ctx.user.id, input.resourceId);
       if (result.status === "not_enrolled") throw new TRPCError({ code: "FORBIDDEN", message: "An active course enrollment is required to download this material." });
       if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This approved course resource is unavailable for offline download." });
       return result;
     }),
-    requestShortDownload: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
-      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Student accounts can save Shorts offline." });
+    requestShortDownload: studentProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const result = await db.getAuthorizedShortDownload(ctx.user.id, input.shortId);
       if (result.status === "external") throw new TRPCError({ code: "BAD_REQUEST", message: "External media cannot be downloaded directly." });
       if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This managed Short is unavailable for offline download." });
       return result;
     }),
-    lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    lesson: studentProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson) throw new Error("Lesson was not found");
       return lesson;
     }),
-    updateProgress: protectedProcedure.input(z.object({ courseId: z.number().int().positive(), lessonId: z.number().int().positive(), watchedSeconds: z.number().int().min(0).max(24 * 60 * 60), completed: z.boolean() })).mutation(async ({ ctx, input }) => {
+    updateProgress: studentProcedure.input(z.object({ courseId: z.number().int().positive(), lessonId: z.number().int().positive(), watchedSeconds: z.number().int().min(0).max(24 * 60 * 60), completed: z.boolean() })).mutation(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson?.authorized || lesson.course.id !== input.courseId) throw new Error("You do not have access to this lesson");
       await db.updateLessonProgress(ctx.user.id, input);
       return { success: true } as const;
     }),
-    saveNote: protectedProcedure.input(z.object({ lessonId: z.number().int().positive(), body: z.string().trim().min(1).max(6000) })).mutation(async ({ ctx, input }) => {
+    saveNote: studentProcedure.input(z.object({ lessonId: z.number().int().positive(), body: z.string().trim().min(1).max(6000) })).mutation(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson?.authorized) throw new Error("You do not have access to this lesson");
       await db.savePersonalNote(ctx.user.id, input.lessonId, input.body);
       return { success: true } as const;
     }),
-    toggleBookmark: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    toggleBookmark: studentProcedure.input(z.object({ lessonId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson?.authorized) throw new Error("You do not have access to this lesson");
       return { bookmarked: await db.toggleBookmark(ctx.user.id, input.lessonId) };
@@ -437,16 +430,16 @@ export const appRouter = router({
       if (!review) throw new TRPCError({ code: "NOT_FOUND", message: "This assessment attempt was not found." });
       return review;
     }),
-    notifications: protectedProcedure.query(({ ctx }) => db.listMyNotifications(ctx.user.id)),
-    markNotificationRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    notifications: studentProcedure.query(({ ctx }) => db.listMyNotifications(ctx.user.id)),
+    markNotificationRead: studentProcedure.input(z.object({ notificationId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       await db.markNotificationRead(ctx.user.id, input.notificationId);
       return { success: true } as const;
     }),
-    liveClasses: protectedProcedure.query(({ ctx }) => db.listMyLiveClasses(ctx.user.id)),
-    freePlaylists: protectedProcedure.query(() => db.listPublishedFreePlaylists()),
-    shorts: protectedProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
-    savedShorts: protectedProcedure.query(({ ctx }) => db.listSavedShorts(ctx.user.id)),
-    likedShorts: protectedProcedure.query(({ ctx }) => db.listLikedShorts(ctx.user.id)),
+    liveClasses: studentProcedure.query(({ ctx }) => db.listMyLiveClasses(ctx.user.id)),
+    freePlaylists: studentProcedure.query(() => db.listPublishedFreePlaylists()),
+    shorts: studentProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
+    savedShorts: studentProcedure.query(({ ctx }) => db.listSavedShorts(ctx.user.id)),
+    likedShorts: studentProcedure.query(({ ctx }) => db.listLikedShorts(ctx.user.id)),
     toggleShortLike: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       requireStudentAccess(ctx.user.role);
       const result = await db.toggleShortLike(ctx.user.id, input.shortId);
@@ -971,7 +964,8 @@ export const appRouter = router({
       await requireDelegatedPermission(ctx.user, "assessments.manage");
       return db.listOperationsTests();
     }),
-    test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ input }) => {
+    test: requireRoles(["teacher", "admin", "super_admin"]).input(z.object({ testId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      await requireDelegatedPermission(ctx.user, "assessments.manage");
       const result = await db.getOperationsTest(input.testId);
       if (!result) throw new Error("Test was not found");
       return result;

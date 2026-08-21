@@ -270,3 +270,10 @@
 - [x] Verify and restore only confirmed Staff, Owner, Developer, navigation, and RBAC regressions without weakening server-side permissions.
 - [x] Verify database/API preservation, regression coverage, security boundaries, preview behavior, and documented native-device limitations for the full recovery audit.
 - [x] Restore the existing Staff and Owner Account surface that is currently blocked by the broad Student-tab route guard, while keeping Student learning routes inaccessible to non-Students.
+- [ ] Run the authenticated Android and iOS four-role QA runbook for the restored Account route guard, and record device-specific results without bypassing authentication.
+- [x] Execute the attached full-system forensic QA, bug-hunt, and zero-regression stabilization process, repairing only verified defects and documenting evidence for every role boundary.
+- [x] Close the verified Student-only direct-route and API-access gaps affecting Reels Hub, saved Shorts, free playlists, offline viewers, certificates, and wellbeing details without blocking the restored Staff/Owner Account surface.
+- [x] Close the verified Owner authentication bypass in the generic Staff login endpoint so Owner authentication always requires the Owner code flow.
+- [x] Close the verified delegated-permission gap on the Operations single-test query and replace the Reels Hub external-media placeholder with supported playback or a truthful external-action state.
+- [x] Repair the verified Developer Portal Student Shorts-upload control so it updates the server-backed `canUploadShorts` permission rather than the unrelated Shorts visibility override.
+- [x] Investigate and safely reconcile the verified orphaned enrollment, lesson-progress, and test-attempt rows without resetting the database or deleting valid user data.

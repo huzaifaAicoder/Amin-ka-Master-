@@ -82,6 +82,15 @@ describe("LMS security boundaries", () => {
     await expect(caller.student.requestResourceDownload({ resourceId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("keeps private Student learning, certificate, media-library, and notification endpoints out of Staff callers", async () => {
+    const caller = appRouter.createCaller(createContext(admin));
+    await expect(caller.student.learning()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.certificates()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.freePlaylists()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.savedShorts()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.student.notifications()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("keeps timed-test attempts, answer reviews, and explanations inside the student learning role", async () => {
     const caller = appRouter.createCaller(createContext(admin));
     await expect(caller.student.tests()).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -214,6 +223,7 @@ describe("LMS security boundaries", () => {
     const caller = appRouter.createCaller(createContext(teacherWithoutGrant));
     await expect(caller.operations.courses()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.freePlaylists()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.operations.test({ testId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.operations.saveQuestion({ questionId: 1, testId: 1, prompt: "Which field note is required for a boundary survey?", options: ["A", "B", "C", "D"], correctOptionIndex: 0, marks: 1, explanation: "A detailed explanation should remain protected.", displayOrder: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 

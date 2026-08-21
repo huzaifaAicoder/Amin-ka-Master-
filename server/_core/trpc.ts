@@ -27,6 +27,16 @@ const requireUser = t.middleware(async (opts) => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+/** Authentication plus the Student learning-role boundary for private learner data and actions. */
+export const studentProcedure = protectedProcedure.use(
+  t.middleware(({ ctx, next }) => {
+    if (!ctx.user || ctx.user.role !== "student") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "This action is available only in the student learning experience." });
+    }
+    return next({ ctx: { ...ctx, user: ctx.user } });
+  }),
+);
+
 export const requireRoles = (roles: Array<"developer" | "teacher" | "admin" | "super_admin">) =>
   protectedProcedure.use(
     t.middleware(({ ctx, next }) => {

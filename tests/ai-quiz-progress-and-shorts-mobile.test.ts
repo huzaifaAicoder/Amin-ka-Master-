@@ -48,6 +48,7 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
   it("retains the Student dashboard average widget and Android-conscious YouTube feed constraints", () => {
     const home = readProjectFile("app/(tabs)/index.tsx");
     const shorts = readProjectFile("app/(tabs)/shorts.tsx");
+    const externalPlayer = readProjectFile("components/external-media-player.tsx");
     expect(home).toContain("trpc.student.aiQuizStats.useQuery");
     expect(home).toContain("AI QUIZ AVERAGE");
     expect(home).toContain('router.push("/ai-quiz")');
@@ -56,7 +57,7 @@ describe("AI Quiz private progress and Android Shorts safeguards", () => {
     expect(shorts).toContain('decelerationRate="fast"');
     expect(shorts).toContain('removeClippedSubviews={Platform.OS === "android"}');
     expect(shorts).toContain('active && !embedFailed');
-    expect(shorts).toContain('userAgent={isYouTube ? "Mozilla/5.0 (Linux; Android 13; Mobile)');
-    expect(shorts).toContain("getYouTubeEmbedUrl(url)");
+    expect(externalPlayer).toContain('userAgent={isYouTube ? "Mozilla/5.0 (Linux; Android 13; Mobile)');
+    expect(externalPlayer).toContain("getExternalMediaEmbedUrl");
   });
 });
