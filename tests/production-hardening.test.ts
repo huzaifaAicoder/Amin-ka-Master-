@@ -29,7 +29,7 @@ describe("Production hardening regression guard", () => {
     expect(rootLayout).toContain("Network.useNetworkState()");
     expect(rootLayout).toContain("offlineStudent");
     expect(rootLayout).toContain('router.replace("/downloads")');
-    for (const value of ['windowSize={5}', 'maxToRenderPerBatch={3}', 'removeClippedSubviews={Platform.OS === "android"}', 'Referer: "https://www.youtube.com/"']) expect(shorts).toContain(value);
+    for (const value of ['windowSize={3}', 'maxToRenderPerBatch={2}', 'updateCellsBatchingPeriod={50}', 'removeClippedSubviews={Platform.OS === "android"}', 'Referer: "https://www.youtube.com/"']) expect(shorts).toContain(value);
     expect(youtube).toContain("enablejsapi=1");
     expect(youtube).toContain("origin=https%3A%2F%2Fwww.youtube.com");
   });

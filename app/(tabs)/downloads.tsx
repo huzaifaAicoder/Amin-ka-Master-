@@ -18,6 +18,7 @@ export default function DownloadsScreen() {
   const [search, setSearch] = useState("");
   const [retryingId, setRetryingId] = useState<number | null>(null);
   const resourceDownloadMutation = trpc.student.requestResourceDownload.useMutation();
+  const shortDownloadMutation = trpc.student.requestShortDownload.useMutation();
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
     if (Platform.OS === "web" || !FileSystem.documentDirectory) { setResources([]); setFailures([]); setLoading(false); return; }
@@ -42,14 +43,14 @@ export default function DownloadsScreen() {
   const retry = async (failure: OfflineDownloadFailure) => {
     setRetryingId(failure.resourceId);
     try {
-      const issued = await resourceDownloadMutation.mutateAsync({ resourceId: failure.resourceId });
+      const issued = failure.source === "reel" ? await shortDownloadMutation.mutateAsync({ shortId: failure.resourceId }) : await resourceDownloadMutation.mutateAsync({ resourceId: failure.resourceId });
       await downloadAuthorizedOfflineResource(issued, failure.title, failure.kind);
       await clearOfflineDownloadFailure(failure.resourceId);
       await load();
       Alert.alert("Downloaded", `${failure.title} is ready in your private offline library.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Please check your connection and try again.";
-      const next = await recordOfflineDownloadFailure({ resourceId: failure.resourceId, title: failure.title, kind: failure.kind, message });
+      const next = await recordOfflineDownloadFailure({ resourceId: failure.resourceId, title: failure.title, kind: failure.kind, source: failure.source, message });
       setFailures(next);
       Alert.alert("Retry unavailable", message);
     } finally { setRetryingId(null); }

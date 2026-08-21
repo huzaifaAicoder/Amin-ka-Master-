@@ -386,6 +386,13 @@ export const appRouter = router({
       if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This approved course resource is unavailable for offline download." });
       return result;
     }),
+    requestShortDownload: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== "student") throw new TRPCError({ code: "FORBIDDEN", message: "Only Student accounts can save Shorts offline." });
+      const result = await db.getAuthorizedShortDownload(ctx.user.id, input.shortId);
+      if (result.status === "external") throw new TRPCError({ code: "BAD_REQUEST", message: "External media cannot be downloaded directly." });
+      if (result.status !== "authorized") throw new TRPCError({ code: "NOT_FOUND", message: "This managed Short is unavailable for offline download." });
+      return result;
+    }),
     lesson: protectedProcedure.input(z.object({ lessonId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const lesson = await db.getAuthorizedLesson(ctx.user.id, input.lessonId);
       if (!lesson) throw new Error("Lesson was not found");
@@ -439,6 +446,7 @@ export const appRouter = router({
     freePlaylists: protectedProcedure.query(() => db.listPublishedFreePlaylists()),
     shorts: protectedProcedure.query(({ ctx }) => db.listPublishedShorts(ctx.user.id)),
     savedShorts: protectedProcedure.query(({ ctx }) => db.listSavedShorts(ctx.user.id)),
+    likedShorts: protectedProcedure.query(({ ctx }) => db.listLikedShorts(ctx.user.id)),
     toggleShortLike: protectedProcedure.input(z.object({ shortId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       requireStudentAccess(ctx.user.role);
       const result = await db.toggleShortLike(ctx.user.id, input.shortId);

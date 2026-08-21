@@ -2532,3 +2532,35 @@ export async function listManagedResourceDownloadEvents(input: { cursor?: number
   const events = hasMore ? rows.slice(0, input.limit) : rows;
   return { events, nextCursor: hasMore ? events.at(-1)?.event.id ?? null : null };
 }
+
+
+export async function getAuthorizedShortDownload(userId: number, shortId: number) {
+  const database = await getDb();
+  if (!database) throw new Error("Database is unavailable");
+  const [short] = await database.select().from(educationalShorts).where(and(eq(educationalShorts.id, shortId), eq(educationalShorts.status, "published"))).limit(1);
+  if (!short) return { status: "not_found" as const };
+  if (short.sourceType !== "managed") return { status: "external" as const };
+  const key = managedStorageKey(short.videoUrl, short.storageKey);
+  if (!key) return { status: "unavailable" as const };
+  const signedUrl = await storageGetSignedUrl(key);
+  if (!signedUrl) return { status: "unavailable" as const };
+  return { status: "authorized" as const, shortId, title: short.title, signedUrl, resource: { resourceType: "video" as const, mimeType: short.mimeType, sizeBytes: short.sizeBytes } };
+}
+
+
+export async function listLikedShorts(userId: number) {
+  const database = await getDb();
+  if (!database) return [];
+  const rows = await database.select({ short: educationalShorts }).from(shortLikes).innerJoin(educationalShorts, eq(shortLikes.shortId, educationalShorts.id)).where(and(eq(shortLikes.userId, userId), eq(educationalShorts.status, "published"))).orderBy(desc(shortLikes.createdAt));
+  const shorts = rows.map((row) => row.short);
+  if (!shorts.length) return [];
+  const shortIds = shorts.map((short) => short.id);
+  const [likeRows, saveRows] = await Promise.all([
+    database.select({ shortId: shortLikes.shortId }).from(shortLikes).where(inArray(shortLikes.shortId, shortIds)),
+    database.select({ shortId: shortSaves.shortId }).from(shortSaves).where(and(eq(shortSaves.userId, userId), inArray(shortSaves.shortId, shortIds))),
+  ]);
+  const likeCounts = new Map<number, number>();
+  for (const row of likeRows) likeCounts.set(row.shortId, (likeCounts.get(row.shortId) ?? 0) + 1);
+  const savedIds = new Set(saveRows.map((row) => row.shortId));
+  return Promise.all(shorts.map(async (short) => ({ ...short, videoUrl: (await resolveManagedMediaUrl(short.videoUrl, short.storageKey)) ?? short.videoUrl, likeCount: likeCounts.get(short.id) ?? 0, isLiked: true, isSaved: savedIds.has(short.id) })));
+}

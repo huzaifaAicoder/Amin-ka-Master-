@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 const FAILED_DOWNLOADS_KEY = "amin-offline.failed-downloads.v1";
 
 export type OfflineResourceKind = "pdf" | "video";
-export type OfflineDownloadFailure = { resourceId: number; title: string; kind: OfflineResourceKind; message: string; occurredAt: string };
+export type OfflineDownloadFailure = { resourceId: number; title: string; kind: OfflineResourceKind; message: string; occurredAt: string; source?: "course" | "reel" };
 type AuthorizedResource = { signedUrl: string; resource: { resourceType: "pdf" | "video"; mimeType?: string | null } };
 
 function safeFileBase(title: string) {
@@ -51,7 +51,7 @@ export async function loadOfflineDownloadFailures(): Promise<OfflineDownloadFail
   try {
     const raw = await AsyncStorage.getItem(FAILED_DOWNLOADS_KEY);
     const value = raw ? JSON.parse(raw) : [];
-    return Array.isArray(value) ? value.filter((item): item is OfflineDownloadFailure => Boolean(item && Number.isInteger(item.resourceId) && typeof item.title === "string" && (item.kind === "pdf" || item.kind === "video") && typeof item.message === "string" && typeof item.occurredAt === "string")).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)) : [];
+    return Array.isArray(value) ? value.filter((item): item is OfflineDownloadFailure => Boolean(item && Number.isInteger(item.resourceId) && typeof item.title === "string" && (item.kind === "pdf" || item.kind === "video") && typeof item.message === "string" && typeof item.occurredAt === "string" && (item.source === undefined || item.source === "course" || item.source === "reel"))).sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)) : [];
   } catch { return []; }
 }
 
