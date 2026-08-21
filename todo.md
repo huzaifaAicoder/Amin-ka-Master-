@@ -224,3 +224,5 @@
 - [x] Add focused Reels follow-up regression coverage and a native Android/iOS validation runbook.
 
 - [x] Diagnose and repair the preview hang shown as “Loading preview, please wait…” without removing or replacing existing application features.
+
+- [x] Restart and verify the development server after the reported outage.
