@@ -288,3 +288,4 @@
 - [x] Add a retry action that appears only after managed or external Shorts/Reels video playback fails following buffering.
 - [x] Complete and validate Batch 1 Reels modernization only: assess smooth paging, interaction actions, download triggers, and focus-aware playback without replacing existing working media behavior. Existing FlatList paging, active-only auto-play, tap pause, Like/Comment/Share/Save/Download, managed-download authorization, provider retry, and capture protection were preserved; no duplicate rebuild was warranted.
 - [x] Complete and validate Batch 2 only: extend the existing conversion library where verified unit gaps remain and make selected-state district search/dropdown behavior explicit without replacing current state data.
+- [x] Complete and validate Batch 3 only: extend approved media selection sources and repair protected offline playback only where a verified saved-media gap remains.

@@ -6,7 +6,8 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("Preview and Student translation repair", () => {
   it("retains the project’s explicit managed web-preview command without forcing a cache rebuild", () => {
     const pkg = read("package.json");
-    expect(pkg).toContain('cross-env CI=false EXPO_USE_METRO_WORKSPACE_ROOT=1 script -q -e -c');
+    expect(pkg).toContain('cross-env CI=false EXPO_USE_METRO_WORKSPACE_ROOT=1 sh -c');
+    expect(pkg).toContain('tail -f /dev/null | script -q -e -c');
     expect(pkg).toContain('npx expo start --web --port ${EXPO_PORT:-8081}');
     expect(pkg).toContain('concurrently -k');
     expect(pkg).not.toContain('expo start --web --clear');

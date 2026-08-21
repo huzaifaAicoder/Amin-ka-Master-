@@ -92,7 +92,7 @@ const config: ExpoConfig = {
     [
       "expo-image-picker",
       {
-        photosPermission: "Allow $(PRODUCT_NAME) to select a land map or document for an AI study question.",
+        photosPermission: "Allow $(PRODUCT_NAME) to select learning images and videos for AI study questions or approved course media uploads.",
         cameraPermission: "Allow $(PRODUCT_NAME) to take a photo of a land map or document for an AI study question.",
       },
     ],

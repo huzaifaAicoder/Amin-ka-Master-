@@ -3,9 +3,11 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
 
 const FAILED_DOWNLOADS_KEY = "amin-offline.failed-downloads.v1";
+const OFFLINE_MEDIA_INDEX_KEY = "amin-offline.media-index.v1";
 
 export type OfflineResourceKind = "pdf" | "video";
 export type OfflineDownloadFailure = { resourceId: number; title: string; kind: OfflineResourceKind; message: string; occurredAt: string; source?: "course" | "reel" };
+export type OfflineMediaEntry = { resourceId: number; source: "course" | "reel"; uri: string; title: string; kind: OfflineResourceKind; completedAt: string };
 type AuthorizedResource = { signedUrl: string; resource: { resourceType: "pdf" | "video"; mimeType?: string | null } };
 
 function safeFileBase(title: string) {
@@ -22,7 +24,7 @@ function extensionFor(resource: AuthorizedResource["resource"]) {
 /** The only code path that promotes a course resource into protected storage.
  * It downloads to a disposable pending file first, checks it, then moves it into
  * the private library; incomplete bytes can never appear as a completed item. */
-export async function downloadAuthorizedOfflineResource(issued: AuthorizedResource, title: string, expectedKind: OfflineResourceKind) {
+export async function downloadAuthorizedOfflineResource(issued: AuthorizedResource, title: string, expectedKind: OfflineResourceKind, identity?: Pick<OfflineMediaEntry, "resourceId" | "source">) {
   if (Platform.OS === "web") throw new Error("Private offline resources are available in the Android or iOS app. Browser handoff is intentionally disabled.");
   const documentDirectory = FileSystem.documentDirectory;
   if (!documentDirectory) throw new Error("Your device does not provide private app storage.");
@@ -40,11 +42,30 @@ export async function downloadAuthorizedOfflineResource(issued: AuthorizedResour
     const info = await FileSystem.getInfoAsync(result.uri);
     if (!info.exists || !info.size) throw new Error("The file did not finish downloading. Please retry it from Downloads.");
     await FileSystem.moveAsync({ from: result.uri, to: targetUri });
+    if (identity) await recordOfflineMediaEntry({ ...identity, uri: targetUri, title, kind, completedAt: new Date().toISOString() });
     return { uri: targetUri, kind };
   } catch (error) {
     await FileSystem.deleteAsync(pendingUri, { idempotent: true }).catch(() => undefined);
     throw error;
   }
+}
+
+async function recordOfflineMediaEntry(entry: OfflineMediaEntry) {
+  const current = await loadOfflineMediaIndex();
+  const next = [entry, ...current.filter((item) => !(item.resourceId === entry.resourceId && item.source === entry.source))];
+  await AsyncStorage.setItem(OFFLINE_MEDIA_INDEX_KEY, JSON.stringify(next));
+}
+
+/** Returns completed private files only after checking that their saved URI still exists inside app storage. */
+export async function loadOfflineMediaIndex(): Promise<OfflineMediaEntry[]> {
+  try {
+    const raw = await AsyncStorage.getItem(OFFLINE_MEDIA_INDEX_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const entries = parsed.filter((entry): entry is OfflineMediaEntry => Boolean(entry && typeof entry === "object" && Number.isInteger((entry as OfflineMediaEntry).resourceId) && ((entry as OfflineMediaEntry).source === "course" || (entry as OfflineMediaEntry).source === "reel") && typeof (entry as OfflineMediaEntry).uri === "string" && typeof (entry as OfflineMediaEntry).title === "string" && ((entry as OfflineMediaEntry).kind === "pdf" || (entry as OfflineMediaEntry).kind === "video") && typeof (entry as OfflineMediaEntry).completedAt === "string"));
+    const confirmed = await Promise.all(entries.map(async (entry) => ((await FileSystem.getInfoAsync(entry.uri)).exists ? entry : null)));
+    return confirmed.filter((entry): entry is OfflineMediaEntry => Boolean(entry));
+  } catch { return []; }
 }
 
 export async function loadOfflineDownloadFailures(): Promise<OfflineDownloadFailure[]> {
